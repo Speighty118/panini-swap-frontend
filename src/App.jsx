@@ -794,6 +794,19 @@ function SwapDetailScreen({ swapId, onRated }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Light polling while waiting on the other party — avoids the
+  // "I clicked accept, nothing happened" feeling, since the screen
+  // will pick up their acceptance within a few seconds on its own.
+  useEffect(() => {
+    if (!data || ['completed', 'declined', 'disputed'].includes(data.swap.status)) {
+      return;
+    }
+    const interval = setInterval(() => {
+      api.getSwap(token, swapId).then(setData).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [data?.swap?.status, token, swapId]);
+
   if (loading) return <Spinner />;
   if (!data) return <ErrorBanner message={error || 'Swap not found'} onDismiss={() => {}} />;
 
@@ -870,18 +883,34 @@ function SwapDetailScreen({ swapId, onRated }) {
         </div>
       </div>
 
-      {swap.status === 'proposed' && (
-        <div className="flex gap-2">
-          <button onClick={() => act(() => api.declineSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
-            Decline
-          </button>
-          <button onClick={() => act(() => api.acceptSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
-            {busy && <Loader2 className="animate-spin" size={14} />} Accept swap
-          </button>
-        </div>
-      )}
+      {swap.status === 'proposed' && (() => {
+        const myAccepted = isUserA ? swap.user_a_accepted : swap.user_b_accepted;
+        const theirAccepted = isUserA ? swap.user_b_accepted : swap.user_a_accepted;
 
-      {swap.status === 'accepted' && otherUserAddress && (
+        if (myAccepted) {
+          return (
+            <div className="rounded-lg p-4 text-sm flex items-center gap-2" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8', color: '#5A6B5F' }}>
+              <Clock size={16} color="#0B3D2E" />
+              {theirAccepted
+                ? "You've both accepted — loading next steps..."
+                : `You've accepted. Waiting for ${otherName} to accept too — this page will update automatically.`}
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex gap-2">
+            <button onClick={() => act(() => api.declineSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+              Decline
+            </button>
+            <button onClick={() => act(() => api.acceptSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+              {busy && <Loader2 className="animate-spin" size={14} />} Accept swap
+            </button>
+          </div>
+        );
+      })()}
+
+      {swap.status === 'accepted' && otherUserAddress?.address_line1 && otherUserAddress?.city && (
         <div className="rounded-lg p-4" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
           <div className="flex items-center gap-2 mb-2">
             <MapPin size={16} color="#0B3D2E" />
@@ -895,6 +924,12 @@ function SwapDetailScreen({ swapId, onRated }) {
           <button onClick={() => act(() => api.markPosted(token, swap.id))} disabled={busy} className="mt-3 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Package size={15} />} Mark as posted
           </button>
+        </div>
+      )}
+
+      {swap.status === 'accepted' && !(otherUserAddress?.address_line1 && otherUserAddress?.city) && (
+        <div className="rounded-lg p-4 text-sm" style={{ background: '#FBF1D9', border: '1px solid #E8D9A8', color: '#5C4711' }}>
+          Waiting for {otherName} to add their address before you can post. This page will update automatically.
         </div>
       )}
 
@@ -1026,6 +1061,124 @@ function VerifyEmailScreen() {
 }
 
 // =================================================================
+// PROFILE SCREEN
+// Where a user sets their name and postal address. Address fields
+// are only ever revealed to the other party in a swap once both
+// sides have accepted — see SwapDetailScreen / backend getSwap.
+// =================================================================
+function ProfileScreen({ onClose, onSaved }) {
+  const { token, user } = useAuth();
+  const [form, setForm] = useState({
+    name: user.name || '',
+    address_line1: user.address_line1 || '',
+    address_line2: user.address_line2 || '',
+    city: user.city || '',
+    postcode: user.postcode || '',
+    country: user.country || '',
+  });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const hasAddress = Boolean(user.address_line1 && user.city && user.postcode);
+
+  const submit = async () => {
+    if (!form.address_line1 || !form.city || !form.postcode) {
+      setError('Address line 1, city, and postcode are required so swap partners can post to you.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const updated = await api.updateMe(token, form);
+      setSaved(true);
+      onSaved(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6 max-h-[90vh] overflow-y-auto" style={{ background: '#FAF6EC' }}>
+        <h3 className="font-bold mb-1" style={{ color: '#1A1A1A' }}>Your details</h3>
+        <p className="text-sm mb-4" style={{ color: '#5A6B5F' }}>
+          Your address is only shown to a swap partner after you've both accepted a swap.
+        </p>
+
+        {!hasAddress && (
+          <div className="rounded p-3 mb-4 text-sm" style={{ background: '#FBF1D9', color: '#5C4711', border: '1px solid #E8D9A8' }}>
+            Add your address now so you're ready to accept swaps — without it, swap partners won't know where to post stickers.
+          </div>
+        )}
+
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+        {saved && <div className="rounded p-3 mb-4 text-sm" style={{ background: '#E5F1EC', color: '#0B3D2E' }}>Saved!</div>}
+
+        <div className="space-y-3 mb-4">
+          <input
+            placeholder="Name"
+            value={form.name}
+            onChange={set('name')}
+            className="w-full px-3 py-2 rounded text-sm"
+            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          />
+          <input
+            placeholder="Address line 1"
+            value={form.address_line1}
+            onChange={set('address_line1')}
+            className="w-full px-3 py-2 rounded text-sm"
+            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          />
+          <input
+            placeholder="Address line 2 (optional)"
+            value={form.address_line2}
+            onChange={set('address_line2')}
+            className="w-full px-3 py-2 rounded text-sm"
+            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          />
+          <input
+            placeholder="City"
+            value={form.city}
+            onChange={set('city')}
+            className="w-full px-3 py-2 rounded text-sm"
+            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          />
+          <input
+            placeholder="Postcode"
+            value={form.postcode}
+            onChange={set('postcode')}
+            className="w-full px-3 py-2 rounded text-sm"
+            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          />
+          <input
+            placeholder="Country"
+            value={form.country}
+            onChange={set('country')}
+            className="w-full px-3 py-2 rounded text-sm"
+            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+            Close
+          </button>
+          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+            {loading && <Loader2 className="animate-spin" size={14} />}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
 // VERIFICATION BANNER
 // Shown below the header whenever the logged-in user's email isn't
 // verified yet. Lets them trigger a fresh verification email.
@@ -1077,6 +1230,7 @@ export default function PaniniSwapApp() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('dashboard');
   const [activeSwapId, setActiveSwapId] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   // Check for the verify-email route before anything else — this
   // page must work even for a logged-out visitor clicking an email link.
@@ -1113,11 +1267,30 @@ export default function PaniniSwapApp() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium" style={{ color: '#5A6B5F' }}>{user.name}</span>
+            <button onClick={() => setShowProfile(true)} title="Your details"><MapPin size={16} color="#5A6B5F" /></button>
             <button onClick={logout} title="Log out"><LogOut size={16} color="#5A6B5F" /></button>
           </div>
         </header>
 
         {!user.email_verified && <VerificationBanner />}
+        {user.email_verified && !(user.address_line1 && user.city && user.postcode) && (
+          <div
+            className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm"
+            style={{ background: '#FBF1D9', borderBottom: '1px solid #E8D9A8', color: '#5C4711' }}
+          >
+            <span>Add your address so you're ready to accept swaps.</span>
+            <button onClick={() => setShowProfile(true)} className="font-semibold whitespace-nowrap" style={{ color: '#0B3D2E' }}>
+              Add now
+            </button>
+          </div>
+        )}
+
+        {showProfile && (
+          <ProfileScreen
+            onClose={() => setShowProfile(false)}
+            onSaved={(updatedUser) => setUser(updatedUser)}
+          />
+        )}
 
         <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
           {tab === 'dashboard' && <DashboardScreen />}
