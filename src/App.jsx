@@ -902,6 +902,50 @@ function VerifyEmailScreen() {
 }
 
 // =================================================================
+// VERIFICATION BANNER
+// Shown below the header whenever the logged-in user's email isn't
+// verified yet. Lets them trigger a fresh verification email.
+// =================================================================
+function VerificationBanner() {
+  const { token } = useAuth();
+  const [state, setState] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
+
+  const resend = async () => {
+    setState('sending');
+    try {
+      await api.resendVerification(token);
+      setState('sent');
+    } catch {
+      setState('error');
+    }
+  };
+
+  return (
+    <div
+      className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm"
+      style={{ background: '#FBF1D9', borderBottom: '1px solid #E8D9A8', color: '#5C4711' }}
+    >
+      <span>
+        {state === 'sent'
+          ? 'Verification email sent — check your inbox (and spam folder).'
+          : 'Please verify your email to start swaps.'}
+      </span>
+      {state !== 'sent' && (
+        <button
+          onClick={resend}
+          disabled={state === 'sending'}
+          className="font-semibold whitespace-nowrap flex items-center gap-1.5"
+          style={{ color: '#0B3D2E' }}
+        >
+          {state === 'sending' && <Loader2 className="animate-spin" size={12} />}
+          {state === 'error' ? 'Failed — try again' : 'Resend email'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// =================================================================
 // APP SHELL
 // =================================================================
 export default function PaniniSwapApp() {
@@ -948,6 +992,8 @@ export default function PaniniSwapApp() {
             <button onClick={logout} title="Log out"><LogOut size={16} color="#5A6B5F" /></button>
           </div>
         </header>
+
+        {!user.email_verified && <VerificationBanner />}
 
         <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
           {tab === 'dashboard' && <DashboardScreen />}
