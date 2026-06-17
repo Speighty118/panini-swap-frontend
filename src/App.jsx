@@ -44,7 +44,7 @@ const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   me: (token) => request('/auth/me', { token }),
   updateMe: (token, fields) => request('/auth/me', { method: 'PUT', body: fields, token }),
-verifyEmail: (verificationToken) => request('/auth/verify-email', { method: 'POST', body: { token: verificationToken } }),
+  verifyEmail: (verificationToken) => request('/auth/verify-email', { method: 'POST', body: { token: verificationToken } }),
   resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
 
   searchStickers: (token, { search, team } = {}) => {
@@ -823,6 +823,85 @@ function SwapDetailScreen({ swapId, onRated }) {
 }
 
 // =================================================================
+// VERIFY EMAIL SCREEN
+// Reached via the link in the verification email:
+// /verify-email?token=...
+// Standalone — doesn't require an existing session, since the user
+// may click this from their email client without being logged in.
+// =================================================================
+function VerifyEmailScreen() {
+  const [status, setStatus] = useState('verifying'); // 'verifying' | 'success' | 'error'
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (!token) {
+      setStatus('error');
+      setErrorMsg('No verification token found in this link.');
+      return;
+    }
+
+    api.verifyEmail(token)
+      .then(() => setStatus('success'))
+      .catch((err) => {
+        setStatus('error');
+        setErrorMsg(err.message || 'Verification failed.');
+      });
+  }, []);
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center px-5" style={{ background: '#FAF6EC', fontFamily: "'Inter', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap');`}</style>
+      <div className="w-full max-w-sm text-center">
+        <div className="w-14 h-14 rounded mx-auto mb-5 flex items-center justify-center font-black text-lg" style={{ background: '#0B3D2E', color: '#D6A419' }}>26</div>
+
+        {status === 'verifying' && (
+          <>
+            <Loader2 className="animate-spin mx-auto mb-4" size={28} color="#0B3D2E" />
+            <p style={{ color: '#5A6B5F' }}>Verifying your email...</p>
+          </>
+        )}
+
+        {status === 'success' && (
+          <>
+            <CheckCircle2 className="mx-auto mb-4" size={36} color="#0B3D2E" />
+            <h2 className="font-black text-xl mb-2" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Email verified!</h2>
+            <p className="mb-5" style={{ color: '#5A6B5F' }}>Your account is fully active. You can head back to SwapShelf and start swapping.</p>
+            <a
+              href="/"
+              className="inline-block px-6 py-3 rounded font-semibold text-sm"
+              style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+            >
+              Go to SwapShelf
+            </a>
+          </>
+        )}
+
+        {status === 'error' && (
+          <>
+            <X className="mx-auto mb-4" size={36} color="#C8102E" />
+            <h2 className="font-black text-xl mb-2" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Verification failed</h2>
+            <p className="mb-5" style={{ color: '#5A6B5F' }}>{errorMsg}</p>
+            <p className="text-sm" style={{ color: '#5A6B5F' }}>
+              Log in to SwapShelf and use "Resend verification email" from there if your link expired.
+            </p>
+            <a
+              href="/"
+              className="inline-block mt-4 px-6 py-3 rounded font-semibold text-sm"
+              style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+            >
+              Go to SwapShelf
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
 // APP SHELL
 // =================================================================
 export default function PaniniSwapApp() {
@@ -830,6 +909,14 @@ export default function PaniniSwapApp() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('dashboard');
   const [activeSwapId, setActiveSwapId] = useState(null);
+
+  // Check for the verify-email route before anything else — this
+  // page must work even for a logged-out visitor clicking an email link.
+  // Placed after hook declarations so hook call order stays consistent
+  // across renders (Rules of Hooks).
+  if (window.location.pathname === '/verify-email') {
+    return <VerifyEmailScreen />;
+  }
 
   const handleAuthed = (newToken, newUser) => {
     setToken(newToken);
