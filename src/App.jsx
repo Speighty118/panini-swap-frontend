@@ -81,6 +81,23 @@ const api = {
 };
 
 // =================================================================
+// LOGO
+// Two overlapping stickers with a small swap arrow — works at any
+// size, from a 24px header icon to a large standalone mark.
+// `dark` renders the light-on-dark header variant; otherwise the
+// app's main green/gold palette is used regardless of background.
+// =================================================================
+function Logo({ size = 28 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
+      <rect x="14" y="12" width="30" height="38" rx="4" fill="#144D3A" transform="rotate(-10 29 31)" />
+      <rect x="28" y="22" width="30" height="38" rx="4" fill="#D6A419" transform="rotate(8 43 41)" />
+      <path d="M38 30 L38 36 M35 33 L41 33" stroke="#0B3D2E" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// =================================================================
 // Shared UI pieces
 // =================================================================
 function StickerCard({ sticker, onAdd, onRemove, qtyOverride }) {
@@ -218,8 +235,8 @@ function AuthScreen({ onAuthed }) {
     <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: '#FAF6EC' }}>
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2 justify-center mb-8">
-          <div className="w-9 h-9 rounded flex items-center justify-center font-black text-sm" style={{ background: '#0B3D2E', color: '#D6A419' }}>26</div>
-          <span className="font-black text-xl" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>SwapShelf</span>
+          <Logo size={32} />
+          <span className="font-black text-xl" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Got One Spare?</span>
         </div>
 
         <div className="rounded-lg p-6" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
@@ -1014,7 +1031,7 @@ function VerifyEmailScreen() {
     <div className="min-h-screen w-full flex items-center justify-center px-5" style={{ background: '#FAF6EC', fontFamily: "'Inter', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap');`}</style>
       <div className="w-full max-w-sm text-center">
-        <div className="w-14 h-14 rounded mx-auto mb-5 flex items-center justify-center font-black text-lg" style={{ background: '#0B3D2E', color: '#D6A419' }}>26</div>
+        <div className="mb-5 flex justify-center"><Logo size={48} /></div>
 
         {status === 'verifying' && (
           <>
@@ -1027,13 +1044,13 @@ function VerifyEmailScreen() {
           <>
             <CheckCircle2 className="mx-auto mb-4" size={36} color="#0B3D2E" />
             <h2 className="font-black text-xl mb-2" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Email verified!</h2>
-            <p className="mb-5" style={{ color: '#5A6B5F' }}>Your account is fully active. You can head back to SwapShelf and start swapping.</p>
+            <p className="mb-5" style={{ color: '#5A6B5F' }}>Your account is fully active. You can head back to Got One Spare? and start swapping.</p>
             <a
               href="/"
               className="inline-block px-6 py-3 rounded font-semibold text-sm"
               style={{ background: '#0B3D2E', color: '#FAF6EC' }}
             >
-              Go to SwapShelf
+              Go to Got One Spare?
             </a>
           </>
         )}
@@ -1044,14 +1061,14 @@ function VerifyEmailScreen() {
             <h2 className="font-black text-xl mb-2" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Verification failed</h2>
             <p className="mb-5" style={{ color: '#5A6B5F' }}>{errorMsg}</p>
             <p className="text-sm" style={{ color: '#5A6B5F' }}>
-              Log in to SwapShelf and use "Resend verification email" from there if your link expired.
+              Log in to Got One Spare? and use "Resend verification email" from there if your link expired.
             </p>
             <a
               href="/"
               className="inline-block mt-4 px-6 py-3 rounded font-semibold text-sm"
               style={{ background: '#0B3D2E', color: '#FAF6EC' }}
             >
-              Go to SwapShelf
+              Go to Got One Spare?
             </a>
           </>
         )}
@@ -1262,8 +1279,8 @@ export default function PaniniSwapApp() {
 
         <header className="sticky top-0 z-10 px-5 py-4 flex items-center justify-between" style={{ background: '#FAF6EC', borderBottom: '3px solid #0B3D2E' }}>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded flex items-center justify-center font-black text-sm" style={{ background: '#0B3D2E', color: '#D6A419' }}>26</div>
-            <span className="font-black text-lg" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>SwapShelf</span>
+            <Logo size={28} />
+            <span className="font-black text-lg" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Got One Spare?</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium" style={{ color: '#5A6B5F' }}>{user.name}</span>
