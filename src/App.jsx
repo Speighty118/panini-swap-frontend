@@ -44,6 +44,8 @@ const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   me: (token) => request('/auth/me', { token }),
   updateMe: (token, fields) => request('/auth/me', { method: 'PUT', body: fields, token }),
+verifyEmail: (verificationToken) => request('/auth/verify-email', { method: 'POST', body: { token: verificationToken } }),
+  resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
 
   searchStickers: (token, { search, team } = {}) => {
     const params = new URLSearchParams();
