@@ -6,7 +6,7 @@ import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, Ma
 // Point API_BASE at your deployed backend. Every call goes through
 // `request()`, which attaches the auth token and normalizes errors.
 // =================================================================
-const API_BASE = 'https://panini-swap-production-82d9.up.railway.app/api';
+const API_BASE = 'https://panini-swap-production-69ef.up.railway.app/api';
 
 const AuthContext = createContext(null);
 
