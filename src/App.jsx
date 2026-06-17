@@ -74,6 +74,10 @@ const api = {
   submitRating: (token, swapId, stars, comment) =>
     request('/ratings', { method: 'POST', body: { swapId, stars, comment }, token }),
   getUserRatings: (token, userId) => request(`/ratings/user/${userId}`, { token }),
+
+  fileDispute: (token, swapId, reason, details) =>
+    request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
+  getMyDisputes: (token) => request('/disputes/me', { token }),
 };
 
 // =================================================================
@@ -461,6 +465,100 @@ function RatingModal({ swapId, otherUserName, onClose, onSubmitted }) {
 }
 
 // =================================================================
+// DISPUTE MODAL
+// Lets either party in a swap flag a problem. Picks from a fixed
+// set of reasons (matches backend validation) plus optional details.
+// =================================================================
+const DISPUTE_REASONS = [
+  { value: 'never_posted', label: "They never posted their stickers" },
+  { value: 'never_received', label: "I never received the stickers" },
+  { value: 'wrong_item', label: "Wrong or different stickers arrived" },
+  { value: 'no_response', label: "They've stopped responding" },
+  { value: 'other', label: 'Something else' },
+];
+
+function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
+  const { token } = useAuth();
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!reason) {
+      setError('Please select a reason');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await api.fileDispute(token, swapId, reason, details);
+      onFiled();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: '#FAF6EC' }}>
+        <h3 className="font-bold mb-1" style={{ color: '#1A1A1A' }}>Report a problem</h3>
+        <p className="text-sm mb-4" style={{ color: '#5A6B5F' }}>
+          This will flag your swap with {otherUserName} for review and let them know something's wrong.
+        </p>
+
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+        <div className="space-y-2 mb-4">
+          {DISPUTE_REASONS.map((r) => (
+            <label
+              key={r.value}
+              className="flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer"
+              style={{
+                background: reason === r.value ? '#E8E2D2' : 'transparent',
+                border: '1px solid #D4CCB8',
+                color: '#1A1A1A',
+              }}
+            >
+              <input
+                type="radio"
+                name="dispute-reason"
+                value={r.value}
+                checked={reason === r.value}
+                onChange={() => setReason(r.value)}
+              />
+              {r.label}
+            </label>
+          ))}
+        </div>
+
+        <textarea
+          placeholder="Any extra details (optional)"
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2 rounded text-sm mb-4"
+          style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+        />
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+            Cancel
+          </button>
+          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#C8102E', color: '#FAF6EC' }}>
+            {loading && <Loader2 className="animate-spin" size={14} />}
+            Submit report
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
 // DASHBOARD (duplicates + needs), now backed by real API state
 // =================================================================
 function DashboardScreen() {
@@ -679,6 +777,8 @@ function SwapDetailScreen({ swapId, onRated }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showRating, setShowRating] = useState(false);
+  const [showDispute, setShowDispute] = useState(false);
+  const [disputeFiled, setDisputeFiled] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -804,9 +904,21 @@ function SwapDetailScreen({ swapId, onRated }) {
         </button>
       )}
 
+      {swap.status === 'disputed' && (
+        <div className="rounded-lg p-4 text-sm" style={{ background: '#FBEAEA', border: '1px solid #E8B4B4', color: '#9A1F1F' }}>
+          This swap has been flagged for review. {disputeFiled ? "We've notified the other person." : 'Check back for updates.'}
+        </div>
+      )}
+
       {swap.status === 'completed' && (
         <button onClick={() => setShowRating(true)} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#D6A419', color: '#1A1A1A' }}>
           <Star size={15} /> Rate this swap
+        </button>
+      )}
+
+      {!['proposed', 'declined', 'disputed'].includes(swap.status) && (
+        <button onClick={() => setShowDispute(true)} className="w-full text-center text-xs font-medium underline" style={{ color: '#9A1F1F' }}>
+          Report a problem with this swap
         </button>
       )}
 
@@ -816,6 +928,18 @@ function SwapDetailScreen({ swapId, onRated }) {
           otherUserName={otherName}
           onClose={() => setShowRating(false)}
           onSubmitted={onRated}
+        />
+      )}
+
+      {showDispute && (
+        <DisputeModal
+          swapId={swap.id}
+          otherUserName={otherName}
+          onClose={() => setShowDispute(false)}
+          onFiled={() => {
+            setDisputeFiled(true);
+            load();
+          }}
         />
       )}
     </div>
