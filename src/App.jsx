@@ -1603,7 +1603,7 @@ export default function PaniniSwapApp() {
             {[
               { id: 'dashboard', label: 'My album' },
               { id: 'matches', label: 'Matches' },
-              { id: 'mySwaps', label: 'My swaps (v2)' },
+              { id: 'mySwaps', label: 'My swaps' },
             ].map((t) => (
               <button
                 key={t.id}
