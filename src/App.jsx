@@ -576,6 +576,75 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
 }
 
 // =================================================================
+// USER RATINGS MODAL
+// Shows a person's average rating, count, and recent written
+// reviews — reachable by tapping their name on a match or swap.
+// =================================================================
+function UserRatingsModal({ userId, userName, onClose }) {
+  const { token } = useAuth();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api.getUserRatings(token, userId)
+      .then((res) => { if (!cancelled) setData(res); })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [token, userId]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6 max-h-[80vh] overflow-y-auto" style={{ background: '#FAF6EC' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold" style={{ color: '#1A1A1A' }}>{userName}'s reviews</h3>
+          <button onClick={onClose}><X size={18} color="#5A6B5F" /></button>
+        </div>
+
+        {loading && <Spinner />}
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+        {data && (
+          <>
+            <div className="flex items-center gap-2 mb-5 pb-4" style={{ borderBottom: '1px solid #D4CCB8' }}>
+              <StarRating value={data.rating_avg} size={18} />
+              <span className="font-bold text-sm" style={{ color: '#1A1A1A' }}>
+                {data.rating_avg ? Number(data.rating_avg).toFixed(1) : 'No ratings yet'}
+              </span>
+              <span className="text-sm" style={{ color: '#5A6B5F' }}>
+                ({data.rating_count} {data.rating_count === 1 ? 'review' : 'reviews'})
+              </span>
+            </div>
+
+            {data.recentRatings.length === 0 ? (
+              <EmptyState text="No reviews yet — be the first to swap and rate." />
+            ) : (
+              <div className="space-y-3">
+                {data.recentRatings.map((r, i) => (
+                  <div key={i} className="rounded-lg p-3" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>{r.rater_name}</span>
+                      <StarRating value={r.stars} size={12} />
+                    </div>
+                    {r.comment && <p className="text-sm" style={{ color: '#5A6B5F' }}>{r.comment}</p>}
+                    <p className="text-xs mt-1" style={{ color: '#9A9486' }}>
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
 // DASHBOARD (duplicates + needs), now backed by real API state
 // =================================================================
 function DashboardScreen() {
@@ -707,6 +776,7 @@ function MatchesScreen({ onOpenSwap }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [creatingId, setCreatingId] = useState(null);
+  const [viewingRatingsFor, setViewingRatingsFor] = useState(null); // { id, name } | null
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -749,16 +819,20 @@ function MatchesScreen({ onOpenSwap }) {
           {matches.map((m) => (
             <div key={m.id} className="rounded-lg p-4 flex items-center justify-between" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+                <button
+                  onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })}
+                  className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                  style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+                >
                   {m.other_user_name.split(' ').map((p) => p[0]).join('')}
-                </div>
-                <div>
+                </button>
+                <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })} className="text-left">
                   <div className="font-semibold" style={{ color: '#1A1A1A' }}>{m.other_user_name}</div>
                   <div className="flex items-center gap-1.5">
                     <StarRating value={m.rating_avg} size={12} />
                     <span className="text-xs" style={{ color: '#5A6B5F' }}>({m.rating_count})</span>
                   </div>
-                </div>
+                </button>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-2 text-sm font-bold mb-1.5" style={{ color: '#0B3D2E' }}>
@@ -780,6 +854,14 @@ function MatchesScreen({ onOpenSwap }) {
           ))}
         </div>
       )}
+
+      {viewingRatingsFor && (
+        <UserRatingsModal
+          userId={viewingRatingsFor.id}
+          userName={viewingRatingsFor.name}
+          onClose={() => setViewingRatingsFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -796,6 +878,7 @@ function SwapDetailScreen({ swapId, onRated }) {
   const [showRating, setShowRating] = useState(false);
   const [showDispute, setShowDispute] = useState(false);
   const [disputeFiled, setDisputeFiled] = useState(false);
+  const [showOtherRatings, setShowOtherRatings] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -832,6 +915,7 @@ function SwapDetailScreen({ swapId, onRated }) {
   const youGive = items.filter((i) => i.from_user_id === user.id);
   const youReceive = items.filter((i) => i.to_user_id === user.id);
   const otherName = otherUserAddress?.name || (isUserA ? `User #${swap.user_b_id}` : `User #${swap.user_a_id}`);
+  const otherUserId = isUserA ? swap.user_b_id : swap.user_a_id;
 
   const steps = ['proposed', 'accepted', 'posted', 'completed'];
   const currentStep = steps.indexOf(swap.status === 'declined' ? 'proposed' : swap.status);
@@ -861,6 +945,9 @@ function SwapDetailScreen({ swapId, onRated }) {
           <h2 className="text-2xl font-black" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>
             with {otherName}
           </h2>
+          <button onClick={() => setShowOtherRatings(true)} className="text-xs font-semibold underline" style={{ color: '#0B3D2E' }}>
+            View their ratings
+          </button>
         </div>
       </div>
 
@@ -992,6 +1079,14 @@ function SwapDetailScreen({ swapId, onRated }) {
             setDisputeFiled(true);
             load();
           }}
+        />
+      )}
+
+      {showOtherRatings && (
+        <UserRatingsModal
+          userId={otherUserId}
+          userName={otherName}
+          onClose={() => setShowOtherRatings(false)}
         />
       )}
     </div>
