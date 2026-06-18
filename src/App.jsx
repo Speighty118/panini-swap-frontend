@@ -1083,6 +1083,39 @@ function VerifyEmailScreen() {
 // are only ever revealed to the other party in a swap once both
 // sides have accepted — see SwapDetailScreen / backend getSwap.
 // =================================================================
+// =================================================================
+// Resizes/compresses an image file client-side before upload, so a
+// multi-megabyte phone photo doesn't get sent as-is. Returns a JPEG
+// data URL capped at maxDimension on its longest side.
+// =================================================================
+function resizeImageFile(file, maxDimension = 400, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Could not read image'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function ProfileScreen({ onClose, onSaved }) {
   const { token, user } = useAuth();
   const [form, setForm] = useState({
@@ -1092,12 +1125,33 @@ function ProfileScreen({ onClose, onSaved }) {
     city: user.city || '',
     postcode: user.postcode || '',
     country: user.country || '',
+    profile_photo: user.profile_photo || null,
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.');
+      return;
+    }
+    setPhotoProcessing(true);
+    setError(null);
+    try {
+      const resized = await resizeImageFile(file);
+      setForm((f) => ({ ...f, profile_photo: resized }));
+    } catch {
+      setError('Could not process that image — try a different file.');
+    } finally {
+      setPhotoProcessing(false);
+    }
+  };
 
   const hasAddress = Boolean(user.address_line1 && user.city && user.postcode);
 
@@ -1135,6 +1189,29 @@ function ProfileScreen({ onClose, onSaved }) {
 
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
         {saved && <div className="rounded p-3 mb-4 text-sm" style={{ background: '#E5F1EC', color: '#0B3D2E' }}>Saved!</div>}
+
+        <div className="flex items-center gap-4 mb-4">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{ background: '#0B3D2E' }}
+          >
+            {form.profile_photo ? (
+              <img src={form.profile_photo} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="font-black text-lg" style={{ color: '#D6A419' }}>
+                {(form.name || '?').charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <label
+            className="text-sm font-semibold cursor-pointer flex items-center gap-2"
+            style={{ color: '#0B3D2E' }}
+          >
+            {photoProcessing && <Loader2 className="animate-spin" size={14} />}
+            {form.profile_photo ? 'Change photo' : 'Add a photo'}
+            <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" disabled={photoProcessing} />
+          </label>
+        </div>
 
         <div className="space-y-3 mb-4">
           <input
@@ -1283,8 +1360,20 @@ export default function PaniniSwapApp() {
             <span className="font-black text-lg" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Got One Spare?</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium" style={{ color: '#5A6B5F' }}>{user.name}</span>
-            <button onClick={() => setShowProfile(true)} title="Your details"><MapPin size={16} color="#5A6B5F" /></button>
+            <button
+              onClick={() => setShowProfile(true)}
+              title="Your details"
+              className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
+              style={{ background: '#0B3D2E' }}
+            >
+              {user.profile_photo ? (
+                <img src={user.profile_photo} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-black text-xs" style={{ color: '#D6A419' }}>
+                  {(user.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
             <button onClick={logout} title="Log out"><LogOut size={16} color="#5A6B5F" /></button>
           </div>
         </header>
