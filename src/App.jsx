@@ -64,6 +64,7 @@ const api = {
   removeNeed: (token, stickerId) => request(`/stickers/me/needs/${stickerId}`, { method: 'DELETE', token }),
 
   getMatches: (token) => request('/swaps/matches', { token }),
+  getMySwaps: (token) => request('/swaps/mine', { token }),
   createSwap: (token, matchId) => request('/swaps', { method: 'POST', body: { matchId }, token }),
   getSwap: (token, swapId) => request(`/swaps/${swapId}`, { token }),
   acceptSwap: (token, swapId) => request(`/swaps/${swapId}/accept`, { method: 'POST', token }),
@@ -867,6 +868,84 @@ function MatchesScreen({ onOpenSwap }) {
 }
 
 // =================================================================
+// MY SWAPS SCREEN
+// History of every swap the user is part of, any status — lets
+// someone revisit a past or completed swap once it's no longer a
+// pending match.
+// =================================================================
+const SWAP_STATUS_LABELS = {
+  proposed: 'Awaiting acceptance',
+  accepted: 'Accepted — ready to post',
+  posted: 'Posted',
+  completed: 'Completed',
+  declined: 'Declined',
+  disputed: 'Disputed',
+};
+
+const SWAP_STATUS_COLORS = {
+  proposed: { bg: '#FBF1D9', text: '#5C4711' },
+  accepted: { bg: '#E5F1EC', text: '#0B3D2E' },
+  posted: { bg: '#E5F1EC', text: '#0B3D2E' },
+  completed: { bg: '#0B3D2E', text: '#FAF6EC' },
+  declined: { bg: '#E8E2D2', text: '#5A6B5F' },
+  disputed: { bg: '#FBEAEA', text: '#9A1F1F' },
+};
+
+function MySwapsScreen({ onOpenSwap }) {
+  const { token } = useAuth();
+  const [swaps, setSwaps] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.getMySwaps(token)
+      .then(setSwaps)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      <SectionHeader eyebrow="History" title="My swaps" />
+      <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+      {swaps.length === 0 ? (
+        <EmptyState text="No swaps yet — propose one from your matches." />
+      ) : (
+        <div className="space-y-3">
+          {swaps.map((s) => {
+            const colors = SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onOpenSwap(s.id)}
+                className="w-full rounded-lg p-4 flex items-center justify-between text-left"
+                style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+                    {s.other_user_name.split(' ').map((p) => p[0]).join('')}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm" style={{ color: '#1A1A1A' }}>{s.other_user_name}</div>
+                    <div className="text-xs" style={{ color: '#5A6B5F' }}>Swap #{s.id}</div>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: colors.bg, color: colors.text }}>
+                  {SWAP_STATUS_LABELS[s.status] || s.status}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =================================================================
 // SWAP DETAIL SCREEN
 // =================================================================
 function SwapDetailScreen({ swapId, onRated }) {
@@ -1503,6 +1582,14 @@ export default function PaniniSwapApp() {
               }}
             />
           )}
+          {tab === 'mySwaps' && (
+            <MySwapsScreen
+              onOpenSwap={(swapId) => {
+                setActiveSwapId(swapId);
+                setTab('swap');
+              }}
+            />
+          )}
           {tab === 'swap' && activeSwapId && (
             <SwapDetailScreen swapId={activeSwapId} onRated={() => setTab('dashboard')} />
           )}
@@ -1516,7 +1603,7 @@ export default function PaniniSwapApp() {
             {[
               { id: 'dashboard', label: 'My album' },
               { id: 'matches', label: 'Matches' },
-              { id: 'swap', label: 'Active swap' },
+              { id: 'mySwaps', label: 'My swaps (v2)' },
             ].map((t) => (
               <button
                 key={t.id}
