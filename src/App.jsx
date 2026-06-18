@@ -1494,11 +1494,12 @@ function VerificationBanner() {
 // APP SHELL
 // =================================================================
 export default function PaniniSwapApp() {
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(() => localStorage.getItem('authToken') || null);
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('dashboard');
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(Boolean(localStorage.getItem('authToken')));
 
   // Check for the verify-email route before anything else — this
   // page must work even for a logged-out visitor clicking an email link.
@@ -1509,15 +1510,48 @@ export default function PaniniSwapApp() {
   }
 
   const handleAuthed = (newToken, newUser) => {
+    localStorage.setItem('authToken', newToken);
     setToken(newToken);
     setUser(newUser);
   };
 
   const logout = () => {
+    localStorage.removeItem('authToken');
     setToken(null);
     setUser(null);
     setTab('dashboard');
   };
+
+  // On first load, if a token was saved from a previous session,
+  // validate it against the server and refresh the user object.
+  // This also catches accounts suspended/deactivated since the
+  // token was issued — /api/auth/me now rejects those with a 403,
+  // which we treat the same as an expired session: log out cleanly.
+  useEffect(() => {
+    if (!token) {
+      setCheckingSession(false);
+      return;
+    }
+    api.me(token)
+      .then((freshUser) => setUser(freshUser))
+      .catch(() => {
+        localStorage.removeItem('authToken');
+        setToken(null);
+        setUser(null);
+      })
+      .finally(() => setCheckingSession(false));
+    // Only run this on mount — token changes from login/logout are
+    // already handled directly by handleAuthed/logout above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#FAF6EC' }}>
+        <Spinner />
+      </div>
+    );
+  }
 
   if (!token || !user) {
     return <AuthScreen onAuthed={handleAuthed} />;
