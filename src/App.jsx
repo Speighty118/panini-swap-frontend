@@ -82,92 +82,161 @@ const api = {
 };
 
 // =================================================================
-// LOGO
-// Two overlapping stickers with a small swap arrow — works at any
-// size, from a 24px header icon to a large standalone mark.
-// `dark` renders the light-on-dark header variant; otherwise the
-// app's main green/gold palette is used regardless of background.
+// DESIGN TOKENS
+// New palette matching the modern teal/blue/white reference design.
+// Injected as CSS custom properties so every component can use them
+// without prop-drilling colors through every element.
 // =================================================================
-function Logo({ size = 28 }) {
+const DESIGN_TOKENS = `
+  :root {
+    --primary: #1AAB8A;
+    --primary-light: #C8F0E5;
+    --primary-dark: #0E7A63;
+    --blue: #5B9BD5;
+    --blue-light: #D6E8F7;
+    --navy: #1A1F36;
+    --bg: #F5F6FA;
+    --surface: #FFFFFF;
+    --border: rgba(0,0,0,0.08);
+    --text-primary: #1A1F36;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+    --danger: #EF4444;
+    --danger-light: #FEE2E2;
+    --warning: #F59E0B;
+    --warning-light: #FEF3C7;
+    --success: #10B981;
+    --success-light: #D1FAE5;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+  }
+  body { background: var(--bg); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  * { box-sizing: border-box; }
+  button { cursor: pointer; border: none; background: none; padding: 0; font: inherit; }
+  input, textarea, select { font: inherit; }
+`;
+
+// =================================================================
+// LOGO — square rounded mark with two overlapping stickers
+// =================================================================
+function Logo({ size = 32 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
-      <rect x="14" y="12" width="30" height="38" rx="4" fill="#144D3A" transform="rotate(-10 29 31)" />
-      <rect x="28" y="22" width="30" height="38" rx="4" fill="#D6A419" transform="rotate(8 43 41)" />
-      <path d="M38 30 L38 36 M35 33 L41 33" stroke="#0B3D2E" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
+    <div style={{
+      width: size, height: size, borderRadius: 8,
+      background: 'var(--navy)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 72 72">
+        <rect x="14" y="12" width="30" height="38" rx="4" fill="rgba(255,255,255,0.2)" transform="rotate(-10 29 31)" />
+        <rect x="28" y="22" width="30" height="38" rx="4" fill="var(--primary)" transform="rotate(8 43 41)" />
+        <path d="M38 30 L38 36 M35 33 L41 33" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    </div>
   );
 }
 
 // =================================================================
 // Shared UI pieces
 // =================================================================
-function StickerCard({ sticker, onAdd, onRemove, qtyOverride }) {
-  const isShiny = sticker.is_shiny;
+function StickerCard({ sticker, onAdd, onRemove, qtyOverride, mode = 'duplicate' }) {
   const qty = qtyOverride ?? sticker.quantity;
+  const isDuplicate = mode === 'duplicate' || sticker.quantity !== undefined;
+  const bgColor = isDuplicate ? 'var(--blue-light)' : 'var(--primary-light)';
+  const badgeColor = isDuplicate ? 'var(--blue)' : 'var(--primary)';
+
   return (
     <div
       className="relative group"
       style={{
-        background: isShiny
-          ? 'linear-gradient(135deg, #D6A419 0%, #F0D584 25%, #D6A419 50%, #F0D584 75%, #D6A419 100%)'
-          : '#E8E2D2',
-        clipPath:
-          'polygon(0% 4px, 4px 4px, 4px 0%, calc(100% - 4px) 0%, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0% calc(100% - 4px))',
-        padding: '12px 14px',
-        minHeight: '72px',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        overflow: 'hidden',
+        cursor: onRemove ? 'default' : 'pointer',
       }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div
-            className="text-[11px] font-bold tracking-wider"
-            style={{ fontFamily: "'JetBrains Mono', monospace", color: isShiny ? '#3D2E0B' : '#0B3D2E' }}
+      <div style={{ position: 'relative' }}>
+        <div style={{ background: bgColor, height: 96, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {isDuplicate ? (
+            <svg width="60" height="60" viewBox="0 0 60 60" style={{ opacity: 0.35 }}>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <line key={i} x1={i * 12 - 20} y1={0} x2={i * 12 + 40} y2={60} stroke={badgeColor} strokeWidth="6" />
+              ))}
+            </svg>
+          ) : (
+            <Plus size={20} color={badgeColor} style={{ opacity: 0.5 }} />
+          )}
+        </div>
+        <div style={{
+          position: 'absolute', top: 8, left: 8,
+          background: badgeColor, color: 'white',
+          fontSize: 11, fontWeight: 600, padding: '2px 8px',
+          borderRadius: 'var(--radius-full)',
+        }}>
+          {sticker.sticker_number}
+        </div>
+        {qty > 1 && (
+          <div style={{
+            position: 'absolute', top: 8, right: 8,
+            background: 'var(--danger)', color: 'white',
+            fontSize: 11, fontWeight: 600, padding: '2px 7px',
+            borderRadius: 'var(--radius-full)',
+          }}>
+            ×{qty}
+          </div>
+        )}
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              background: 'var(--danger)', color: 'white',
+              width: 24, height: 24, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: 0, transition: 'opacity 0.15s',
+            }}
+            className="group-hover:opacity-100"
           >
-            {sticker.sticker_number}
-          </div>
-          <div className="text-sm font-semibold leading-tight mt-0.5 truncate" style={{ color: '#1A1A1A' }} title={sticker.description}>
-            {sticker.description}
-          </div>
-          <div className="text-xs mt-0.5 truncate" style={{ color: isShiny ? '#5C4711' : '#5A6B5F' }}>
-            {sticker.team_name}
-          </div>
+            <X size={12} />
+          </button>
+        )}
+        {onAdd && (
+          <button
+            onClick={onAdd}
+            style={{
+              position: 'absolute', inset: 0, background: 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: badgeColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Plus size={16} color="white" />
+            </div>
+          </button>
+        )}
+      </div>
+      <div style={{ padding: '8px 10px 10px' }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sticker.description}>
+          {sticker.description?.split(' - ')[0] || sticker.description}
         </div>
       </div>
-      {qty > 1 && (
-        <div
-          className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-          style={{ background: '#C8102E', color: '#FAF6EC' }}
-        >
-          ×{qty}
-        </div>
-      )}
-      {onAdd && (
-        <button onClick={onAdd} className="absolute bottom-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-transform hover:scale-110" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
-          <Plus size={14} />
-        </button>
-      )}
-      {onRemove && (
-        <button onClick={onRemove} className="absolute bottom-2 right-2 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: '#C8102E', color: '#FAF6EC' }}>
-          <X size={14} />
-        </button>
-      )}
     </div>
   );
 }
 
 function StarRating({ value, size = 14, onChange }) {
   return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <button
-          key={i}
-          type="button"
-          disabled={!onChange}
-          onClick={() => onChange && onChange(i)}
-          style={{ cursor: onChange ? 'pointer' : 'default', lineHeight: 0 }}
-        >
-          <Star size={size} fill={i <= Math.round(value) ? '#D6A419' : 'none'} stroke={i <= Math.round(value) ? '#D6A419' : '#9A9486'} />
-        </button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star
+          key={n}
+          size={size}
+          fill={n <= Math.round(value || 0) ? 'var(--warning)' : 'none'}
+          color={n <= Math.round(value || 0) ? 'var(--warning)' : 'var(--text-muted)'}
+          style={{ cursor: onChange ? 'pointer' : 'default' }}
+          onClick={() => onChange?.(n)}
+        />
       ))}
     </div>
   );
@@ -175,14 +244,10 @@ function StarRating({ value, size = 14, onChange }) {
 
 function SectionHeader({ eyebrow, title, action }) {
   return (
-    <div className="flex items-end justify-between mb-4">
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
       <div>
-        <div className="text-[11px] font-bold tracking-[0.15em] uppercase mb-1" style={{ color: '#0B3D2E', fontFamily: "'JetBrains Mono', monospace" }}>
-          {eyebrow}
-        </div>
-        <h2 className="text-2xl font-black tracking-tight" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>
-          {title}
-        </h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'inline' }}>{title}</h2>
+        {eyebrow && <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 8 }}>{eyebrow}</span>}
       </div>
       {action}
     </div>
@@ -192,18 +257,51 @@ function SectionHeader({ eyebrow, title, action }) {
 function ErrorBanner({ message, onDismiss }) {
   if (!message) return null;
   return (
-    <div className="rounded p-3 mb-4 flex items-center justify-between text-sm" style={{ background: '#FBEAEA', color: '#9A1F1F', border: '1px solid #E8B4B4' }}>
-      <span>{message}</span>
-      <button onClick={onDismiss}><X size={14} /></button>
+    <div style={{ background: 'var(--danger-light)', border: '1px solid #FCA5A5', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <span style={{ fontSize: 13, color: '#991B1B' }}>{message}</span>
+      <button onClick={onDismiss} style={{ color: '#991B1B', flexShrink: 0 }}><X size={16} /></button>
     </div>
   );
 }
 
 function Spinner() {
   return (
-    <div className="flex items-center justify-center py-12">
-      <Loader2 className="animate-spin" size={24} color="#0B3D2E" />
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+      <Loader2 size={24} color="var(--primary)" className="animate-spin" />
     </div>
+  );
+}
+
+function EmptyState({ text }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: 14, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
+      {text}
+    </div>
+  );
+}
+
+function Btn({ onClick, disabled, children, variant = 'primary', size = 'md', style: extraStyle }) {
+  const base = {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    fontWeight: 600, borderRadius: 'var(--radius-sm)',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.6 : 1,
+    transition: 'opacity 0.15s',
+    border: 'none',
+    fontSize: size === 'sm' ? 13 : 14,
+    padding: size === 'sm' ? '6px 14px' : '10px 18px',
+  };
+  const variants = {
+    primary: { background: 'var(--primary)', color: 'white' },
+    navy: { background: 'var(--navy)', color: 'white' },
+    outline: { background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border)' },
+    danger: { background: 'var(--danger)', color: 'white' },
+    ghost: { background: 'transparent', color: 'var(--text-secondary)' },
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extraStyle }}>
+      {children}
+    </button>
   );
 }
 
@@ -211,12 +309,18 @@ function Spinner() {
 // AUTH SCREENS
 // =================================================================
 function AuthScreen({ onAuthed }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const inputStyle = {
+    width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--border)', background: 'var(--bg)',
+    fontSize: 14, color: 'var(--text-primary)', outline: 'none',
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -233,66 +337,40 @@ function AuthScreen({ onAuthed }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: '#FAF6EC' }}>
-      <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2 justify-center mb-8">
-          <Logo size={32} />
-          <span className="font-black text-xl" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Got One Spare?</span>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--bg)' }}>
+      <style>{DESIGN_TOKENS}</style>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 32 }}>
+          <Logo size={40} />
+          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Got One Spare?</span>
         </div>
 
-        <div className="rounded-lg p-6" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
-          <h1 className="text-lg font-bold mb-4" style={{ color: '#1A1A1A' }}>
-            {mode === 'login' ? 'Log in' : 'Create your account'}
+        <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20, marginTop: 0 }}>
+            {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </h1>
 
           <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-          <form onSubmit={submit} className="space-y-3">
+          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {mode === 'signup' && (
-              <input
-                type="text"
-                placeholder="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-3 py-2 rounded text-sm"
-                style={{ background: '#FAF6EC', border: '1px solid #D4CCB8' }}
-              />
+              <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
             )}
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 rounded text-sm"
-              style={{ background: '#FAF6EC', border: '1px solid #D4CCB8' }}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              className="w-full px-3 py-2 rounded text-sm"
-              style={{ background: '#FAF6EC', border: '1px solid #D4CCB8' }}
-            />
+            <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} />
+            <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} style={inputStyle} />
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2"
-              style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+              style={{ width: '100%', padding: '12px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontSize: 15, fontWeight: 600, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}
             >
-              {loading && <Loader2 className="animate-spin" size={14} />}
+              {loading && <Loader2 className="animate-spin" size={16} />}
               {mode === 'login' ? 'Log in' : 'Sign up'}
             </button>
           </form>
 
           <button
             onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-            className="w-full text-center text-xs mt-4 font-medium"
-            style={{ color: '#5A6B5F' }}
+            style={{ width: '100%', textAlign: 'center', fontSize: 13, marginTop: 16, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
           </button>
@@ -350,19 +428,19 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(11,61,46,0.4)' }}>
-      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[85vh] flex flex-col" style={{ background: '#FAF6EC' }}>
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid #D4CCB8' }}>
-          <h3 className="font-bold" style={{ color: '#1A1A1A' }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[85vh] flex flex-col" style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>
             {mode === 'duplicate' ? 'Add a duplicate' : 'Add to your needs'}
           </h3>
-          <button onClick={onClose}><X size={18} color="#5A6B5F" /></button>
+          <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
         <div className="p-4">
           <ErrorBanner message={error} onDismiss={() => setError(null)} />
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" color="#9A9486" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" color="var(--text-muted)" />
             <input
               autoFocus
               type="text"
@@ -370,7 +448,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2.5 rounded text-sm"
-              style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+              style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
             />
           </div>
         </div>
@@ -378,7 +456,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {loading && <Spinner />}
           {!loading && query && results.length === 0 && (
-            <div className="text-center text-sm py-8" style={{ color: '#9A9486' }}>No stickers found for "{query}"</div>
+            <div className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>No stickers found for "{query}"</div>
           )}
           <div className="space-y-2">
             {results.map((s) => (
@@ -387,14 +465,14 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                 onClick={() => setSelected(s)}
                 className="w-full text-left p-3 rounded flex items-center justify-between"
                 style={{
-                  background: selected?.id === s.id ? '#D6A419' : '#E8E2D2',
-                  border: selected?.id === s.id ? '2px solid #0B3D2E' : '1px solid #D4CCB8',
+                  background: selected?.id === s.id ? 'var(--warning)' : 'var(--bg)',
+                  border: selected?.id === s.id ? '2px solid var(--primary-dark)' : '1px solid var(--border)',
                 }}
               >
                 <div>
-                  <span className="text-xs font-bold font-mono mr-2" style={{ color: '#0B3D2E' }}>{s.sticker_number}</span>
-                  <span className="text-sm font-medium" style={{ color: '#1A1A1A' }}>{s.description}</span>
-                  <div className="text-xs" style={{ color: '#5A6B5F' }}>{s.team_name}</div>
+                  <span className="text-xs font-bold font-mono mr-2" style={{ color: 'var(--primary-dark)' }}>{s.sticker_number}</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{s.description}</span>
+                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{s.team_name}</div>
                 </div>
               </button>
             ))}
@@ -402,18 +480,18 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
         </div>
 
         {selected && (
-          <div className="p-4" style={{ borderTop: '1px solid #D4CCB8' }}>
+          <div className="p-4" style={{ borderTop: '1px solid var(--border)' }}>
             {mode === 'duplicate' && (
               <div className="flex items-center gap-3 mb-3">
-                <span className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Quantity:</span>
+                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Quantity:</span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: '#E8E2D2' }}>-</button>
+                  <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: 'var(--bg)' }}>-</button>
                   <span className="w-6 text-center font-bold">{quantity}</span>
-                  <button onClick={() => setQuantity((q) => q + 1)} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: '#E8E2D2' }}>+</button>
+                  <button onClick={() => setQuantity((q) => q + 1)} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: 'var(--bg)' }}>+</button>
                 </div>
               </div>
             )}
-            <button onClick={confirm} className="w-full py-2.5 rounded text-sm font-semibold" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+            <button onClick={confirm} className="w-full py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
               Add {selected.sticker_number}
             </button>
           </div>
@@ -448,10 +526,10 @@ function RatingModal({ swapId, otherUserName, onClose, onSubmitted }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: '#FAF6EC' }}>
-        <h3 className="font-bold mb-1" style={{ color: '#1A1A1A' }}>Rate your swap</h3>
-        <p className="text-sm mb-4" style={{ color: '#5A6B5F' }}>How was trading with {otherUserName}?</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: 'var(--surface)' }}>
+        <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Rate your swap</h3>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>How was trading with {otherUserName}?</p>
 
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
@@ -465,14 +543,14 @@ function RatingModal({ swapId, otherUserName, onClose, onSubmitted }) {
           onChange={(e) => setComment(e.target.value)}
           rows={3}
           className="w-full px-3 py-2 rounded text-sm mb-4"
-          style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
         />
 
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
             Skip
           </button>
-          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {loading && <Loader2 className="animate-spin" size={14} />}
             Submit
           </button>
@@ -521,10 +599,10 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: '#FAF6EC' }}>
-        <h3 className="font-bold mb-1" style={{ color: '#1A1A1A' }}>Report a problem</h3>
-        <p className="text-sm mb-4" style={{ color: '#5A6B5F' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: 'var(--surface)' }}>
+        <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Report a problem</h3>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
           This will flag your swap with {otherUserName} for review and let them know something's wrong.
         </p>
 
@@ -536,9 +614,9 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
               key={r.value}
               className="flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer"
               style={{
-                background: reason === r.value ? '#E8E2D2' : 'transparent',
-                border: '1px solid #D4CCB8',
-                color: '#1A1A1A',
+                background: reason === r.value ? 'var(--bg)' : 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
               }}
             >
               <input
@@ -559,14 +637,14 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
           onChange={(e) => setDetails(e.target.value)}
           rows={3}
           className="w-full px-3 py-2 rounded text-sm mb-4"
-          style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+          style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
         />
 
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
             Cancel
           </button>
-          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#C8102E', color: '#FAF6EC' }}>
+          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--danger)', color: 'var(--surface)' }}>
             {loading && <Loader2 className="animate-spin" size={14} />}
             Submit report
           </button>
@@ -598,11 +676,11 @@ function UserRatingsModal({ userId, userName, onClose }) {
   }, [token, userId]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6 max-h-[80vh] overflow-y-auto" style={{ background: '#FAF6EC' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold" style={{ color: '#1A1A1A' }}>{userName}'s reviews</h3>
-          <button onClick={onClose}><X size={18} color="#5A6B5F" /></button>
+          <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>{userName}'s reviews</h3>
+          <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
         {loading && <Spinner />}
@@ -610,12 +688,12 @@ function UserRatingsModal({ userId, userName, onClose }) {
 
         {data && (
           <>
-            <div className="flex items-center gap-2 mb-5 pb-4" style={{ borderBottom: '1px solid #D4CCB8' }}>
+            <div className="flex items-center gap-2 mb-5 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
               <StarRating value={data.rating_avg} size={18} />
-              <span className="font-bold text-sm" style={{ color: '#1A1A1A' }}>
+              <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
                 {data.rating_avg ? Number(data.rating_avg).toFixed(1) : 'No ratings yet'}
               </span>
-              <span className="text-sm" style={{ color: '#5A6B5F' }}>
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 ({data.rating_count} {data.rating_count === 1 ? 'review' : 'reviews'})
               </span>
             </div>
@@ -625,13 +703,13 @@ function UserRatingsModal({ userId, userName, onClose }) {
             ) : (
               <div className="space-y-3">
                 {data.recentRatings.map((r, i) => (
-                  <div key={i} className="rounded-lg p-3" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
+                  <div key={i} className="rounded-lg p-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>{r.rater_name}</span>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{r.rater_name}</span>
                       <StarRating value={r.stars} size={12} />
                     </div>
-                    {r.comment && <p className="text-sm" style={{ color: '#5A6B5F' }}>{r.comment}</p>}
-                    <p className="text-xs mt-1" style={{ color: '#9A9486' }}>
+                    {r.comment && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{r.comment}</p>}
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                       {new Date(r.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -694,41 +772,52 @@ function DashboardScreen() {
 
   if (loading) return <Spinner />;
 
+  const totalSpares = duplicates.reduce((s, d) => s + d.quantity, 0);
+  const totalNeeds = needs.length;
+  const totalStickers = 980;
+  const completionPct = Math.round(((totalStickers - totalNeeds) / totalStickers) * 100);
+
   return (
-    <div className="space-y-8">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-      <div className="rounded-lg p-5 flex items-center justify-between" style={{ background: '#0B3D2E' }}>
-        <div>
-          <div className="text-xs font-medium tracking-wide uppercase" style={{ color: '#A8C4B4' }}>Duplicates listed</div>
-          <div className="text-3xl font-black mt-1" style={{ color: '#FAF6EC', fontFamily: "'Archivo Black', sans-serif" }}>
-            {duplicates.reduce((s, d) => s + d.quantity, 0)}
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Duplicates listed</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--primary)', lineHeight: 1 }}>{totalSpares}</div>
         </div>
-        <div className="text-right">
-          <div className="text-xs font-medium tracking-wide uppercase" style={{ color: '#A8C4B4' }}>Needs listed</div>
-          <div className="text-3xl font-black mt-1" style={{ color: '#D6A419', fontFamily: "'Archivo Black', sans-serif" }}>
-            {needs.length}
-          </div>
+        <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Needs listed</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--primary)', lineHeight: 1 }}>{totalNeeds}</div>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', padding: '16px 20px', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Album completion</span>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{totalStickers - totalNeeds} / {totalStickers} · {completionPct}%</span>
+        </div>
+        <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-full)', height: 6, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--blue)', height: '100%', width: `${completionPct}%`, borderRadius: 'var(--radius-full)', transition: 'width 0.5s ease' }} />
         </div>
       </div>
 
       <div>
         <SectionHeader
-          eyebrow="Spares"
           title="Your duplicates"
+          eyebrow="Spares"
           action={
-            <button onClick={() => setPicker('duplicate')} className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
-              <Plus size={15} /> Add
-            </button>
+            <Btn variant="navy" size="sm" onClick={() => setPicker('duplicate')}>
+              <Plus size={14} /> Add
+            </Btn>
           }
         />
         {duplicates.length === 0 ? (
           <EmptyState text="No duplicates listed yet. Add the stickers you've got spare so others can find them." />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {duplicates.map((s) => (
-              <StickerCard key={s.sticker_id} sticker={s} onRemove={() => removeDuplicate(s.sticker_id)} />
+              <StickerCard key={s.sticker_id} sticker={s} mode="duplicate" onRemove={() => removeDuplicate(s.sticker_id)} />
             ))}
           </div>
         )}
@@ -736,34 +825,26 @@ function DashboardScreen() {
 
       <div>
         <SectionHeader
-          eyebrow="Wanted"
           title="Your needs"
+          eyebrow="Wanted"
           action={
-            <button onClick={() => setPicker('need')} className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold border-2" style={{ borderColor: '#0B3D2E', color: '#0B3D2E' }}>
-              <Plus size={15} /> Add
-            </button>
+            <Btn variant="outline" size="sm" onClick={() => setPicker('need')}>
+              <Plus size={14} /> Add
+            </Btn>
           }
         />
         {needs.length === 0 ? (
           <EmptyState text="No needs listed yet. Add what you're missing so we can match you up." />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {needs.map((s) => (
-              <StickerCard key={s.sticker_id} sticker={s} onRemove={() => removeNeed(s.sticker_id)} />
+              <StickerCard key={s.sticker_id} sticker={s} mode="need" onRemove={() => removeNeed(s.sticker_id)} />
             ))}
           </div>
         )}
       </div>
 
       {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={load} />}
-    </div>
-  );
-}
-
-function EmptyState({ text }) {
-  return (
-    <div className="rounded-lg p-6 text-center text-sm" style={{ background: '#E8E2D2', color: '#5A6B5F', border: '1px dashed #B8AE94' }}>
-      {text}
     </div>
   );
 }
@@ -777,7 +858,7 @@ function MatchesScreen({ onOpenSwap }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [creatingId, setCreatingId] = useState(null);
-  const [viewingRatingsFor, setViewingRatingsFor] = useState(null); // { id, name } | null
+  const [viewingRatingsFor, setViewingRatingsFor] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -810,46 +891,38 @@ function MatchesScreen({ onOpenSwap }) {
 
   return (
     <div>
-      <SectionHeader eyebrow="Found for you" title="Potential swaps" />
+      <SectionHeader eyebrow="Found for you" title="Matches" />
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
       {matches.length === 0 ? (
         <EmptyState text="No matches yet — list more duplicates and needs to improve your chances." />
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {matches.map((m) => (
-            <div key={m.id} className="rounded-lg p-4 flex items-center justify-between" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
-              <div className="flex items-center gap-3">
+            <div key={m.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                 <button
                   onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })}
-                  className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-                  style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+                  style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}
                 >
                   {m.other_user_name.split(' ').map((p) => p[0]).join('')}
                 </button>
-                <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })} className="text-left">
-                  <div className="font-semibold" style={{ color: '#1A1A1A' }}>{m.other_user_name}</div>
-                  <div className="flex items-center gap-1.5">
+                <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })} style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{m.other_user_name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                     <StarRating value={m.rating_avg} size={12} />
-                    <span className="text-xs" style={{ color: '#5A6B5F' }}>({m.rating_count})</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>({m.rating_count})</span>
                   </div>
                 </button>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-sm font-bold mb-1.5" style={{ color: '#0B3D2E' }}>
-                  <span>You give {m.a_gives_b_count}</span>
-                  <ArrowRightLeft size={13} />
-                  <span>You get {m.b_gives_a_count}</span>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                  <span>{m.a_gives_b_count} ↔ {m.b_gives_a_count}</span>
                 </div>
-                <button
-                  onClick={() => proposeSwap(m.id)}
-                  disabled={creatingId === m.id}
-                  className="px-4 py-1.5 rounded text-sm font-semibold flex items-center gap-2"
-                  style={{ background: '#D6A419', color: '#1A1A1A' }}
-                >
-                  {creatingId === m.id && <Loader2 className="animate-spin" size={13} />}
-                  Review swap
-                </button>
+                <Btn variant="primary" size="sm" onClick={() => proposeSwap(m.id)} disabled={creatingId === m.id}>
+                  {creatingId === m.id && <Loader2 className="animate-spin" size={12} />}
+                  View swap
+                </Btn>
               </div>
             </div>
           ))}
@@ -875,7 +948,7 @@ function MatchesScreen({ onOpenSwap }) {
 // =================================================================
 const SWAP_STATUS_LABELS = {
   proposed: 'Awaiting acceptance',
-  accepted: 'Accepted — ready to post',
+  accepted: 'Ready to post',
   posted: 'Posted',
   completed: 'Completed',
   declined: 'Declined',
@@ -883,12 +956,12 @@ const SWAP_STATUS_LABELS = {
 };
 
 const SWAP_STATUS_COLORS = {
-  proposed: { bg: '#FBF1D9', text: '#5C4711' },
-  accepted: { bg: '#E5F1EC', text: '#0B3D2E' },
-  posted: { bg: '#E5F1EC', text: '#0B3D2E' },
-  completed: { bg: '#0B3D2E', text: '#FAF6EC' },
-  declined: { bg: '#E8E2D2', text: '#5A6B5F' },
-  disputed: { bg: '#FBEAEA', text: '#9A1F1F' },
+  proposed: { bg: 'var(--warning-light)', text: '#92400E' },
+  accepted: { bg: 'var(--success-light)', text: '#065F46' },
+  posted: { bg: 'var(--success-light)', text: '#065F46' },
+  completed: { bg: 'var(--primary)', text: 'white' },
+  declined: { bg: 'var(--bg)', text: 'var(--text-muted)' },
+  disputed: { bg: 'var(--danger-light)', text: '#991B1B' },
 };
 
 function MySwapsScreen({ onOpenSwap }) {
@@ -914,26 +987,25 @@ function MySwapsScreen({ onOpenSwap }) {
       {swaps.length === 0 ? (
         <EmptyState text="No swaps yet — propose one from your matches." />
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {swaps.map((s) => {
             const colors = SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
             return (
               <button
                 key={s.id}
                 onClick={() => onOpenSwap(s.id)}
-                className="w-full rounded-lg p-4 flex items-center justify-between text-left"
-                style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
                     {s.other_user_name.split(' ').map((p) => p[0]).join('')}
                   </div>
                   <div>
-                    <div className="font-semibold text-sm" style={{ color: '#1A1A1A' }}>{s.other_user_name}</div>
-                    <div className="text-xs" style={{ color: '#5A6B5F' }}>Swap #{s.id}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Swap #{s.id}</div>
                   </div>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: colors.bg, color: colors.text }}>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: colors.bg, color: colors.text, flexShrink: 0 }}>
                   {SWAP_STATUS_LABELS[s.status] || s.status}
                 </span>
               </button>
@@ -1018,13 +1090,13 @@ function SwapDetailScreen({ swapId, onRated }) {
 
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-[11px] font-bold tracking-[0.15em] uppercase mb-1" style={{ color: '#0B3D2E', fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-[11px] font-bold tracking-[0.15em] uppercase mb-1" style={{ color: 'var(--primary-dark)', fontFamily: 'monospace' }}>
             Swap #{swap.id}
           </div>
-          <h2 className="text-2xl font-black" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>
+          <h2 className="text-2xl font-black" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
             with {otherName}
           </h2>
-          <button onClick={() => setShowOtherRatings(true)} className="text-xs font-semibold underline" style={{ color: '#0B3D2E' }}>
+          <button onClick={() => setShowOtherRatings(true)} className="text-xs font-semibold underline" style={{ color: 'var(--primary-dark)' }}>
             View their ratings
           </button>
         </div>
@@ -1035,12 +1107,12 @@ function SwapDetailScreen({ swapId, onRated }) {
           {['Proposed', 'Accepted', 'Posted', 'Done'].map((label, i) => (
             <React.Fragment key={label}>
               <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: i <= currentStep ? '#0B3D2E' : '#E8E2D2', color: i <= currentStep ? '#FAF6EC' : '#9A9486' }}>
+                <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: i <= currentStep ? 'var(--primary-dark)' : 'var(--bg)', color: i <= currentStep ? 'var(--surface)' : 'var(--text-muted)' }}>
                   {i < currentStep ? <CheckCircle2 size={15} /> : i === currentStep ? <Clock size={14} /> : i + 1}
                 </div>
-                <span className="text-[10px] font-medium" style={{ color: i <= currentStep ? '#0B3D2E' : '#9A9486' }}>{label}</span>
+                <span className="text-[10px] font-medium" style={{ color: i <= currentStep ? 'var(--primary-dark)' : 'var(--text-muted)' }}>{label}</span>
               </div>
-              {i < 3 && <div className="flex-1 h-0.5 mb-4" style={{ background: i < currentStep ? '#0B3D2E' : '#D4CCB8' }} />}
+              {i < 3 && <div className="flex-1 h-0.5 mb-4" style={{ background: i < currentStep ? 'var(--primary-dark)' : 'var(--border)' }} />}
             </React.Fragment>
           ))}
         </div>
@@ -1048,18 +1120,18 @@ function SwapDetailScreen({ swapId, onRated }) {
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-4 items-start">
         <div>
-          <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: '#C8102E' }}>You send</div>
+          <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--danger)' }}>You send</div>
           <div className="grid grid-cols-1 gap-2">
             {youGive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
           </div>
         </div>
         <div className="flex justify-center">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center rotate-90 md:rotate-0" style={{ background: '#D6A419' }}>
-            <ArrowRightLeft size={18} color="#1A1A1A" />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center rotate-90 md:rotate-0" style={{ background: 'var(--warning)' }}>
+            <ArrowRightLeft size={18} color="var(--text-primary)" />
           </div>
         </div>
         <div>
-          <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: '#0B3D2E' }}>You receive</div>
+          <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--primary-dark)' }}>You receive</div>
           <div className="grid grid-cols-1 gap-2">
             {youReceive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
           </div>
@@ -1072,8 +1144,8 @@ function SwapDetailScreen({ swapId, onRated }) {
 
         if (myAccepted) {
           return (
-            <div className="rounded-lg p-4 text-sm flex items-center gap-2" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8', color: '#5A6B5F' }}>
-              <Clock size={16} color="#0B3D2E" />
+            <div className="rounded-lg p-4 text-sm flex items-center gap-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+              <Clock size={16} color="var(--primary-dark)" />
               {theirAccepted
                 ? "You've both accepted — loading next steps..."
                 : `You've accepted. Waiting for ${otherName} to accept too — this page will update automatically.`}
@@ -1083,10 +1155,10 @@ function SwapDetailScreen({ swapId, onRated }) {
 
         return (
           <div className="flex gap-2">
-            <button onClick={() => act(() => api.declineSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+            <button onClick={() => act(() => api.declineSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
               Decline
             </button>
-            <button onClick={() => act(() => api.acceptSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+            <button onClick={() => act(() => api.acceptSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
               {busy && <Loader2 className="animate-spin" size={14} />} Accept swap
             </button>
           </div>
@@ -1094,17 +1166,17 @@ function SwapDetailScreen({ swapId, onRated }) {
       })()}
 
       {swap.status === 'accepted' && otherUserAddress?.address_line1 && otherUserAddress?.city && (
-        <div className="rounded-lg p-4" style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}>
+        <div className="rounded-lg p-4" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2 mb-2">
-            <MapPin size={16} color="#0B3D2E" />
-            <span className="text-sm font-bold" style={{ color: '#0B3D2E' }}>Post to</span>
+            <MapPin size={16} color="var(--primary-dark)" />
+            <span className="text-sm font-bold" style={{ color: 'var(--primary-dark)' }}>Post to</span>
           </div>
-          <div className="text-sm" style={{ color: '#1A1A1A' }}>
+          <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
             {otherUserAddress.name}<br />
             {otherUserAddress.address_line1}<br />
             {otherUserAddress.city}, {otherUserAddress.postcode}
           </div>
-          <button onClick={() => act(() => api.markPosted(token, swap.id))} disabled={busy} className="mt-3 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+          <button onClick={() => act(() => api.markPosted(token, swap.id))} disabled={busy} className="mt-3 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Package size={15} />} Mark as posted
           </button>
         </div>
@@ -1117,7 +1189,7 @@ function SwapDetailScreen({ swapId, onRated }) {
       )}
 
       {(swap.status === 'accepted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && (
-        <button onClick={() => act(() => api.markReceived(token, swap.id))} disabled={busy} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#D6A419', color: '#1A1A1A' }}>
+        <button onClick={() => act(() => api.markReceived(token, swap.id))} disabled={busy} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
           {busy && <Loader2 className="animate-spin" size={14} />} Mark stickers as received
         </button>
       )}
@@ -1129,7 +1201,7 @@ function SwapDetailScreen({ swapId, onRated }) {
       )}
 
       {swap.status === 'completed' && (
-        <button onClick={() => setShowRating(true)} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#D6A419', color: '#1A1A1A' }}>
+        <button onClick={() => setShowRating(true)} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
           <Star size={15} /> Rate this swap
         </button>
       )}
@@ -1202,27 +1274,27 @@ function VerifyEmailScreen() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center px-5" style={{ background: '#FAF6EC', fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen w-full flex items-center justify-center px-5" style={{ background: 'var(--surface)', fontFamily: 'inherit' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap');`}</style>
       <div className="w-full max-w-sm text-center">
         <div className="mb-5 flex justify-center"><Logo size={48} /></div>
 
         {status === 'verifying' && (
           <>
-            <Loader2 className="animate-spin mx-auto mb-4" size={28} color="#0B3D2E" />
-            <p style={{ color: '#5A6B5F' }}>Verifying your email...</p>
+            <Loader2 className="animate-spin mx-auto mb-4" size={28} color="var(--primary-dark)" />
+            <p style={{ color: 'var(--text-secondary)' }}>Verifying your email...</p>
           </>
         )}
 
         {status === 'success' && (
           <>
-            <CheckCircle2 className="mx-auto mb-4" size={36} color="#0B3D2E" />
-            <h2 className="font-black text-xl mb-2" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Email verified!</h2>
-            <p className="mb-5" style={{ color: '#5A6B5F' }}>Your account is fully active. You can head back to Got One Spare? and start swapping.</p>
+            <CheckCircle2 className="mx-auto mb-4" size={36} color="var(--primary-dark)" />
+            <h2 className="font-black text-xl mb-2" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Email verified!</h2>
+            <p className="mb-5" style={{ color: 'var(--text-secondary)' }}>Your account is fully active. You can head back to Got One Spare? and start swapping.</p>
             <a
               href="/"
               className="inline-block px-6 py-3 rounded font-semibold text-sm"
-              style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+              style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}
             >
               Go to Got One Spare?
             </a>
@@ -1231,16 +1303,16 @@ function VerifyEmailScreen() {
 
         {status === 'error' && (
           <>
-            <X className="mx-auto mb-4" size={36} color="#C8102E" />
-            <h2 className="font-black text-xl mb-2" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Verification failed</h2>
-            <p className="mb-5" style={{ color: '#5A6B5F' }}>{errorMsg}</p>
-            <p className="text-sm" style={{ color: '#5A6B5F' }}>
+            <X className="mx-auto mb-4" size={36} color="var(--danger)" />
+            <h2 className="font-black text-xl mb-2" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Verification failed</h2>
+            <p className="mb-5" style={{ color: 'var(--text-secondary)' }}>{errorMsg}</p>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               Log in to Got One Spare? and use "Resend verification email" from there if your link expired.
             </p>
             <a
               href="/"
               className="inline-block mt-4 px-6 py-3 rounded font-semibold text-sm"
-              style={{ background: '#0B3D2E', color: '#FAF6EC' }}
+              style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}
             >
               Go to Got One Spare?
             </a>
@@ -1348,10 +1420,10 @@ function ProfileScreen({ onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6 max-h-[90vh] overflow-y-auto" style={{ background: '#FAF6EC' }}>
-        <h3 className="font-bold mb-1" style={{ color: '#1A1A1A' }}>Your details</h3>
-        <p className="text-sm mb-4" style={{ color: '#5A6B5F' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6 max-h-[90vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
+        <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Your details</h3>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
           Your address is only shown to a swap partner after you've both accepted a swap.
         </p>
 
@@ -1362,24 +1434,24 @@ function ProfileScreen({ onClose, onSaved }) {
         )}
 
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
-        {saved && <div className="rounded p-3 mb-4 text-sm" style={{ background: '#E5F1EC', color: '#0B3D2E' }}>Saved!</div>}
+        {saved && <div className="rounded p-3 mb-4 text-sm" style={{ background: '#E5F1EC', color: 'var(--primary-dark)' }}>Saved!</div>}
 
         <div className="flex items-center gap-4 mb-4">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-            style={{ background: '#0B3D2E' }}
+            style={{ background: 'var(--primary-dark)' }}
           >
             {form.profile_photo ? (
               <img src={form.profile_photo} alt="Profile" className="w-full h-full object-cover" />
             ) : (
-              <span className="font-black text-lg" style={{ color: '#D6A419' }}>
+              <span className="font-black text-lg" style={{ color: 'var(--warning)' }}>
                 {(form.name || '?').charAt(0).toUpperCase()}
               </span>
             )}
           </div>
           <label
             className="text-sm font-semibold cursor-pointer flex items-center gap-2"
-            style={{ color: '#0B3D2E' }}
+            style={{ color: 'var(--primary-dark)' }}
           >
             {photoProcessing && <Loader2 className="animate-spin" size={14} />}
             {form.profile_photo ? 'Change photo' : 'Add a photo'}
@@ -1393,50 +1465,50 @@ function ProfileScreen({ onClose, onSaved }) {
             value={form.name}
             onChange={set('name')}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
           <input
             placeholder="Address line 1"
             value={form.address_line1}
             onChange={set('address_line1')}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
           <input
             placeholder="Address line 2 (optional)"
             value={form.address_line2}
             onChange={set('address_line2')}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
           <input
             placeholder="City"
             value={form.city}
             onChange={set('city')}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
           <input
             placeholder="Postcode"
             value={form.postcode}
             onChange={set('postcode')}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
           <input
             placeholder="Country"
             value={form.country}
             onChange={set('country')}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: '#E8E2D2', border: '1px solid #D4CCB8' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
         </div>
 
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: '#E8E2D2', color: '#1A1A1A' }}>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
             Close
           </button>
-          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: '#0B3D2E', color: '#FAF6EC' }}>
+          <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {loading && <Loader2 className="animate-spin" size={14} />}
             Save
           </button>
@@ -1453,7 +1525,7 @@ function ProfileScreen({ onClose, onSaved }) {
 // =================================================================
 function VerificationBanner() {
   const { token } = useAuth();
-  const [state, setState] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
+  const [state, setState] = useState('idle');
 
   const resend = async () => {
     setState('sending');
@@ -1466,22 +1538,12 @@ function VerificationBanner() {
   };
 
   return (
-    <div
-      className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm"
-      style={{ background: '#FBF1D9', borderBottom: '1px solid #E8D9A8', color: '#5C4711' }}
-    >
+    <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--warning-light)', borderBottom: '1px solid #FDE68A', fontSize: 13, color: '#92400E' }}>
       <span>
-        {state === 'sent'
-          ? 'Verification email sent — check your inbox (and spam folder).'
-          : 'Please verify your email to start swaps.'}
+        {state === 'sent' ? 'Verification email sent — check your inbox (and spam folder).' : 'Please verify your email to start swaps.'}
       </span>
       {state !== 'sent' && (
-        <button
-          onClick={resend}
-          disabled={state === 'sending'}
-          className="font-semibold whitespace-nowrap flex items-center gap-1.5"
-          style={{ color: '#0B3D2E' }}
-        >
+        <button onClick={resend} disabled={state === 'sending'} style={{ fontWeight: 600, color: '#92400E', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           {state === 'sending' && <Loader2 className="animate-spin" size={12} />}
           {state === 'error' ? 'Failed — try again' : 'Resend email'}
         </button>
@@ -1547,7 +1609,8 @@ export default function PaniniSwapApp() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#FAF6EC' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <style>{DESIGN_TOKENS}</style>
         <Spinner />
       </div>
     );
@@ -1557,43 +1620,47 @@ export default function PaniniSwapApp() {
     return <AuthScreen onAuthed={handleAuthed} />;
   }
 
+  const tabs = [
+    { id: 'dashboard', label: 'My album' },
+    { id: 'matches', label: 'Matches' },
+    { id: 'mySwaps', label: 'My swaps' },
+  ];
+
   return (
     <AuthContext.Provider value={{ token, user }}>
-      <div className="min-h-screen w-full" style={{ background: '#FAF6EC', fontFamily: "'Inter', sans-serif" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');`}</style>
+      <style>{DESIGN_TOKENS}</style>
+      <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
-        <header className="sticky top-0 z-10 px-5 py-4 flex items-center justify-between" style={{ background: '#FAF6EC', borderBottom: '3px solid #0B3D2E' }}>
-          <div className="flex items-center gap-2">
-            <Logo size={28} />
-            <span className="font-black text-lg" style={{ color: '#1A1A1A', fontFamily: "'Archivo Black', sans-serif" }}>Got One Spare?</span>
+        <header style={{ position: 'sticky', top: 0, zIndex: 10, padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)', borderBottom: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Logo size={32} />
+            <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Got One Spare?</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={() => setShowProfile(true)}
-              title="Your details"
-              className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-              style={{ background: '#0B3D2E' }}
+              title="Your profile"
+              style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}
             >
               {user.profile_photo ? (
-                <img src={user.profile_photo} alt={user.name} className="w-full h-full object-cover" />
+                <img src={user.profile_photo} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span className="font-black text-xs" style={{ color: '#D6A419' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>
                   {(user.name || '?').charAt(0).toUpperCase()}
                 </span>
               )}
             </button>
-            <button onClick={logout} title="Log out"><LogOut size={16} color="#5A6B5F" /></button>
+            <button onClick={logout} title="Log out" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
+              <LogOut size={18} color="var(--text-secondary)" />
+            </button>
           </div>
         </header>
 
         {!user.email_verified && <VerificationBanner />}
         {user.email_verified && !(user.address_line1 && user.city && user.postcode) && (
-          <div
-            className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm"
-            style={{ background: '#FBF1D9', borderBottom: '1px solid #E8D9A8', color: '#5C4711' }}
-          >
+          <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--warning-light)', borderBottom: '1px solid #FDE68A', fontSize: 13, color: '#92400E' }}>
             <span>Add your address so you're ready to accept swaps.</span>
-            <button onClick={() => setShowProfile(true)} className="font-semibold whitespace-nowrap" style={{ color: '#0B3D2E' }}>
+            <button onClick={() => setShowProfile(true)} style={{ fontWeight: 600, color: '#92400E', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Add now
             </button>
           </div>
@@ -1606,7 +1673,7 @@ export default function PaniniSwapApp() {
           />
         )}
 
-        <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
+        <main style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 88px' }}>
           {tab === 'dashboard' && <DashboardScreen />}
           {tab === 'matches' && (
             <MatchesScreen
@@ -1632,22 +1699,28 @@ export default function PaniniSwapApp() {
           )}
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 flex justify-center" style={{ background: '#FAF6EC', borderTop: '1px solid #D4CCB8' }}>
-          <div className="flex w-full max-w-2xl">
-            {[
-              { id: 'dashboard', label: 'My album' },
-              { id: 'matches', label: 'Matches' },
-              { id: 'mySwaps', label: 'My swaps' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className="flex-1 py-3 text-sm font-semibold"
-                style={{ color: tab === t.id ? '#0B3D2E' : '#9A9486', borderTop: tab === t.id ? '2px solid #0B3D2E' : '2px solid transparent' }}
-              >
-                {t.label}
-              </button>
-            ))}
+        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', background: 'var(--surface)', borderTop: '1px solid var(--border)', boxShadow: '0 -1px 8px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', width: '100%', maxWidth: 640 }}>
+            {tabs.map((t) => {
+              const active = tab === t.id || (tab === 'swap' && t.id === 'mySwaps');
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  style={{
+                    flex: 1, padding: '12px 0', fontSize: 13, fontWeight: active ? 600 : 400,
+                    color: active ? 'var(--primary)' : 'var(--text-muted)',
+                    borderTop: active ? '2px solid var(--primary)' : '2px solid transparent',
+                    background: 'none', border: 'none', borderTop: active ? `2px solid var(--primary)` : '2px solid transparent',
+                    cursor: 'pointer', transition: 'color 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  {active && t.id === 'dashboard' && <Package size={14} />}
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
         </nav>
       </div>
