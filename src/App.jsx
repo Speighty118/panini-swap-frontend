@@ -40,7 +40,7 @@ async function request(path, { method = 'GET', body, token } = {}) {
 }
 
 const api = {
-  signup: (name, email, password) => request('/auth/signup', { method: 'POST', body: { name, email, password } }),
+  signup: (name, email, password, inviteCode) => request('/auth/signup', { method: 'POST', body: { name, email, password, inviteCode } }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   me: (token) => request('/auth/me', { token }),
   updateMe: (token, fields) => request('/auth/me', { method: 'PUT', body: fields, token }),
@@ -87,6 +87,9 @@ const api = {
   getNotifications: (token) => request('/notifications', { token }),
   markAllRead: (token) => request('/notifications/read', { method: 'POST', token }),
   markOneRead: (token, id) => request(`/notifications/${id}/read`, { method: 'POST', token }),
+
+  submitFeedback: (token, message, page) =>
+    request('/feedback', { method: 'POST', body: { message, page }, token }),
 };
 
 // =================================================================
@@ -320,6 +323,8 @@ function AuthScreen({ onAuthed }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteRequired, setInviteRequired] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -334,34 +339,86 @@ function AuthScreen({ onAuthed }) {
     setError(null);
     setLoading(true);
     try {
-      const result = mode === 'login' ? await api.login(email, password) : await api.signup(name, email, password);
+      const result = mode === 'login'
+        ? await api.login(email, password)
+        : await api.signup(name, email, password, inviteCode);
       onAuthed(result.token, result.user);
     } catch (err) {
+      if (err.message && err.message.includes('invite')) {
+        setInviteRequired(true);
+      }
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--bg)' }}>
-      <style>{DESIGN_TOKENS}</style>
-      <div style={{ width: '100%', maxWidth: 400 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 32 }}>
-          <Logo size={40} />
-          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Got One Spare?</span>
-        </div>
+  const HOW_IT_WORKS = [
+    { emoji: '📋', step: '1', title: 'List your spares', desc: 'Add the stickers you have duplicates of' },
+    { emoji: '🔍', step: '2', title: 'List your needs', desc: 'Add the stickers you\'re still missing' },
+    { emoji: '⚡', step: '3', title: 'Get matched', desc: 'We find others who have what you need' },
+    { emoji: '✉️', step: '4', title: 'Swap by post', desc: 'Agree a swap and post stickers to each other' },
+  ];
 
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', overflowY: 'auto' }}>
+      <style>{DESIGN_TOKENS}</style>
+
+      {/* Header */}
+      <div style={{ padding: '24px 24px 0', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+        <Logo size={40} />
+        <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Got One Spare?</span>
+      </div>
+
+      {/* Hero */}
+      <div style={{ textAlign: 'center', padding: '32px 24px 24px' }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 12px', lineHeight: 1.2 }}>
+          Swap stickers with<br />collectors near you
+        </h1>
+        <p style={{ fontSize: 15, color: 'var(--text-secondary)', margin: 0, maxWidth: 340, marginLeft: 'auto', marginRight: 'auto' }}>
+          List your spares, tell us what you need, and we'll match you with the perfect swap partner.
+        </p>
+      </div>
+
+      {/* How it works */}
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 24px 32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {HOW_IT_WORKS.map((step) => (
+            <div key={step.step} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 22, flexShrink: 0 }}>{step.emoji}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', marginBottom: 2 }}>Step {step.step}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{step.title}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.3 }}>{step.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Auth form */}
+      <div style={{ maxWidth: 400, margin: '0 auto', padding: '0 24px 48px' }}>
         <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20, marginTop: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20, marginTop: 0 }}>
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
-          </h1>
+          </h2>
 
           <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
           <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {mode === 'signup' && (
-              <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
+              <>
+                <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
+                {inviteRequired && (
+                  <input
+                    type="text"
+                    placeholder="Invite code (e.g. A3F9C2B1)"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                    style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '0.1em' }}
+                  />
+                )}
+              </>
             )}
             <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} />
             <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} style={inputStyle} />
@@ -376,7 +433,7 @@ function AuthScreen({ onAuthed }) {
           </form>
 
           <button
-            onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(null); setInviteRequired(false); }}
             style={{ width: '100%', textAlign: 'center', fontSize: 13, marginTop: 16, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
@@ -1659,6 +1716,81 @@ function ProfileScreen({ onClose, onSaved }) {
 // Bell icon in the header; clicking it opens a dropdown panel
 // showing recent notifications. Polls every 30 seconds for new ones.
 // =================================================================
+// =================================================================
+// FEEDBACK WIDGET
+// Floating button fixed to the bottom-right on every logged-in page.
+// Opens a small panel for submitting feedback directly to the admin.
+// =================================================================
+function FeedbackWidget() {
+  const { token } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState('');
+  const [state, setState] = useState('idle'); // idle | sending | sent | error
+
+  const submit = async () => {
+    if (!message.trim()) return;
+    setState('sending');
+    try {
+      await api.submitFeedback(token, message, window.location.pathname);
+      setState('sent');
+      setMessage('');
+      setTimeout(() => { setState('idle'); setOpen(false); }, 2000);
+    } catch {
+      setState('error');
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', bottom: 80, right: 16, zIndex: 200 }}>
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 48, right: 0,
+          width: 280, background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 16,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>Send feedback</span>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
+          </div>
+
+          {state === 'sent' ? (
+            <p style={{ fontSize: 13, color: 'var(--success)', textAlign: 'center', margin: '8px 0' }}>Thanks for your feedback! ✓</p>
+          ) : (
+            <>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="What's on your mind? Bug, idea, question — anything goes."
+                rows={4}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, resize: 'none', fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
+              />
+              {state === 'error' && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 8px' }}>Failed to send — try again</p>}
+              <Btn variant="primary" onClick={submit} disabled={!message.trim() || state === 'sending'} style={{ width: '100%', justifyContent: 'center' }}>
+                {state === 'sending' ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : 'Send feedback'}
+              </Btn>
+            </>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: 40, height: 40, borderRadius: '50%',
+          background: open ? 'var(--navy)' : 'var(--primary)',
+          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', border: 'none', cursor: 'pointer',
+          transition: 'background 0.15s',
+        }}
+        title="Send feedback"
+      >
+        <MessageCircle size={18} />
+      </button>
+    </div>
+  );
+}
+
 function NotificationPanel() {
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
@@ -1978,6 +2110,8 @@ export default function PaniniSwapApp() {
             })}
           </div>
         </nav>
+
+        <FeedbackWidget />
       </div>
     </AuthContext.Provider>
   );
