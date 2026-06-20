@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
+import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send } from 'lucide-react';
 
 // =================================================================
 // API CLIENT
@@ -79,6 +79,14 @@ const api = {
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
   getMyDisputes: (token) => request('/disputes/me', { token }),
+
+  getMessages: (token, swapId) => request(`/swaps/${swapId}/messages`, { token }),
+  sendMessage: (token, swapId, body) =>
+    request(`/swaps/${swapId}/messages`, { method: 'POST', body: { body }, token }),
+
+  getNotifications: (token) => request('/notifications', { token }),
+  markAllRead: (token) => request('/notifications/read', { method: 'POST', token }),
+  markOneRead: (token, id) => request(`/notifications/${id}/read`, { method: 'POST', token }),
 };
 
 // =================================================================
@@ -195,9 +203,8 @@ function StickerCard({ sticker, onAdd, onRemove, qtyOverride, mode = 'duplicate'
               background: 'var(--danger)', color: 'white',
               width: 24, height: 24, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              opacity: 0, transition: 'opacity 0.15s',
+              border: 'none', cursor: 'pointer',
             }}
-            className="group-hover:opacity-100"
           >
             <X size={12} />
           </button>
@@ -1034,6 +1041,13 @@ function SwapDetailScreen({ swapId, onRated }) {
   const [disputeFiled, setDisputeFiled] = useState(false);
   const [showOtherRatings, setShowOtherRatings] = useState(false);
 
+  // Chat state
+  const [messages, setMessages] = useState([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [showChat, setShowChat] = useState(true);
+  const messagesEndRef = useRef(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1060,6 +1074,36 @@ function SwapDetailScreen({ swapId, onRated }) {
     }, 5000);
     return () => clearInterval(interval);
   }, [data?.swap?.status, token, swapId]);
+
+  // Load and poll messages every 10 seconds
+  useEffect(() => {
+    const loadMessages = () =>
+      api.getMessages(token, swapId).then(setMessages).catch(() => {});
+    loadMessages();
+    const interval = setInterval(loadMessages, 10000);
+    return () => clearInterval(interval);
+  }, [token, swapId]);
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    const body = messageInput.trim();
+    if (!body) return;
+    setSendingMessage(true);
+    setMessageInput('');
+    try {
+      const msg = await api.sendMessage(token, swapId, body);
+      setMessages((m) => [...m, msg]);
+    } catch (err) {
+      setMessageInput(body); // restore on failure
+      setError(err.message);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   if (loading) return <Spinner />;
   if (!data) return <ErrorBanner message={error || 'Swap not found'} onDismiss={() => {}} />;
@@ -1243,6 +1287,90 @@ function SwapDetailScreen({ swapId, onRated }) {
           onClose={() => setShowOtherRatings(false)}
         />
       )}
+
+      {/* ---- Chat panel ---- */}
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+        <button
+          onClick={() => setShowChat((c) => !c)}
+          style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <MessageCircle size={16} color="var(--primary)" />
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+              Chat with {otherName}
+            </span>
+            {messages.length > 0 && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>({messages.length})</span>
+            )}
+          </div>
+          <span style={{ fontSize: 18, color: 'var(--text-muted)', lineHeight: 1 }}>{showChat ? '−' : '+'}</span>
+        </button>
+
+        {showChat && (
+          <>
+            <div style={{ maxHeight: 280, overflowY: 'auto', padding: '8px 16px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {messages.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
+                  No messages yet. Say hello!
+                </p>
+              ) : (
+                messages.map((m) => {
+                  const isMe = m.sender_id === user.id;
+                  return (
+                    <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                      <div style={{
+                        maxWidth: '80%', padding: '8px 12px',
+                        borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                        background: isMe ? 'var(--primary)' : 'var(--bg)',
+                        color: isMe ? 'white' : 'var(--text-primary)',
+                        fontSize: 13, lineHeight: 1.4,
+                      }}>
+                        {m.body}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                        {isMe ? 'You' : m.sender_name} · {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <textarea
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                placeholder="Type a message…"
+                rows={1}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)', background: 'var(--bg)',
+                  fontSize: 13, resize: 'none', fontFamily: 'inherit',
+                  lineHeight: 1.4, maxHeight: 80, overflowY: 'auto',
+                }}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!messageInput.trim() || sendingMessage}
+                style={{
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  background: messageInput.trim() ? 'var(--primary)' : 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: messageInput.trim() ? 'pointer' : 'default', transition: 'background 0.15s',
+                }}
+              >
+                {sendingMessage
+                  ? <Loader2 size={14} className="animate-spin" color="var(--text-muted)" />
+                  : <Send size={14} color={messageInput.trim() ? 'white' : 'var(--text-muted)'} />
+                }
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1526,6 +1654,129 @@ function ProfileScreen({ onClose, onSaved }) {
 // Shown below the header whenever the logged-in user's email isn't
 // verified yet. Lets them trigger a fresh verification email.
 // =================================================================
+// =================================================================
+// NOTIFICATION PANEL
+// Bell icon in the header; clicking it opens a dropdown panel
+// showing recent notifications. Polls every 30 seconds for new ones.
+// =================================================================
+function NotificationPanel() {
+  const { token } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const panelRef = useRef(null);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.getNotifications(token);
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch {
+      // silently ignore notification fetch failures
+    }
+  }, [token]);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleOpen = async () => {
+    setOpen((o) => !o);
+    if (!open && unreadCount > 0) {
+      await api.markAllRead(token).catch(() => {});
+      setUnreadCount(0);
+      setNotifications((n) => n.map((x) => ({ ...x, is_read: true })));
+    }
+  };
+
+  const TYPE_ICONS = {
+    new_message: '💬',
+    swap_proposed: '🤝',
+    swap_accepted: '✅',
+    swap_posted: '📬',
+    new_match: '⚡',
+    new_rating: '⭐',
+    dispute_filed: '⚠️',
+  };
+
+  return (
+    <div ref={panelRef} style={{ position: 'relative' }}>
+      <button
+        onClick={handleOpen}
+        style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Bell size={20} color={open ? 'var(--primary)' : 'var(--text-secondary)'} />
+        {unreadCount > 0 && (
+          <span style={{
+            position: 'absolute', top: 0, right: 0,
+            background: 'var(--danger)', color: 'white',
+            fontSize: 10, fontWeight: 700,
+            width: 16, height: 16, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1,
+          }}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          width: 320, background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100,
+          maxHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>Notifications</span>
+            {notifications.length > 0 && (
+              <button onClick={() => api.markAllRead(token).then(() => { setUnreadCount(0); setNotifications((n) => n.map((x) => ({ ...x, is_read: true }))); })} style={{ fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                No notifications yet
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <div key={n.id} style={{
+                  padding: '12px 16px', borderBottom: '1px solid var(--border)',
+                  background: n.is_read ? 'transparent' : 'var(--primary-light)',
+                  display: 'flex', gap: 10, alignItems: 'flex-start',
+                }}>
+                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{TYPE_ICONS[n.type] || '🔔'}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>
+                    {n.body && <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.created_at).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VerificationBanner() {
   const { token } = useAuth();
   const [state, setState] = useState('idle');
@@ -1639,7 +1890,8 @@ export default function PaniniSwapApp() {
             <Logo size={32} />
             <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Got One Spare?</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <NotificationPanel />
             <button
               onClick={() => setShowProfile(true)}
               title="Your profile"
