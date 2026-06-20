@@ -1962,6 +1962,7 @@ function NotificationPanel() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [expanded, setExpanded] = useState(null); // id of expanded notification
   const panelRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -2054,20 +2055,41 @@ function NotificationPanel() {
                 No notifications yet
               </div>
             ) : (
-              notifications.map((n) => (
-                <div key={n.id} style={{
-                  padding: '12px 16px', borderBottom: '1px solid var(--border)',
-                  background: n.is_read ? 'transparent' : 'var(--primary-light)',
-                  display: 'flex', gap: 10, alignItems: 'flex-start',
-                }}>
-                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{TYPE_ICONS[n.type] || '🔔'}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>
-                    {n.body && <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.created_at).toLocaleDateString()}</div>
+              notifications.map((n) => {
+                const isExpanded = expanded === n.id;
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => setExpanded(isExpanded ? null : n.id)}
+                    style={{
+                      padding: '12px 16px', borderBottom: '1px solid var(--border)',
+                      background: n.is_read ? 'transparent' : 'var(--primary-light)',
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
+                      cursor: n.body ? 'pointer' : 'default',
+                    }}
+                  >
+                    <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{TYPE_ICONS[n.type] || '🔔'}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>
+                      {n.body && (
+                        <div style={{
+                          fontSize: 12, color: 'var(--text-secondary)',
+                          whiteSpace: isExpanded ? 'normal' : 'nowrap',
+                          overflow: isExpanded ? 'visible' : 'hidden',
+                          textOverflow: isExpanded ? 'unset' : 'ellipsis',
+                          lineHeight: 1.5,
+                        }}>
+                          {n.body}
+                        </div>
+                      )}
+                      {n.body && !isExpanded && n.body.length > 50 && (
+                        <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2 }}>Tap to read more</div>
+                      )}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.created_at).toLocaleDateString()}</div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
