@@ -57,10 +57,14 @@ const api = {
   getMyDuplicates: (token) => request('/stickers/me/duplicates', { token }),
   addDuplicate: (token, stickerId, quantity) =>
     request('/stickers/me/duplicates', { method: 'POST', body: { stickerId, quantity }, token }),
+  addDuplicatesBulk: (token, stickerIds) =>
+    request('/stickers/me/duplicates/bulk', { method: 'POST', body: { stickerIds }, token }),
   removeDuplicate: (token, stickerId) =>
     request(`/stickers/me/duplicates/${stickerId}`, { method: 'DELETE', token }),
   getMyNeeds: (token) => request('/stickers/me/needs', { token }),
   addNeed: (token, stickerId) => request('/stickers/me/needs', { method: 'POST', body: { stickerId }, token }),
+  addNeedsBulk: (token, stickerIds) =>
+    request('/stickers/me/needs/bulk', { method: 'POST', body: { stickerIds }, token }),
   removeNeed: (token, stickerId) => request(`/stickers/me/needs/${stickerId}`, { method: 'DELETE', token }),
 
   getMatches: (token) => request('/swaps/matches', { token }),
@@ -449,6 +453,7 @@ function AuthScreen({ onAuthed }) {
 // =================================================================
 function StickerPickerModal({ mode, onClose, onPicked }) {
   const { token } = useAuth();
+  const [tab, setTab] = useState('search'); // 'search' | 'team'
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -456,12 +461,37 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [quantity, setQuantity] = useState(1);
   const [selected, setSelected] = useState(null);
 
+  // Team bulk selection state
+  const [teams, setTeams] = useState([]);
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [teamStickers, setTeamStickers] = useState([]);
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Load teams list once on mount
   useEffect(() => {
+    api.getTeams(token).then(setTeams).catch(() => {});
+  }, [token]);
+
+  // Load stickers when team is selected
+  useEffect(() => {
+    if (!selectedTeam) { setTeamStickers([]); setCheckedIds(new Set()); return; }
+    setTeamLoading(true);
+    api.searchStickers(token, { team: selectedTeam })
+      .then((stickers) => {
+        setTeamStickers(stickers);
+        setCheckedIds(new Set()); // start with none selected
+      })
+      .catch(() => {})
+      .finally(() => setTeamLoading(false));
+  }, [selectedTeam, token]);
+
+  // Search debounce
+  useEffect(() => {
+    if (tab !== 'search') return;
     const handle = setTimeout(async () => {
-      if (!query.trim()) {
-        setResults([]);
-        return;
-      }
+      if (!query.trim()) { setResults([]); return; }
       setLoading(true);
       setError(null);
       try {
@@ -472,9 +502,9 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
       } finally {
         setLoading(false);
       }
-    }, 300); // debounce
+    }, 300);
     return () => clearTimeout(handle);
-  }, [query, token]);
+  }, [query, token, tab]);
 
   const confirm = async () => {
     if (!selected) return;
@@ -485,80 +515,216 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
         await api.addNeed(token, selected.id);
       }
       onPicked();
-      onClose();
+      setSelected(null);
+      setQuery('');
+      setResults([]);
     } catch (err) {
       setError(err.message);
     }
   };
 
+  const toggleChecked = (id) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (checkedIds.size === teamStickers.length) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(teamStickers.map((s) => s.id)));
+    }
+  };
+
+  const confirmBulk = async () => {
+    if (checkedIds.size === 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const ids = Array.from(checkedIds);
+      if (mode === 'duplicate') {
+        await api.addDuplicatesBulk(token, ids);
+      } else {
+        await api.addNeedsBulk(token, ids);
+      }
+      onPicked();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[85vh] flex flex-col" style={{ background: 'var(--surface)' }}>
+      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
         <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>
-            {mode === 'duplicate' ? 'Add a duplicate' : 'Add to your needs'}
+            {mode === 'duplicate' ? 'Add duplicates' : 'Add needs'}
           </h3>
           <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
-        <div className="p-4">
-          <ErrorBanner message={error} onDismiss={() => setError(null)} />
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" color="var(--text-muted)" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search by name, team, or code (e.g. MEX2)"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 rounded text-sm"
-              style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-            />
-          </div>
+        {/* Mode tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+          {[{ id: 'search', label: 'Search' }, { id: 'team', label: 'By team (bulk)' }].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => { setTab(t.id); setError(null); }}
+              style={{
+                flex: 1, padding: '10px', fontSize: 13, fontWeight: tab === t.id ? 600 : 400,
+                color: tab === t.id ? 'var(--primary)' : 'var(--text-muted)',
+                borderBottom: tab === t.id ? '2px solid var(--primary)' : '2px solid transparent',
+                background: 'none', border: 'none', borderBottom: tab === t.id ? `2px solid var(--primary)` : '2px solid transparent',
+                cursor: 'pointer',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          {loading && <Spinner />}
-          {!loading && query && results.length === 0 && (
-            <div className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>No stickers found for "{query}"</div>
-          )}
-          <div className="space-y-2">
-            {results.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelected(s)}
-                className="w-full text-left p-3 rounded flex items-center justify-between"
-                style={{
-                  background: selected?.id === s.id ? 'var(--warning)' : 'var(--bg)',
-                  border: selected?.id === s.id ? '2px solid var(--primary-dark)' : '1px solid var(--border)',
-                }}
-              >
-                <div>
-                  <span className="text-xs font-bold font-mono mr-2" style={{ color: 'var(--primary-dark)' }}>{s.sticker_number}</span>
-                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{s.description}</span>
-                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{s.team_name}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {selected && (
-          <div className="p-4" style={{ borderTop: '1px solid var(--border)' }}>
-            {mode === 'duplicate' && (
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Quantity:</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: 'var(--bg)' }}>-</button>
-                  <span className="w-6 text-center font-bold">{quantity}</span>
-                  <button onClick={() => setQuantity((q) => q + 1)} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: 'var(--bg)' }}>+</button>
-                </div>
+        {/* Search tab */}
+        {tab === 'search' && (
+          <>
+            <div className="p-4">
+              <ErrorBanner message={error} onDismiss={() => setError(null)} />
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" color="var(--text-muted)" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search by name, team, or code (e.g. MEX2)"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 rounded text-sm"
+                  style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              {loading && <Spinner />}
+              {!loading && query && results.length === 0 && (
+                <div className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>No stickers found for "{query}"</div>
+              )}
+              <div className="space-y-2">
+                {results.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelected(s)}
+                    className="w-full text-left p-3 rounded flex items-center justify-between"
+                    style={{
+                      background: selected?.id === s.id ? 'var(--primary-light)' : 'var(--bg)',
+                      border: selected?.id === s.id ? '2px solid var(--primary)' : '1px solid var(--border)',
+                    }}
+                  >
+                    <div>
+                      <span className="text-xs font-bold font-mono mr-2" style={{ color: 'var(--primary)' }}>{s.sticker_number}</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{s.description}</span>
+                      <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{s.team_name}</div>
+                    </div>
+                    {selected?.id === s.id && <CheckCircle2 size={16} color="var(--primary)" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {selected && (
+              <div className="p-4" style={{ borderTop: '1px solid var(--border)' }}>
+                {mode === 'duplicate' && (
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Quantity:</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>-</button>
+                      <span className="w-6 text-center font-bold">{quantity}</span>
+                      <button onClick={() => setQuantity((q) => q + 1)} className="w-7 h-7 rounded flex items-center justify-center font-bold" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>+</button>
+                    </div>
+                  </div>
+                )}
+                <Btn variant="primary" onClick={confirm} style={{ width: '100%', justifyContent: 'center' }}>
+                  Add {selected.sticker_number}
+                </Btn>
               </div>
             )}
-            <button onClick={confirm} className="w-full py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
-              Add {selected.sticker_number}
-            </button>
-          </div>
+          </>
+        )}
+
+        {/* Team bulk tab */}
+        {tab === 'team' && (
+          <>
+            <div className="p-4" style={{ borderBottom: selectedTeam ? '1px solid var(--border)' : 'none' }}>
+              <ErrorBanner message={error} onDismiss={() => setError(null)} />
+              <select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}
+              >
+                <option value="">Select a team…</option>
+                {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+                Select all the {mode === 'duplicate' ? 'duplicates' : 'stickers you need'} from one team at once.
+              </p>
+            </div>
+
+            {selectedTeam && (
+              <>
+                <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    {checkedIds.size} of {teamStickers.length} selected
+                  </span>
+                  <button onClick={toggleAll} style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {checkedIds.size === teamStickers.length ? 'Deselect all' : 'Select all'}
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                  {teamLoading ? <Spinner /> : (
+                    teamStickers.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => toggleChecked(s.id)}
+                        style={{
+                          width: '100%', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                          background: checkedIds.has(s.id) ? 'var(--primary-light)' : 'transparent',
+                          borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                          border: 'none', borderBottom: '1px solid var(--border)',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+                          background: checkedIds.has(s.id) ? 'var(--primary)' : 'transparent',
+                          border: `2px solid ${checkedIds.has(s.id) ? 'var(--primary)' : 'var(--border)'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {checkedIds.has(s.id) && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
+                          <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{s.description}</span>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {checkedIds.size > 0 && (
+                  <div style={{ padding: 16, borderTop: '1px solid var(--border)' }}>
+                    <Btn variant="primary" onClick={confirmBulk} disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
+                      {saving
+                        ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                        : `Add ${checkedIds.size} sticker${checkedIds.size > 1 ? 's' : ''}`
+                      }
+                    </Btn>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
