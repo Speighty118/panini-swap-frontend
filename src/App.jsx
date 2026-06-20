@@ -2007,6 +2007,7 @@ function NotificationPanel() {
     new_match: '⚡',
     new_rating: '⭐',
     dispute_filed: '⚠️',
+    announcement: '📢',
   };
 
   return (
