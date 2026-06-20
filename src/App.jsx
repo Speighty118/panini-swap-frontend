@@ -783,11 +783,11 @@ function DashboardScreen() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Duplicates listed</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Spares listed</div>
           <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--primary)', lineHeight: 1 }}>{totalSpares}</div>
         </div>
         <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-md)', padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Needs listed</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Still needed</div>
           <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--primary)', lineHeight: 1 }}>{totalNeeds}</div>
         </div>
       </div>
@@ -800,6 +800,9 @@ function DashboardScreen() {
         <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-full)', height: 6, overflow: 'hidden' }}>
           <div style={{ background: 'var(--blue)', height: '100%', width: `${completionPct}%`, borderRadius: 'var(--radius-full)', transition: 'width 0.5s ease' }} />
         </div>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+          Based on stickers not listed as needs. Add needs to keep this accurate.
+        </p>
       </div>
 
       <div>
