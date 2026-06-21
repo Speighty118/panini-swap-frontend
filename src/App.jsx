@@ -192,30 +192,32 @@ function StickerCard({ sticker, onAdd, onRemove, qtyOverride, mode = 'duplicate'
         }}>
           {sticker.sticker_number}
         </div>
-        {qty > 1 && (
-          <div style={{
-            position: 'absolute', top: 8, right: 8,
-            background: 'var(--danger)', color: 'white',
-            fontSize: 11, fontWeight: 600, padding: '2px 7px',
-            borderRadius: 'var(--radius-full)',
-          }}>
-            ×{qty}
-          </div>
-        )}
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            style={{
-              position: 'absolute', top: 8, right: 8,
-              background: 'var(--danger)', color: 'white',
-              width: 24, height: 24, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', cursor: 'pointer',
-            }}
-          >
-            <X size={12} />
-          </button>
-        )}
+
+        {/* Top-right: quantity badge (when >1) and/or remove button */}
+        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {qty > 1 && (
+            <div style={{
+              background: 'var(--navy)', color: 'white',
+              fontSize: 11, fontWeight: 700, padding: '2px 7px',
+              borderRadius: 'var(--radius-full)',
+            }}>
+              ×{qty}
+            </div>
+          )}
+          {onRemove && (
+            <button
+              onClick={onRemove}
+              style={{
+                background: 'var(--danger)', color: 'white',
+                width: 22, height: 22, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
         {onAdd && (
           <button
             onClick={onAdd}
