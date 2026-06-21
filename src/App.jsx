@@ -471,6 +471,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [quantities, setQuantities] = useState({}); // sticker id -> quantity
   const [teamLoading, setTeamLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [bulkSuccess, setBulkSuccess] = useState('');
 
   // Load teams list once on mount
   useEffect(() => {
@@ -566,13 +567,6 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
     try {
       const ids = Array.from(checkedIds);
       if (mode === 'duplicate') {
-        // For duplicates, send each sticker with its quantity individually
-        // since quantities can differ per sticker
-        for (const id of ids) {
-          const qty = quantities[id] || 1;
-          if (qty === 1) continue; // batch handles qty=1 below
-        }
-        // Stickers with qty > 1 need individual adds; qty=1 can be batched
         const singleQty = ids.filter((id) => (quantities[id] || 1) === 1);
         const multiQty = ids.filter((id) => (quantities[id] || 1) > 1);
         if (singleQty.length > 0) await api.addDuplicatesBulk(token, singleQty);
@@ -583,7 +577,12 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
         await api.addNeedsBulk(token, ids);
       }
       onPicked();
-      onClose();
+      setCheckedIds(new Set());
+      setQuantities({});
+      setSelectedTeam('');
+      setTeamStickers([]);
+      setBulkSuccess(`✓ Added ${ids.length} sticker${ids.length > 1 ? 's' : ''}! Select another team to keep adding, or close when done.`);
+      setTimeout(() => setBulkSuccess(''), 4000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -689,6 +688,11 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
           <>
             <div className="p-4" style={{ borderBottom: selectedTeam ? '1px solid var(--border)' : 'none' }}>
               <ErrorBanner message={error} onDismiss={() => setError(null)} />
+              {bulkSuccess && (
+                <div style={{ background: 'var(--success-light)', border: '1px solid #6EE7B7', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#065F46' }}>
+                  {bulkSuccess}
+                </div>
+              )}
               <select
                 value={selectedTeam}
                 onChange={(e) => setSelectedTeam(e.target.value)}
@@ -1297,7 +1301,7 @@ function MySwapsScreen({ onOpenSwap }) {
 // =================================================================
 // SWAP DETAIL SCREEN
 // =================================================================
-function SwapDetailScreen({ swapId, onRated }) {
+function SwapDetailScreen({ swapId, onRated, onBack }) {
   const { token, user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1329,9 +1333,11 @@ function SwapDetailScreen({ swapId, onRated }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Light polling while waiting on the other party — avoids the
-  // "I clicked accept, nothing happened" feeling, since the screen
-  // will pick up their acceptance within a few seconds on its own.
+  // Light polling while waiting on the other party. Importantly we do NOT
+  // call setLoading(true) here — that would cause the whole screen to
+  // re-render as a spinner and reset the page scroll position every 5
+  // seconds, which is the "jumping to the bottom" issue users reported.
+  // Background polls silently update data without any visual disruption.
   useEffect(() => {
     if (!data || ['completed', 'declined', 'disputed'].includes(data.swap.status)) {
       return;
@@ -1351,9 +1357,14 @@ function SwapDetailScreen({ swapId, onRated }) {
     return () => clearInterval(interval);
   }, [token, swapId]);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when new messages arrive — but only if the
+  // user is already near the bottom, so we don't hijack their scroll
+  // position while they're reading older messages or doing other things.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = messagesEndRef.current?.parentElement;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (nearBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = async () => {
@@ -1401,6 +1412,29 @@ function SwapDetailScreen({ swapId, onRated }) {
   return (
     <div className="space-y-6">
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+      {/* Back button */}
+      {onBack && (
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          ← Back to My Swaps
+        </button>
+      )}
+
+      {/* Declined banner */}
+      {swap.status === 'declined' && (
+        <div style={{ background: 'var(--danger-light)', border: '1px solid #FCA5A5', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 20 }}>❌</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 4 }}>This swap was declined</div>
+            <div style={{ fontSize: 13, color: '#991B1B' }}>
+              {isUserA
+                ? `${otherName} declined this swap. You can propose a new one if you're still matched, or look for other swap partners.`
+                : `You declined this swap. If you change your mind, you can propose a new swap from the Matches tab.`
+              }
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div>
@@ -2312,7 +2346,11 @@ export default function PaniniSwapApp() {
             />
           )}
           {tab === 'swap' && activeSwapId && (
-            <SwapDetailScreen swapId={activeSwapId} onRated={() => setTab('dashboard')} />
+            <SwapDetailScreen
+              swapId={activeSwapId}
+              onRated={() => setTab('dashboard')}
+              onBack={() => setTab('mySwaps')}
+            />
           )}
           {tab === 'swap' && !activeSwapId && (
             <EmptyState text="No active swap selected. Pick one from your matches." />
