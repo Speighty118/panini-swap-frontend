@@ -466,6 +466,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [teamStickers, setTeamStickers] = useState([]);
   const [checkedIds, setCheckedIds] = useState(new Set());
+  const [quantities, setQuantities] = useState({}); // sticker id -> quantity
   const [teamLoading, setTeamLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -476,12 +477,13 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
 
   // Load stickers when team is selected
   useEffect(() => {
-    if (!selectedTeam) { setTeamStickers([]); setCheckedIds(new Set()); return; }
+    if (!selectedTeam) { setTeamStickers([]); setCheckedIds(new Set()); setQuantities({}); return; }
     setTeamLoading(true);
     api.searchStickers(token, { team: selectedTeam })
       .then((stickers) => {
         setTeamStickers(stickers);
-        setCheckedIds(new Set()); // start with none selected
+        setCheckedIds(new Set());
+        setQuantities({});
       })
       .catch(() => {})
       .finally(() => setTeamLoading(false));
@@ -526,7 +528,12 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const toggleChecked = (id) => {
     setCheckedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        setQuantities((q) => ({ ...q, [id]: q[id] || 1 }));
+      }
       return next;
     });
   };
@@ -535,8 +542,19 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
     if (checkedIds.size === teamStickers.length) {
       setCheckedIds(new Set());
     } else {
-      setCheckedIds(new Set(teamStickers.map((s) => s.id)));
+      const allIds = new Set(teamStickers.map((s) => s.id));
+      setCheckedIds(allIds);
+      setQuantities((q) => {
+        const next = { ...q };
+        teamStickers.forEach((s) => { if (!next[s.id]) next[s.id] = 1; });
+        return next;
+      });
     }
+  };
+
+  const setQty = (id, val) => {
+    const n = Math.max(1, Math.min(99, parseInt(val) || 1));
+    setQuantities((q) => ({ ...q, [id]: n }));
   };
 
   const confirmBulk = async () => {
@@ -546,7 +564,19 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
     try {
       const ids = Array.from(checkedIds);
       if (mode === 'duplicate') {
-        await api.addDuplicatesBulk(token, ids);
+        // For duplicates, send each sticker with its quantity individually
+        // since quantities can differ per sticker
+        for (const id of ids) {
+          const qty = quantities[id] || 1;
+          if (qty === 1) continue; // batch handles qty=1 below
+        }
+        // Stickers with qty > 1 need individual adds; qty=1 can be batched
+        const singleQty = ids.filter((id) => (quantities[id] || 1) === 1);
+        const multiQty = ids.filter((id) => (quantities[id] || 1) > 1);
+        if (singleQty.length > 0) await api.addDuplicatesBulk(token, singleQty);
+        for (const id of multiQty) {
+          await api.addDuplicate(token, id, quantities[id]);
+        }
       } else {
         await api.addNeedsBulk(token, ids);
       }
@@ -684,30 +714,42 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                 <div className="flex-1 overflow-y-auto">
                   {teamLoading ? <Spinner /> : (
                     teamStickers.map((s) => (
-                      <button
+                      <div
                         key={s.id}
-                        onClick={() => toggleChecked(s.id)}
                         style={{
-                          width: '100%', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                          display: 'flex', alignItems: 'center',
                           background: checkedIds.has(s.id) ? 'var(--primary-light)' : 'transparent',
-                          borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                          border: 'none', borderBottom: '1px solid var(--border)',
-                          textAlign: 'left',
+                          borderBottom: '1px solid var(--border)',
                         }}
                       >
-                        <div style={{
-                          width: 20, height: 20, borderRadius: 4, flexShrink: 0,
-                          background: checkedIds.has(s.id) ? 'var(--primary)' : 'transparent',
-                          border: `2px solid ${checkedIds.has(s.id) ? 'var(--primary)' : 'var(--border)'}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {checkedIds.has(s.id) && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
-                        </div>
-                        <div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
-                          <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{s.description}</span>
-                        </div>
-                      </button>
+                        <button
+                          onClick={() => toggleChecked(s.id)}
+                          style={{
+                            flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                            background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                          }}
+                        >
+                          <div style={{
+                            width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+                            background: checkedIds.has(s.id) ? 'var(--primary)' : 'transparent',
+                            border: `2px solid ${checkedIds.has(s.id) ? 'var(--primary)' : 'var(--border)'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {checkedIds.has(s.id) && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
+                            <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{s.description}</span>
+                          </div>
+                        </button>
+                        {mode === 'duplicate' && checkedIds.has(s.id) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
+                            <button onClick={() => setQty(s.id, (quantities[s.id] || 1) - 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                            <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: 'var(--text-primary)' }}>{quantities[s.id] || 1}</span>
+                            <button onClick={() => setQty(s.id, (quantities[s.id] || 1) + 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                          </div>
+                        )}
+                      </div>
                     ))
                   )}
                 </div>
