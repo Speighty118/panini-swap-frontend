@@ -1196,7 +1196,7 @@ function MySwapsScreen({ onOpenSwap }) {
 function SwapDetailScreen({ swapId, onRated, onBack }) {
   const { token, user } = useAuth();
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true); // only true on first load
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -1210,26 +1210,25 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const messagesEndRef = useRef(null);
+  const shouldScrollChat = useRef(false); // only scroll when user sends a message
 
+  // Initial load — shows spinner only this once
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
-      setData(await api.getSwap(token, swapId));
+      const fresh = await api.getSwap(token, swapId);
+      setData(fresh);
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   }, [token, swapId]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Light polling while waiting on the other party. Importantly we do NOT
-  // call setLoading(true) here — that would cause the whole screen to
-  // re-render as a spinner and reset the page scroll position every 5
-  // seconds, which is the "jumping to the bottom" issue users reported.
-  // Background polls silently update data without any visual disruption.
+  // Background poll — silently updates data, NEVER sets any loading state
+  // or triggers a re-render that resets scroll position.
   useEffect(() => {
     if (!data || ['completed', 'declined', 'disputed'].includes(data.swap.status)) {
       return;
@@ -1240,7 +1239,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
     return () => clearInterval(interval);
   }, [data?.swap?.status, token, swapId]);
 
-  // Load and poll messages every 10 seconds
+  // Message poll — load on mount, then every 10 seconds silently
   useEffect(() => {
     const loadMessages = () =>
       api.getMessages(token, swapId).then(setMessages).catch(() => {});
@@ -1249,14 +1248,12 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
     return () => clearInterval(interval);
   }, [token, swapId]);
 
-  // Scroll to bottom when new messages arrive — but only if the
-  // user is already near the bottom, so we don't hijack their scroll
-  // position while they're reading older messages or doing other things.
+  // Only scroll chat panel when the user sends a message themselves —
+  // NEVER on polling updates, which was causing the whole page to jump.
   useEffect(() => {
-    const el = messagesEndRef.current?.parentElement;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    if (nearBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!shouldScrollChat.current) return;
+    shouldScrollChat.current = false;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
 
   const sendMessage = async () => {
@@ -1264,18 +1261,20 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
     if (!body) return;
     setSendingMessage(true);
     setMessageInput('');
+    shouldScrollChat.current = true; // flag that THIS update should scroll
     try {
       const msg = await api.sendMessage(token, swapId, body);
       setMessages((m) => [...m, msg]);
     } catch (err) {
-      setMessageInput(body); // restore on failure
+      setMessageInput(body);
+      shouldScrollChat.current = false;
       setError(err.message);
     } finally {
       setSendingMessage(false);
     }
   };
 
-  if (loading) return <Spinner />;
+  if (initialLoading) return <Spinner />;
   if (!data) return <ErrorBanner message={error || 'Swap not found'} onDismiss={() => {}} />;
 
   const { swap, items, otherUserAddress } = data;
@@ -1293,7 +1292,10 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
     setError(null);
     try {
       await fn();
-      await load();
+      // Silent refresh — does NOT set any loading state, so no scroll reset.
+      // The page stays exactly where it is and data just updates quietly.
+      const fresh = await api.getSwap(token, swapId);
+      setData(fresh);
     } catch (err) {
       setError(err.message);
     } finally {
