@@ -458,85 +458,71 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [teams, setTeams] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState('');
   const [teamStickers, setTeamStickers] = useState([]);
-  const [checkedIds, setCheckedIds] = useState(new Set());
-  const [quantities, setQuantities] = useState({});
   const [teamLoading, setTeamLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [bulkSuccess, setBulkSuccess] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Basket persists across team changes — maps sticker id → { sticker object, quantity }
+  const [basket, setBasket] = useState({});
 
   useEffect(() => {
     api.getTeams(token).then(setTeams).catch(() => {});
   }, [token]);
 
   useEffect(() => {
-    if (!selectedTeam) { setTeamStickers([]); setCheckedIds(new Set()); setQuantities({}); return; }
+    if (!selectedTeam) { setTeamStickers([]); return; }
     setTeamLoading(true);
     api.searchStickers(token, { team: selectedTeam })
-      .then((stickers) => {
-        setTeamStickers(stickers);
-        setCheckedIds(new Set());
-        setQuantities({});
-      })
+      .then(setTeamStickers)
       .catch(() => {})
       .finally(() => setTeamLoading(false));
   }, [selectedTeam, token]);
 
-  const toggleChecked = (id) => {
-    setCheckedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+  const toggleSticker = (sticker) => {
+    setBasket((prev) => {
+      const next = { ...prev };
+      if (next[sticker.id]) {
+        delete next[sticker.id];
       } else {
-        next.add(id);
-        setQuantities((q) => ({ ...q, [id]: q[id] || 1 }));
+        next[sticker.id] = { sticker, quantity: 1 };
       }
       return next;
     });
   };
 
-  const toggleAll = () => {
-    if (checkedIds.size === teamStickers.length) {
-      setCheckedIds(new Set());
-    } else {
-      const allIds = new Set(teamStickers.map((s) => s.id));
-      setCheckedIds(allIds);
-      setQuantities((q) => {
-        const next = { ...q };
-        teamStickers.forEach((s) => { if (!next[s.id]) next[s.id] = 1; });
-        return next;
-      });
-    }
-  };
-
   const setQty = (id, val) => {
     const n = Math.max(1, Math.min(99, parseInt(val) || 1));
-    setQuantities((q) => ({ ...q, [id]: n }));
+    setBasket((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], quantity: n },
+    }));
   };
 
-  const confirmBulk = async () => {
-    if (checkedIds.size === 0) return;
+  const basketItems = Object.values(basket);
+  const totalCount = basketItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  const confirmAll = async () => {
+    if (basketItems.length === 0) return;
     setSaving(true);
     setError(null);
     try {
-      const ids = Array.from(checkedIds);
       if (mode === 'duplicate') {
-        const singleQty = ids.filter((id) => (quantities[id] || 1) === 1);
-        const multiQty = ids.filter((id) => (quantities[id] || 1) > 1);
+        const singleQty = basketItems.filter((item) => item.quantity === 1).map((item) => item.sticker.id);
+        const multiQty = basketItems.filter((item) => item.quantity > 1);
         if (singleQty.length > 0) await api.addDuplicatesBulk(token, singleQty);
-        for (const id of multiQty) {
-          await api.addDuplicate(token, id, quantities[id]);
+        for (const item of multiQty) {
+          await api.addDuplicate(token, item.sticker.id, item.quantity);
         }
       } else {
-        await api.addNeedsBulk(token, ids);
+        await api.addNeedsBulk(token, basketItems.map((item) => item.sticker.id));
       }
       onPicked();
-      setCheckedIds(new Set());
-      setQuantities({});
+      setBasket({});
       setSelectedTeam('');
       setTeamStickers([]);
-      setBulkSuccess(`✓ Added ${ids.length} sticker${ids.length > 1 ? 's' : ''}! Select another team to keep adding, or close when done.`);
-      setTimeout(() => setBulkSuccess(''), 4000);
+      setSuccess(`✓ Added ${totalCount} sticker${totalCount > 1 ? 's' : ''}!`);
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -547,104 +533,124 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>
-            {mode === 'duplicate' ? 'Add duplicates' : 'Add needs'}
-          </h3>
+
+        {/* Header */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', margin: 0 }}>
+              {mode === 'duplicate' ? 'Add duplicates' : 'Add needs'}
+            </h3>
+            {basketItems.length > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
+                {basketItems.length} sticker{basketItems.length > 1 ? 's' : ''} selected across {new Set(basketItems.map(i => i.sticker.team_name)).size} team{new Set(basketItems.map(i => i.sticker.team_name)).size > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
           <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
-        <div className="p-4" style={{ borderBottom: selectedTeam ? '1px solid var(--border)' : 'none' }}>
-          <ErrorBanner message={error} onDismiss={() => setError(null)} />
-          {bulkSuccess && (
-            <div style={{ background: 'var(--success-light)', color: '#065F46', fontSize: 13, fontWeight: 500, padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: 10 }}>
-              {bulkSuccess}
-            </div>
-          )}
+        {/* Success / error */}
+        {success && (
+          <div style={{ background: 'var(--success-light)', color: '#065F46', fontSize: 13, fontWeight: 500, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+            {success}
+          </div>
+        )}
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+        {/* Team selector */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <select
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
             style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}
           >
             <option value="">Select a team…</option>
-            {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+            {teams.map((t) => {
+              const teamSelectedCount = basketItems.filter(i => i.sticker.team_name === t).length;
+              return <option key={t} value={t}>{t}{teamSelectedCount > 0 ? ` (${teamSelectedCount} selected)` : ''}</option>;
+            })}
           </select>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
-            Select a team, tick the stickers you have, then tap Add. You can do multiple teams without closing.
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+            Tick stickers from as many teams as you like — they'll all be added together at the end.
           </p>
         </div>
 
+        {/* Sticker list for selected team */}
         {selectedTeam && (
           <>
-            <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+            <div style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                {checkedIds.size} of {teamStickers.length} selected
+                {teamStickers.filter(s => basket[s.id]).length} of {teamStickers.length} selected from this team
               </span>
-              <button onClick={toggleAll} style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                {checkedIds.size === teamStickers.length ? 'Deselect all' : 'Select all'}
+              <button
+                onClick={() => {
+                  const allSelected = teamStickers.every(s => basket[s.id]);
+                  setBasket((prev) => {
+                    const next = { ...prev };
+                    if (allSelected) {
+                      teamStickers.forEach(s => delete next[s.id]);
+                    } else {
+                      teamStickers.forEach(s => { if (!next[s.id]) next[s.id] = { sticker: s, quantity: 1 }; });
+                    }
+                    return next;
+                  });
+                }}
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                {teamStickers.every(s => basket[s.id]) ? 'Deselect all' : 'Select all'}
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {teamLoading ? <Spinner /> : (
-                teamStickers.map((s) => (
-                  <div
-                    key={s.id}
-                    style={{
-                      display: 'flex', alignItems: 'center',
-                      background: checkedIds.has(s.id) ? 'var(--primary-light)' : 'transparent',
-                      borderBottom: '1px solid var(--border)',
-                    }}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {teamLoading ? <Spinner /> : teamStickers.map((s) => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', background: basket[s.id] ? 'var(--primary-light)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
+                  <button
+                    onClick={() => toggleSticker(s)}
+                    style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
                   >
-                    <button
-                      onClick={() => toggleChecked(s.id)}
-                      style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                      <div style={{
-                        width: 20, height: 20, borderRadius: 4, flexShrink: 0,
-                        background: checkedIds.has(s.id) ? 'var(--primary)' : 'transparent',
-                        border: `2px solid ${checkedIds.has(s.id) ? 'var(--primary)' : 'var(--border)'}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {checkedIds.has(s.id) && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
-                        <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{s.description}</span>
-                      </div>
-                    </button>
-                    {mode === 'duplicate' && checkedIds.has(s.id) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
-                        <button onClick={() => setQty(s.id, (quantities[s.id] || 1) - 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                        <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: 'var(--text-primary)' }}>{quantities[s.id] || 1}</span>
-                        <button onClick={() => setQty(s.id, (quantities[s.id] || 1) + 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+                    <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, background: basket[s.id] ? 'var(--primary)' : 'transparent', border: `2px solid ${basket[s.id] ? 'var(--primary)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {basket[s.id] && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
+                      <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{s.description}</span>
+                    </div>
+                  </button>
+                  {mode === 'duplicate' && basket[s.id] && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
+                      <button onClick={() => setQty(s.id, (basket[s.id]?.quantity || 1) - 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                      <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: 'var(--text-primary)' }}>{basket[s.id]?.quantity || 1}</span>
+                      <button onClick={() => setQty(s.id, (basket[s.id]?.quantity || 1) + 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-
-            {checkedIds.size > 0 && (
-              <div style={{ padding: 16, borderTop: '1px solid var(--border)' }}>
-                <Btn variant="primary" onClick={confirmBulk} disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-                  {saving
-                    ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
-                    : `Add ${checkedIds.size} sticker${checkedIds.size > 1 ? 's' : ''}`
-                  }
-                </Btn>
-              </div>
-            )}
           </>
+        )}
+
+        {/* Basket summary + add button */}
+        {basketItems.length > 0 && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              Ready to add: {basketItems.map(i => `${i.sticker.sticker_number}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).slice(0, 6).join(', ')}{basketItems.length > 6 ? ` + ${basketItems.length - 6} more` : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn variant="outline" size="sm" onClick={() => setBasket({})} style={{ flexShrink: 0 }}>Clear all</Btn>
+              <Btn variant="primary" onClick={confirmAll} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
+                {saving
+                  ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                  : `Add ${totalCount} sticker${totalCount > 1 ? 's' : ''}`
+                }
+              </Btn>
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// =================================================================
-// RATING MODAL
-// =================================================================
 function RatingModal({ swapId, otherUserName, onClose, onSubmitted }) {
   const { token } = useAuth();
   const [stars, setStars] = useState(5);
