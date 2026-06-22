@@ -1071,36 +1071,23 @@ function DashboardScreen() {
         </p>
       </div>
 
-      {/* Donate prompt — shown under stats when user has at least 1 completed swap */}
-      {duplicates.length + needs.length > 0 && (
-        <DonateButton location="dashboard" variant="full" />
-      )}
-
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: duplicatesOpen ? 12 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={() => setDuplicatesOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)', lineHeight: 1, padding: 0 }}>
               {duplicatesOpen ? '▾' : '▸'}
             </button>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'inline' }}>
-              Your duplicates
-            </h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'inline' }}>Your duplicates</h2>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Spares · {duplicates.length}</span>
           </div>
-          <Btn variant="navy" size="sm" onClick={() => setPicker('duplicate')}>
-            <Plus size={14} /> Add
-          </Btn>
+          <Btn variant="navy" size="sm" onClick={() => setPicker('duplicate')}><Plus size={14} /> Add</Btn>
         </div>
         {duplicatesOpen && (
-          duplicates.length === 0 ? (
-            <EmptyState text="No duplicates listed yet. Add the stickers you've got spare so others can find them." />
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {duplicates.map((s) => (
-                <StickerCard key={s.sticker_id} sticker={s} mode="duplicate" onRemove={() => removeDuplicate(s.sticker_id)} />
-              ))}
-            </div>
-          )
+          duplicates.length === 0
+            ? <EmptyState text="No duplicates listed yet. Add the stickers you've got spare so others can find them." />
+            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {duplicates.map((s) => <StickerCard key={s.sticker_id} sticker={s} mode="duplicate" onRemove={() => removeDuplicate(s.sticker_id)} />)}
+              </div>
         )}
       </div>
 
@@ -1110,35 +1097,29 @@ function DashboardScreen() {
             <button onClick={() => setNeedsOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)', lineHeight: 1, padding: 0 }}>
               {needsOpen ? '▾' : '▸'}
             </button>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'inline' }}>
-              Your needs
-            </h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'inline' }}>Your needs</h2>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Wanted · {needs.length}</span>
           </div>
-          <Btn variant="outline" size="sm" onClick={() => setPicker('need')}>
-            <Plus size={14} /> Add
-          </Btn>
+          <Btn variant="outline" size="sm" onClick={() => setPicker('need')}><Plus size={14} /> Add</Btn>
         </div>
         {needsOpen && (
-          needs.length === 0 ? (
-            <EmptyState text="No needs listed yet. Add what you're missing so we can match you up." />
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {needs.map((s) => (
-                <StickerCard key={s.sticker_id} sticker={s} mode="need" onRemove={() => removeNeed(s.sticker_id)} />
-              ))}
-            </div>
-          )
+          needs.length === 0
+            ? <EmptyState text="No needs listed yet. Add what you're missing so we can match you up." />
+            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {needs.map((s) => <StickerCard key={s.sticker_id} sticker={s} mode="need" onRemove={() => removeNeed(s.sticker_id)} />)}
+              </div>
         )}
       </div>
+
+      {/* Donate prompt at the very bottom — after all sticker cards so it never jumps */}
+      {duplicates.length + needs.length > 0 && (
+        <DonateButton location="dashboard" variant="full" />
+      )}
 
       {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={load} />}
     </div>
   );
 }
-
-// =================================================================
-// MATCHES SCREEN
 // =================================================================
 function MatchesScreen({ onOpenSwap }) {
   const { token } = useAuth();
