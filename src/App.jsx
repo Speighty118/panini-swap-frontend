@@ -1198,7 +1198,24 @@ function DashboardScreen() {
         <DonateButton location="dashboard" variant="full" />
       )}
 
-      {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={load} />}
+      {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
+        // Silent refresh — don't set loading state which would cause
+        // the modal to flicker or close on Android due to re-render
+        Promise.all([api.getMyDuplicates(token), api.getMyNeeds(token)])
+          .then(([dups, needsList]) => {
+            const byGroupOrder = (a, b) => {
+              const ai = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(a.team_name));
+              const bi = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(b.team_name));
+              if (ai !== bi) { if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; }
+              const an = parseInt(a.sticker_number.replace(/[^0-9]/g, '')) || 0;
+              const bn = parseInt(b.sticker_number.replace(/[^0-9]/g, '')) || 0;
+              return an - bn;
+            };
+            setDuplicates([...dups].sort(byGroupOrder));
+            setNeeds([...needsList].sort(byGroupOrder));
+          })
+          .catch(() => {});
+      }} />}
     </div>
   );
 }
