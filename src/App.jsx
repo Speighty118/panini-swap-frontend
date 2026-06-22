@@ -1240,6 +1240,30 @@ const SWAP_STATUS_LABELS = {
   disputed: 'Disputed',
 };
 
+// Returns a context-aware label based on the current user's specific state
+// within the swap, rather than just the raw status. Fixes the confusing
+// "Ready to post" label after a user has already posted their side.
+function getSwapLabel(swap, currentUserId) {
+  if (!swap || !currentUserId) return SWAP_STATUS_LABELS[swap?.status] || swap?.status;
+  const isUserA = swap.user_a_id === currentUserId;
+  const myPosted = isUserA ? swap.user_a_posted : swap.user_b_posted;
+  const theirPosted = isUserA ? swap.user_b_posted : swap.user_a_posted;
+  const myAccepted = isUserA ? swap.user_a_accepted : swap.user_b_accepted;
+  const theirAccepted = isUserA ? swap.user_b_accepted : swap.user_a_accepted;
+
+  if (swap.status === 'proposed') {
+    if (myAccepted && !theirAccepted) return 'Waiting for them';
+    if (!myAccepted && theirAccepted) return 'Your turn to accept';
+    if (!myAccepted && !theirAccepted) return 'Awaiting acceptance';
+  }
+  if (swap.status === 'accepted') {
+    if (myPosted && !theirPosted) return 'Waiting for them to post';
+    if (!myPosted && theirPosted) return 'You need to post';
+    if (!myPosted && !theirPosted) return 'Ready to post';
+  }
+  return SWAP_STATUS_LABELS[swap.status] || swap.status;
+}
+
 const SWAP_STATUS_COLORS = {
   proposed: { bg: 'var(--warning-light)', text: '#92400E' },
   accepted: { bg: 'var(--success-light)', text: '#065F46' },
@@ -1250,7 +1274,7 @@ const SWAP_STATUS_COLORS = {
 };
 
 function MySwapsScreen({ onOpenSwap }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [swaps, setSwaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1291,7 +1315,7 @@ function MySwapsScreen({ onOpenSwap }) {
                   </div>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: colors.bg, color: colors.text, flexShrink: 0 }}>
-                  {SWAP_STATUS_LABELS[s.status] || s.status}
+                  {getSwapLabel(s, user?.id)}
                 </span>
               </button>
             );
