@@ -1888,11 +1888,23 @@ function DonateButton({ location, variant = 'full' }) {
     window.open(DONATE_URL, '_blank', 'noopener,noreferrer');
   };
 
+  const buttonStyle = {
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    padding: '12px 20px', borderRadius: 24,
+    background: 'var(--primary)', color: 'white',
+    fontSize: 14, fontWeight: 700, lineHeight: 1.4,
+    cursor: 'pointer', border: 'none', textAlign: 'left',
+    boxShadow: '0 2px 8px rgba(26,171,138,0.35)',
+    transition: 'background 0.15s, box-shadow 0.15s',
+  };
+
   if (variant === 'link') {
     return (
       <button
         onClick={handleClick}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left' }}
+        style={{ ...buttonStyle, fontSize: 13, padding: '10px 16px' }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#16956F'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(26,171,138,0.45)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(26,171,138,0.35)'; }}
       >
         ☕ Buy me a coffee? If this site helped you find a swap, you can support its running costs with a small donation.
       </button>
@@ -1903,15 +1915,9 @@ function DonateButton({ location, variant = 'full' }) {
     return (
       <button
         onClick={handleClick}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '8px 16px', borderRadius: 20,
-          background: 'var(--bg)', border: '1px solid var(--border)',
-          fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)',
-          cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
-        }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+        style={buttonStyle}
+        onMouseEnter={e => { e.currentTarget.style.background = '#16956F'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(26,171,138,0.45)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(26,171,138,0.35)'; }}
       >
         ☕ Buy me a coffee? If this site helped you find a swap, you can support its running costs with a small donation.
       </button>
@@ -1923,15 +1929,9 @@ function DonateButton({ location, variant = 'full' }) {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px' }}>
       <button
         onClick={handleClick}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '10px 20px', borderRadius: 20,
-          background: '#FFFBEB', border: '1px solid #FDE68A',
-          fontSize: 14, fontWeight: 700, color: '#92400E',
-          cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = '#FEF3C7'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = '#FFFBEB'; }}
+        style={{ ...buttonStyle, width: '100%', justifyContent: 'center' }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#16956F'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(26,171,138,0.45)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(26,171,138,0.35)'; }}
       >
         ☕ Buy me a coffee? If this site helped you find a swap, you can support its running costs with a small donation.
       </button>
