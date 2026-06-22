@@ -74,7 +74,7 @@ const api = {
   acceptSwap: (token, swapId) => request(`/swaps/${swapId}/accept`, { method: 'POST', token }),
   declineSwap: (token, swapId, reason) => request(`/swaps/${swapId}/decline`, { method: 'POST', body: { reason }, token }),
   withdrawSwap: (token, swapId) => request(`/swaps/${swapId}/withdraw`, { method: 'POST', token }),
-  markPosted: (token, swapId) => request(`/swaps/${swapId}/posted`, { method: 'POST', token }),
+  markPosted: (token, swapId, photo) => request(`/swaps/${swapId}/posted`, { method: 'POST', body: { photo }, token }),
   markReceived: (token, swapId) => request(`/swaps/${swapId}/received`, { method: 'POST', token }),
 
   submitRating: (token, swapId, stars, comment) =>
@@ -1300,6 +1300,8 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const [showDispute, setShowDispute] = useState(false);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
+  const [postagePhoto, setPostagePhoto] = useState(null);
+  const [postagePhotoPreview, setPostagePhotoPreview] = useState(null);
   const [disputeFiled, setDisputeFiled] = useState(false);
   const [showOtherRatings, setShowOtherRatings] = useState(false);
 
@@ -1577,7 +1579,57 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             {otherUserAddress.address_line1}<br />
             {otherUserAddress.city}, {otherUserAddress.postcode}
           </div>
-          <button onClick={() => act(() => api.markPosted(token, swap.id))} disabled={busy} className="mt-3 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
+
+          {/* Optional postage proof photo */}
+          <div style={{ marginTop: 12 }}>
+            {postagePhotoPreview ? (
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                <button
+                  onClick={() => { setPostagePhoto(null); setPostagePhotoPreview(null); }}
+                  style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  ✕
+                </button>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Postage proof photo added ✓</div>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px 0' }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      // Resize client-side before storing
+                      const img = new window.Image();
+                      img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX = 800;
+                        const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+                        canvas.width = img.width * ratio;
+                        canvas.height = img.height * ratio;
+                        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+                        setPostagePhoto(dataUrl);
+                        setPostagePhotoPreview(dataUrl);
+                      };
+                      img.src = ev.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                <span style={{ fontSize: 18 }}>📷</span>
+                <span>Add proof of postage photo <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>(optional)</span></span>
+              </label>
+            )}
+          </div>
+
+          <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto || undefined))} disabled={busy} className="mt-1 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Package size={15} />} Mark as posted
           </button>
         </div>
@@ -1604,6 +1656,23 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         <button onClick={() => act(() => api.markReceived(token, swap.id))} disabled={busy} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
           {busy && <Loader2 className="animate-spin" size={14} />} Mark stickers as received
         </button>
+      )}
+
+      {/* Show postage proof photo if one was uploaded — visible to both parties */}
+      {swap.postage_photo && (swap.status === 'accepted' || swap.status === 'posted' || swap.status === 'completed') && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            📷 Proof of postage
+          </div>
+          <img
+            src={swap.postage_photo}
+            alt="Proof of postage"
+            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            Uploaded by {isUserA ? (swap.user_b_posted ? otherName : 'you') : (swap.user_a_posted ? otherName : 'you')}
+          </div>
+        </div>
       )}
 
       {swap.status === 'disputed' && (
