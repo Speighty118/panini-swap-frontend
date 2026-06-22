@@ -1892,10 +1892,9 @@ function DonateButton({ location, variant = 'full' }) {
     return (
       <button
         onClick={handleClick}
-        title="If this site helped you find a swap, you can support its running costs with a small donation."
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left' }}
       >
-        ☕ Buy me a coffee
+        ☕ Buy me a coffee? If this site helped you find a swap, you can support its running costs with a small donation.
       </button>
     );
   }
@@ -1904,18 +1903,17 @@ function DonateButton({ location, variant = 'full' }) {
     return (
       <button
         onClick={handleClick}
-        title="If this site helped you find a swap, you can support its running costs with a small donation."
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '8px 16px', borderRadius: 20,
           background: 'var(--bg)', border: '1px solid var(--border)',
           fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)',
-          cursor: 'pointer', transition: 'all 0.15s',
+          cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
         }}
         onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
         onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
       >
-        ☕ Buy me a coffee
+        ☕ Buy me a coffee? If this site helped you find a swap, you can support its running costs with a small donation.
       </button>
     );
   }
@@ -1923,23 +1921,19 @@ function DonateButton({ location, variant = 'full' }) {
   // Full variant — used on dashboard
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px' }}>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
-        This site is completely free to use. If it's helped you find stickers for your collection, you can support hosting and future development with a small donation.
-      </p>
       <button
         onClick={handleClick}
-        title="If this site helped you find a swap, you can support its running costs with a small donation."
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '10px 20px', borderRadius: 20,
           background: '#FFFBEB', border: '1px solid #FDE68A',
           fontSize: 14, fontWeight: 700, color: '#92400E',
-          cursor: 'pointer', transition: 'all 0.15s',
+          cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
         }}
         onMouseEnter={e => { e.currentTarget.style.background = '#FEF3C7'; }}
         onMouseLeave={e => { e.currentTarget.style.background = '#FFFBEB'; }}
       >
-        ☕ Buy me a coffee
+        ☕ Buy me a coffee? If this site helped you find a swap, you can support its running costs with a small donation.
       </button>
     </div>
   );
