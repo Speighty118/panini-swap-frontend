@@ -456,9 +456,53 @@ function AuthScreen({ onAuthed }) {
 // =================================================================
 // STICKER SEARCH PICKER (modal) — used for adding to duplicates/needs
 // =================================================================
+// Official World Cup 2026 group order.
+// Teams appear in the order they appear in the Panini album.
+const WC2026_GROUP_ORDER = [
+  // Group A
+  'Mexico', 'Ecuador', 'Bolivia', 'South Africa',
+  // Group B
+  'United States', 'Panama', 'Cuba', 'New Zealand',
+  // Group C
+  'Canada', 'Honduras', 'Venezuela', 'Morocco',
+  // Group D
+  'Germany', 'Scotland', 'Chile', 'Korea Republic',
+  // Group E
+  'Spain', 'Iran', 'Serbia', 'Nigeria',
+  // Group F
+  'Portugal', 'Czech Republic', 'Turkey', 'Cameroon',
+  // Group G
+  'Brazil', 'Colombia', 'Paraguay', 'Costa Rica',
+  // Group H
+  'Argentina', 'Peru', 'Kenya', 'Egypt',
+  // Group I
+  'France', 'Australia', 'Saudi Arabia', 'Ukraine',
+  // Group J
+  'England', 'Senegal', 'Guatemala', 'DR Congo',
+  // Group K
+  'Netherlands', 'Japan', 'Uruguay', 'Ivory Coast',
+  // Group L
+  'Belgium', 'Algeria', 'Switzerland', 'Jamaica',
+  // Special/Coca-Cola sets always last
+  'Coca-Cola (North America)', 'Coca-Cola (Europe)', 'Coca-Cola (Latin America)',
+];
+
+function sortTeamsByGroup(teams) {
+  return [...teams].sort((a, b) => {
+    const ai = WC2026_GROUP_ORDER.indexOf(a.team_name);
+    const bi = WC2026_GROUP_ORDER.indexOf(b.team_name);
+    // Teams not in the list (unlikely) fall to the end alphabetically
+    if (ai === -1 && bi === -1) return a.team_name.localeCompare(b.team_name);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
 function StickerPickerModal({ mode, onClose, onPicked }) {
   const { token } = useAuth();
   const [teams, setTeams] = useState([]);
+  const [teamSort, setTeamSort] = useState('group'); // 'group' | 'alpha'
   const [selectedTeam, setSelectedTeam] = useState('');
   const [teamStickers, setTeamStickers] = useState([]);
   const [teamLoading, setTeamLoading] = useState(false);
@@ -562,13 +606,25 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
 
         {/* Team selector */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+          {/* Sort order toggle */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {[['group', 'Group order'], ['alpha', 'A–Z']].map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setTeamSort(val)}
+                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: teamSort === val ? 'var(--primary)' : 'var(--bg)', color: teamSort === val ? 'white' : 'var(--text-secondary)', transition: 'all 0.15s' }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <select
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
             style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}
           >
             <option value="">Select a team…</option>
-            {teams.map((t) => {
+            {(teamSort === 'group' ? sortTeamsByGroup(teams) : [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name))).map((t) => {
               const teamSelectedCount = basketItems.filter(i => i.sticker.team_name === t.team_name).length;
               const codeRange = t.first_number === t.last_number
                 ? t.first_number
