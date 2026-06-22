@@ -487,8 +487,10 @@ function AuthScreen({ onAuthed }) {
 // =================================================================
 // Official Panini World Cup 2026 album order — verified from the actual checklist.
 // Teams appear in exactly the order they appear in the physical album.
+// Official Panini World Cup 2026 album order — verified from checklist.
+// Names match EXACTLY what is stored in the database.
 const WC2026_GROUP_ORDER = [
-  'FWC',      // Opening foils — appear first in the physical album
+  'FWC',
   'Mexico',
   'South Africa',
   'South Korea',
@@ -501,12 +503,12 @@ const WC2026_GROUP_ORDER = [
   'Morocco',
   'Haiti',
   'Scotland',
-  'United States',
+  'USA',
   'Paraguay',
   'Australia',
-  'Turkey',
+  'Turkiye',
   'Germany',
-  'Curaçao',
+  'Curacao',
   'Ivory Coast',
   'Ecuador',
   'Netherlands',
@@ -522,44 +524,35 @@ const WC2026_GROUP_ORDER = [
   'Saudi Arabia',
   'Uruguay',
   'France',
-  'Indonesia',
+  'Uzbekistan',
   'Senegal',
   'Argentina',
   'England',
-  'Guatemala',
-  'Ivory Coast',
-  'Nigeria',
-  'Portugal',
+  'Iraq',
+  'Austria',
   'Algeria',
+  'Portugal',
   'Colombia',
   'Jordan',
   'Norway',
   'Ghana',
   'Croatia',
   'Panama',
+  'Congo DR',
   'Coca-Cola (North America)',
   'Coca-Cola (Europe)',
   'Coca-Cola (Latin America)',
 ];
 
-// Normalise team names to handle variations between what's in the
-// database and what the official Panini checklist uses.
+// Aliases for any edge cases where name variations might exist
 const TEAM_NAME_ALIASES = {
   'Korea Republic': 'South Korea',
-  'South Korea': 'South Korea',
-  'Türkiye': 'Turkey',
-  'Turkey': 'Turkey',
-  'USA': 'United States',
-  'United States': 'United States',
-  'Czechia': 'Czechia',
-  'Czech Republic': 'Czechia',
+  'Turkey': 'Turkiye',
+  'United States': 'USA',
+  'Curaçao': 'Curacao',
   "Côte d'Ivoire": 'Ivory Coast',
-  'Ivory Coast': 'Ivory Coast',
   'Bosnia-Herzegovina': 'Bosnia and Herzegovina',
-  'Bosnia and Herzegovina': 'Bosnia and Herzegovina',
   'DR Congo': 'Congo DR',
-  'Congo DR': 'Congo DR',
-  'Cape Verde': 'Cape Verde',
   'Cabo Verde': 'Cape Verde',
 };
 
