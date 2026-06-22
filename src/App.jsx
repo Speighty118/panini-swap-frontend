@@ -456,42 +456,93 @@ function AuthScreen({ onAuthed }) {
 // =================================================================
 // STICKER SEARCH PICKER (modal) — used for adding to duplicates/needs
 // =================================================================
-// Official World Cup 2026 group order.
-// Teams appear in the order they appear in the Panini album.
+// Official Panini World Cup 2026 album order — verified from the actual checklist.
+// Teams appear in exactly the order they appear in the physical album.
 const WC2026_GROUP_ORDER = [
-  // Group A
-  'Mexico', 'Ecuador', 'Bolivia', 'South Africa',
-  // Group B
-  'United States', 'Panama', 'Cuba', 'New Zealand',
-  // Group C
-  'Canada', 'Honduras', 'Venezuela', 'Morocco',
-  // Group D
-  'Germany', 'Scotland', 'Chile', 'Korea Republic',
-  // Group E
-  'Spain', 'Iran', 'Serbia', 'Nigeria',
-  // Group F
-  'Portugal', 'Czech Republic', 'Turkey', 'Cameroon',
-  // Group G
-  'Brazil', 'Colombia', 'Paraguay', 'Costa Rica',
-  // Group H
-  'Argentina', 'Peru', 'Kenya', 'Egypt',
-  // Group I
-  'France', 'Australia', 'Saudi Arabia', 'Ukraine',
-  // Group J
-  'England', 'Senegal', 'Guatemala', 'DR Congo',
-  // Group K
-  'Netherlands', 'Japan', 'Uruguay', 'Ivory Coast',
-  // Group L
-  'Belgium', 'Algeria', 'Switzerland', 'Jamaica',
-  // Special/Coca-Cola sets always last
-  'Coca-Cola (North America)', 'Coca-Cola (Europe)', 'Coca-Cola (Latin America)',
+  'Mexico',
+  'South Africa',
+  'South Korea',
+  'Czechia',
+  'Canada',
+  'Bosnia and Herzegovina',
+  'Qatar',
+  'Switzerland',
+  'Brazil',
+  'Morocco',
+  'Haiti',
+  'Scotland',
+  'United States',
+  'Paraguay',
+  'Australia',
+  'Turkey',
+  'Germany',
+  'Curaçao',
+  'Ivory Coast',
+  'Ecuador',
+  'Netherlands',
+  'Japan',
+  'Sweden',
+  'Tunisia',
+  'Belgium',
+  'Egypt',
+  'Iran',
+  'New Zealand',
+  'Spain',
+  'Cape Verde',
+  'Saudi Arabia',
+  'Uruguay',
+  'France',
+  'Indonesia',
+  'Senegal',
+  'Argentina',
+  'England',
+  'Guatemala',
+  'Ivory Coast',
+  'Nigeria',
+  'Portugal',
+  'Algeria',
+  'Colombia',
+  'Jordan',
+  'Norway',
+  'Ghana',
+  'Croatia',
+  'Panama',
+  'Coca-Cola (North America)',
+  'Coca-Cola (Europe)',
+  'Coca-Cola (Latin America)',
 ];
+
+// Normalise team names to handle variations between what's in the
+// database and what the official Panini checklist uses.
+const TEAM_NAME_ALIASES = {
+  'Korea Republic': 'South Korea',
+  'South Korea': 'South Korea',
+  'Türkiye': 'Turkey',
+  'Turkey': 'Turkey',
+  'USA': 'United States',
+  'United States': 'United States',
+  'Czechia': 'Czechia',
+  'Czech Republic': 'Czechia',
+  "Côte d'Ivoire": 'Ivory Coast',
+  'Ivory Coast': 'Ivory Coast',
+  'Bosnia-Herzegovina': 'Bosnia and Herzegovina',
+  'Bosnia and Herzegovina': 'Bosnia and Herzegovina',
+  'DR Congo': 'Congo DR',
+  'Congo DR': 'Congo DR',
+  'Cape Verde': 'Cape Verde',
+  'Cabo Verde': 'Cape Verde',
+};
+
+function normaliseTeamName(name) {
+  return TEAM_NAME_ALIASES[name] || name;
+}
 
 function sortTeamsByGroup(teams) {
   return [...teams].sort((a, b) => {
-    const ai = WC2026_GROUP_ORDER.indexOf(a.team_name);
-    const bi = WC2026_GROUP_ORDER.indexOf(b.team_name);
-    // Teams not in the list (unlikely) fall to the end alphabetically
+    const an = normaliseTeamName(a.team_name);
+    const bn = normaliseTeamName(b.team_name);
+    const ai = WC2026_GROUP_ORDER.indexOf(an);
+    const bi = WC2026_GROUP_ORDER.indexOf(bn);
     if (ai === -1 && bi === -1) return a.team_name.localeCompare(b.team_name);
     if (ai === -1) return 1;
     if (bi === -1) return -1;
