@@ -1542,17 +1542,33 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 
       {swap.status !== 'declined' && (
         <div className="flex items-center">
-          {['Proposed', 'Accepted', 'Posted', 'Done'].map((label, i) => (
-            <React.Fragment key={label}>
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: i <= currentStep ? 'var(--primary-dark)' : 'var(--bg)', color: i <= currentStep ? 'var(--surface)' : 'var(--text-muted)' }}>
-                  {i < currentStep ? <CheckCircle2 size={15} /> : i === currentStep ? <Clock size={14} /> : i + 1}
+          {['Proposed', 'Accepted', 'Posted', 'Done'].map((label, i) => {
+            // When status is 'accepted' but the current user has already posted,
+            // show the Posted step as "in progress" rather than future
+            const myPosted = isUserA ? swap.user_a_posted : swap.user_b_posted;
+            const effectiveStep = swap.status === 'accepted' && myPosted && i === 2 ? 'current' : null;
+            const isPast = i < currentStep;
+            const isCurrent = i === currentStep;
+            const isEffectiveCurrent = effectiveStep === 'current';
+            const stepLabel = (isCurrent && swap.status === 'accepted' && myPosted) ? 'Waiting' : label;
+            return (
+              <React.Fragment key={label}>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{
+                    background: isPast || isEffectiveCurrent ? 'var(--primary-dark)' : isCurrent ? 'var(--primary-dark)' : 'var(--bg)',
+                    color: isPast || isCurrent || isEffectiveCurrent ? 'var(--surface)' : 'var(--text-muted)',
+                    opacity: isEffectiveCurrent ? 0.6 : 1,
+                  }}>
+                    {isPast ? <CheckCircle2 size={15} /> : (isCurrent || isEffectiveCurrent) ? <Clock size={14} /> : i + 1}
+                  </div>
+                  <span className="text-[10px] font-medium" style={{ color: isPast || isCurrent || isEffectiveCurrent ? 'var(--primary-dark)' : 'var(--text-muted)' }}>
+                    {stepLabel}
+                  </span>
                 </div>
-                <span className="text-[10px] font-medium" style={{ color: i <= currentStep ? 'var(--primary-dark)' : 'var(--text-muted)' }}>{label}</span>
-              </div>
-              {i < 3 && <div className="flex-1 h-0.5 mb-4" style={{ background: i < currentStep ? 'var(--primary-dark)' : 'var(--border)' }} />}
-            </React.Fragment>
-          ))}
+                {i < 3 && <div className="flex-1 h-0.5 mb-4" style={{ background: isPast ? 'var(--primary-dark)' : 'var(--border)' }} />}
+              </React.Fragment>
+            );
+          })}
         </div>
       )}
 
