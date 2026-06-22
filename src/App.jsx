@@ -1317,6 +1317,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const [declineReason, setDeclineReason] = useState('');
   const [postagePhoto, setPostagePhoto] = useState(null);
   const [postagePhotoPreview, setPostagePhotoPreview] = useState(null);
+  const [actionConfirm, setActionConfirm] = useState(null); // brief success message
   const [disputeFiled, setDisputeFiled] = useState(false);
   const [showOtherRatings, setShowOtherRatings] = useState(false);
 
@@ -1403,15 +1404,17 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const steps = ['proposed', 'accepted', 'posted', 'completed'];
   const currentStep = steps.indexOf(swap.status === 'declined' ? 'proposed' : swap.status);
 
-  const act = async (fn) => {
+  const act = async (fn, confirmMsg) => {
     setBusy(true);
     setError(null);
     try {
       await fn();
-      // Silent refresh — does NOT set any loading state, so no scroll reset.
-      // The page stays exactly where it is and data just updates quietly.
       const fresh = await api.getSwap(token, swapId);
       setData(fresh);
+      if (confirmMsg) {
+        setActionConfirm(confirmMsg);
+        setTimeout(() => setActionConfirm(null), 3000);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1422,6 +1425,14 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   return (
     <div className="space-y-6">
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+      {/* Action confirmation banner */}
+      {actionConfirm && (
+        <div style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#065F46' }}>
+          <span style={{ fontSize: 18 }}>✓</span>
+          {actionConfirm}
+        </div>
+      )}
 
       {/* Back button */}
       {onBack && (
@@ -1576,7 +1587,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             <button onClick={() => setShowDeclineModal(true)} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
               Decline
             </button>
-            <button onClick={() => act(() => api.acceptSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
+            <button onClick={() => act(() => api.acceptSwap(token, swap.id), '✓ Swap accepted! Waiting for the other person to accept too.')} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
               {busy && <Loader2 className="animate-spin" size={14} />} Accept swap
             </button>
           </div>
@@ -1644,7 +1655,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             )}
           </div>
 
-          <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto || undefined))} disabled={busy} className="mt-1 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
+          <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto || undefined), '✓ Marked as posted — the other person has been notified!')} disabled={busy} className="mt-1 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Package size={15} />} Mark as posted
           </button>
         </div>
@@ -1668,7 +1679,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
       )}
 
       {(swap.status === 'accepted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && (
-        <button onClick={() => act(() => api.markReceived(token, swap.id))} disabled={busy} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
+        <button onClick={() => act(() => api.markReceived(token, swap.id), '✓ Marked as received — swap complete! Please leave a rating for your swap partner.')} disabled={busy} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
           {busy && <Loader2 className="animate-spin" size={14} />} Mark stickers as received
         </button>
       )}
