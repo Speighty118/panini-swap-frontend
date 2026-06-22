@@ -73,6 +73,7 @@ const api = {
   getSwap: (token, swapId) => request(`/swaps/${swapId}`, { token }),
   acceptSwap: (token, swapId) => request(`/swaps/${swapId}/accept`, { method: 'POST', token }),
   declineSwap: (token, swapId, reason) => request(`/swaps/${swapId}/decline`, { method: 'POST', body: { reason }, token }),
+  withdrawSwap: (token, swapId) => request(`/swaps/${swapId}/withdraw`, { method: 'POST', token }),
   markPosted: (token, swapId) => request(`/swaps/${swapId}/posted`, { method: 'POST', token }),
   markReceived: (token, swapId) => request(`/swaps/${swapId}/received`, { method: 'POST', token }),
 
@@ -1529,11 +1530,26 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 
         if (myAccepted) {
           return (
-            <div className="rounded-lg p-4 text-sm flex items-center gap-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-              <Clock size={16} color="var(--primary-dark)" />
-              {theirAccepted
-                ? "You've both accepted — loading next steps..."
-                : `You've accepted. Waiting for ${otherName} to accept too — this page will update automatically.`}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="rounded-lg p-4 text-sm flex items-center gap-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                <Clock size={16} color="var(--primary-dark)" />
+                {theirAccepted
+                  ? "You've both accepted — loading next steps..."
+                  : `You've accepted. Waiting for ${otherName} to accept too — this page will update automatically.`}
+              </div>
+              {!theirAccepted && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Withdraw from this swap? ${otherName} will be notified and your stickers will become available for new matches again.`)) {
+                      act(() => api.withdrawSwap(token, swap.id));
+                    }
+                  }}
+                  disabled={busy}
+                  style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', background: 'none', border: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  Withdraw from swap
+                </button>
+              )}
             </div>
           );
         }
