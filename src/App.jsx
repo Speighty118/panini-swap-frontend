@@ -72,7 +72,7 @@ const api = {
   createSwap: (token, matchId) => request('/swaps', { method: 'POST', body: { matchId }, token }),
   getSwap: (token, swapId) => request(`/swaps/${swapId}`, { token }),
   acceptSwap: (token, swapId) => request(`/swaps/${swapId}/accept`, { method: 'POST', token }),
-  declineSwap: (token, swapId) => request(`/swaps/${swapId}/decline`, { method: 'POST', token }),
+  declineSwap: (token, swapId, reason) => request(`/swaps/${swapId}/decline`, { method: 'POST', body: { reason }, token }),
   markPosted: (token, swapId) => request(`/swaps/${swapId}/posted`, { method: 'POST', token }),
   markReceived: (token, swapId) => request(`/swaps/${swapId}/received`, { method: 'POST', token }),
 
@@ -1297,6 +1297,8 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const [busy, setBusy] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [showDispute, setShowDispute] = useState(false);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
   const [disputeFiled, setDisputeFiled] = useState(false);
   const [showOtherRatings, setShowOtherRatings] = useState(false);
 
@@ -1417,10 +1419,55 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 4 }}>This swap was declined</div>
             <div style={{ fontSize: 13, color: '#991B1B' }}>
-              {isUserA
-                ? `${otherName} declined this swap. You can propose a new one if you're still matched, or look for other swap partners.`
-                : `You declined this swap. If you change your mind, you can propose a new swap from the Matches tab.`
+              {swap.declined_by_id === user.id
+                ? `You declined this swap. If you change your mind, you can propose a new swap from the Matches tab.`
+                : `${otherName} declined this swap.`
               }
+            </div>
+            {swap.decline_reason && (
+              <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(153,27,27,0.08)', borderRadius: 6, fontSize: 13, color: '#7F1D1D', fontStyle: 'italic' }}>
+                "{swap.decline_reason}"
+              </div>
+            )}
+            {!swap.decline_reason && swap.declined_by_id !== user.id && (
+              <div style={{ fontSize: 12, color: '#B91C1C', marginTop: 4 }}>No reason was given.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Decline reason modal */}
+      {showDeclineModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: 24, width: '100%', maxWidth: 480 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Decline this swap?</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              You can optionally let {otherName} know why — this helps them understand and improve future swap requests.
+            </p>
+            <textarea
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="Optional: e.g. I've already found someone for these stickers, or I need more time to decide…"
+              rows={3}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', resize: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { setShowDeclineModal(false); setDeclineReason(''); }}
+                style={{ flex: 1, padding: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', fontSize: 14, fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  act(() => api.declineSwap(token, swap.id, declineReason.trim() || undefined));
+                  setDeclineReason('');
+                }}
+                style={{ flex: 1, padding: '11px', borderRadius: 'var(--radius-sm)', background: '#EF4444', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer', color: 'white' }}
+              >
+                Decline swap
+              </button>
             </div>
           </div>
         </div>
@@ -1493,7 +1540,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 
         return (
           <div className="flex gap-2">
-            <button onClick={() => act(() => api.declineSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
+            <button onClick={() => setShowDeclineModal(true)} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
               Decline
             </button>
             <button onClick={() => act(() => api.acceptSwap(token, swap.id))} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
