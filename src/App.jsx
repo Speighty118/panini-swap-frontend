@@ -1892,9 +1892,10 @@ function DonateButton({ location, variant = 'full' }) {
     return (
       <button
         onClick={handleClick}
+        title="If this site helped you find a swap, you can support its running costs with a small donation."
         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
       >
-        ❤️ Support Got One Spare?
+        ☕ Buy me a coffee
       </button>
     );
   }
@@ -1903,6 +1904,7 @@ function DonateButton({ location, variant = 'full' }) {
     return (
       <button
         onClick={handleClick}
+        title="If this site helped you find a swap, you can support its running costs with a small donation."
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '8px 16px', borderRadius: 20,
@@ -1918,7 +1920,7 @@ function DonateButton({ location, variant = 'full' }) {
     );
   }
 
-  // Full variant — used on swap confirmed banner and dashboard
+  // Full variant — used on dashboard
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px' }}>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
@@ -1926,6 +1928,7 @@ function DonateButton({ location, variant = 'full' }) {
       </p>
       <button
         onClick={handleClick}
+        title="If this site helped you find a swap, you can support its running costs with a small donation."
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '10px 20px', borderRadius: 20,
