@@ -591,13 +591,14 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
 
-  // Basket: stickers being added this session
+  // Basket: new stickers selected this session, NOT yet saved to the database
+  // sticker_id → { sticker, quantity }
   const [basket, setBasket] = useState({});
 
-  // Existing: stickers already in the user's list — sticker_id → { sticker_id, quantity, sticker_number, description }
+  // Existing: stickers already in the user's list, loaded on mount
+  // sticker_id → { sticker_id, quantity, sticker_number, description, team_name }
   const [existing, setExisting] = useState({});
 
-  // Load teams and existing stickers on mount
   useEffect(() => {
     api.getTeams(token).then(setTeams).catch(() => {});
     const getter = mode === 'duplicate' ? api.getMyDuplicates : api.getMyNeeds;
@@ -612,109 +613,80 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
     if (!selectedTeam) { setTeamStickers([]); return; }
     setTeamLoading(true);
     api.searchStickers(token, { team: selectedTeam })
-      .then(setTeamStickers)
-      .catch(() => {})
-      .finally(() => setTeamLoading(false));
+      .then(setTeamStickers).catch(() => {}).finally(() => setTeamLoading(false));
   }, [selectedTeam, token]);
 
-  const toggleSticker = async (sticker) => {
-    if (existing[sticker.id]) return; // handled by updateExistingQty
-    const isInBasket = !!basket[sticker.id];
-    if (isInBasket) {
-      // Remove from basket and from list if it was just added
-      setBasket(prev => { const next = { ...prev }; delete next[sticker.id]; return next; });
-    } else {
-      // Add immediately
-      setBasket(prev => ({ ...prev, [sticker.id]: { sticker, quantity: 1 } }));
-      try {
-        if (mode === 'duplicate') {
-          await api.addDuplicate(token, sticker.id, 1);
-        } else {
-          await api.addNeed(token, sticker.id);
-        }
-        // Move from basket to existing so it shows as greyed-out
-        setBasket(prev => { const next = { ...prev }; delete next[sticker.id]; return next; });
-        setExisting(prev => ({ ...prev, [sticker.id]: { sticker_id: sticker.id, quantity: 1, sticker_number: sticker.sticker_number, description: sticker.description, team_name: sticker.team_name } }));
-        onPicked();
-        setSuccess(`✓ ${sticker.sticker_number} added!`);
-        setTimeout(() => setSuccess(''), 2000);
-      } catch (err) {
-        setError(err.message);
-        setBasket(prev => { const next = { ...prev }; delete next[sticker.id]; return next; });
-      }
-    }
+  // Toggle a new sticker in/out of the basket (does NOT save)
+  const toggleBasket = (sticker) => {
+    if (existing[sticker.id]) return;
+    setBasket(prev => {
+      const next = { ...prev };
+      if (next[sticker.id]) { delete next[sticker.id]; }
+      else { next[sticker.id] = { sticker, quantity: 1 }; }
+      return next;
+    });
   };
 
-  const setQty = async (id, val, sticker) => {
+  // Adjust quantity of a basket item (before saving)
+  const setBasketQty = (id, val) => {
     const n = Math.max(1, Math.min(99, parseInt(val) || 1));
-    setBasket((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], quantity: n },
-    }));
-    // Save immediately if already in basket (means it was just added this session)
-    if (basket[id] && mode === 'duplicate') {
-      await api.addDuplicate(token, id, n).catch(() => {});
-      onPicked();
-    }
+    setBasket(prev => ({ ...prev, [id]: { ...prev[id], quantity: n } }));
   };
 
-  // Update quantity of an already-existing sticker inline
+  // Update/remove an ALREADY-EXISTING sticker — saves immediately
   const updateExistingQty = async (stickerId, newQty) => {
-    if (newQty <= 0) {
-      // Remove from list
-      if (mode === 'duplicate') {
-        await api.removeDuplicate(token, stickerId).catch(() => {});
+    try {
+      if (newQty <= 0) {
+        if (mode === 'duplicate') await api.removeDuplicate(token, stickerId);
+        else await api.removeNeed(token, stickerId);
+        setExisting(prev => { const next = { ...prev }; delete next[stickerId]; return next; });
       } else {
-        await api.removeNeed(token, stickerId).catch(() => {});
-      }
-      setExisting(prev => { const next = { ...prev }; delete next[stickerId]; return next; });
-      onPicked();
-    } else {
-      if (mode === 'duplicate') {
-        await api.updateDuplicateQty(token, stickerId, newQty).catch(() => {});
+        if (mode === 'duplicate') await api.updateDuplicateQty(token, stickerId, newQty);
         setExisting(prev => ({ ...prev, [stickerId]: { ...prev[stickerId], quantity: newQty } }));
-        onPicked();
       }
-      // needs don't have quantity so nothing to update
-    }
+      onPicked();
+    } catch (err) { setError(err.message); }
   };
 
-  const basketItems = Object.values(basket);
-  const totalCount = basketItems.reduce((sum, item) => sum + item.quantity, 0);
-
+  // Save all basket items to the database
   const confirmAll = async () => {
-    if (basketItems.length === 0) return;
+    const basketItems = Object.values(basket);
+    if (!basketItems.length) return;
     setSaving(true);
     setError(null);
     try {
       if (mode === 'duplicate') {
-        const singleQty = basketItems.filter((item) => item.quantity === 1).map((item) => item.sticker.id);
-        const multiQty = basketItems.filter((item) => item.quantity > 1);
-        if (singleQty.length > 0) await api.addDuplicatesBulk(token, singleQty);
-        for (const item of multiQty) {
-          await api.addDuplicate(token, item.sticker.id, item.quantity);
-        }
+        const singleQty = basketItems.filter(i => i.quantity === 1).map(i => i.sticker.id);
+        const multiQty = basketItems.filter(i => i.quantity > 1);
+        if (singleQty.length) await api.addDuplicatesBulk(token, singleQty);
+        for (const item of multiQty) await api.addDuplicate(token, item.sticker.id, item.quantity);
       } else {
-        await api.addNeedsBulk(token, basketItems.map((item) => item.sticker.id));
+        await api.addNeedsBulk(token, basketItems.map(i => i.sticker.id));
       }
-      onPicked();
+      // Move from basket into existing so they show greyed out
+      setExisting(prev => {
+        const next = { ...prev };
+        basketItems.forEach(item => {
+          next[item.sticker.id] = { sticker_id: item.sticker.id, quantity: item.quantity, sticker_number: item.sticker.sticker_number, description: item.sticker.description, team_name: item.sticker.team_name };
+        });
+        return next;
+      });
       setBasket({});
-      setSelectedTeam('');
-      setTeamStickers([]);
-      setSuccess(`✓ Added ${totalCount} sticker${totalCount > 1 ? 's' : ''}!`);
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+      onPicked();
+      const total = basketItems.reduce((s, i) => s + i.quantity, 0);
+      setSuccess(`✓ Added ${total} sticker${total > 1 ? 's' : ''}! Select another team or close when done.`);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
   };
+
+  const basketItems = Object.values(basket);
+  const totalCount = basketItems.reduce((s, i) => s + i.quantity, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
 
-        {/* Header */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', margin: 0 }}>
@@ -722,82 +694,58 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
             </h3>
             {basketItems.length > 0 && (
               <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
-                {basketItems.length} sticker{basketItems.length > 1 ? 's' : ''} selected across {new Set(basketItems.map(i => i.sticker.team_name)).size} team{new Set(basketItems.map(i => i.sticker.team_name)).size > 1 ? 's' : ''}
+                {basketItems.length} new sticker{basketItems.length !== 1 ? 's' : ''} selected — tap Add to save
               </div>
             )}
           </div>
           <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
-        {/* Success / error */}
-        {success && (
-          <div style={{ background: 'var(--success-light)', color: '#065F46', fontSize: 13, fontWeight: 500, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-            {success}
-          </div>
-        )}
+        {success && <div style={{ background: 'var(--success-light)', color: '#065F46', fontSize: 13, fontWeight: 500, padding: '8px 16px', borderBottom: '1px solid var(--border)' }}>{success}</div>}
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-        {/* Team selector */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-          {/* Sort order toggle */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             {[['group', 'Group order'], ['alpha', 'A–Z']].map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setTeamSort(val)}
-                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: teamSort === val ? 'var(--primary)' : 'var(--bg)', color: teamSort === val ? 'white' : 'var(--text-secondary)', transition: 'all 0.15s' }}
-              >
+              <button key={val} onClick={() => setTeamSort(val)}
+                style={{ flex: 1, padding: '6px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)', background: teamSort === val ? 'var(--primary)' : 'var(--bg)', color: teamSort === val ? 'white' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
                 {label}
               </button>
             ))}
           </div>
-          <select
-            value={selectedTeam}
-            onChange={(e) => setSelectedTeam(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}
-          >
+          <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             <option value="">Select a team…</option>
             {(teamSort === 'group' ? sortTeamsByGroup(teams) : [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name))).map((t) => {
-              const teamExistingCount = Object.values(existing).filter(s => s.team_name === t.team_name).length;
-              const codeRange = t.first_number === t.last_number
-                ? t.first_number
-                : `${t.first_number}–${t.last_number}`;
-              return (
-                <option key={t.team_name} value={t.team_name}>
-                  {t.team_name} ({codeRange}){teamExistingCount > 0 ? ` · ${teamExistingCount} added` : ''}
-                </option>
-              );
+              const existingCount = Object.values(existing).filter(s => s.team_name === t.team_name).length;
+              const codeRange = t.first_number === t.last_number ? t.first_number : `${t.first_number}–${t.last_number}`;
+              return <option key={t.team_name} value={t.team_name}>{t.team_name} ({codeRange}){existingCount > 0 ? ` · ${existingCount} already added` : ''}</option>;
             })}
           </select>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-            Tick stickers to add them. Already-added stickers show greyed out — adjust their quantity or set to 0 to remove.
+            Greyed stickers are already in your list — adjust quantity or tap ✕ to remove. Tick new ones then tap Add.
           </p>
         </div>
 
-        {/* Sticker list for selected team */}
         {selectedTeam && (
           <>
             <div style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                {teamStickers.filter(s => basket[s.id]).length} new · {teamStickers.filter(s => existing[s.id]).length} already added
+                {teamStickers.filter(s => basket[s.id]).length} selected · {teamStickers.filter(s => existing[s.id]).length} already added
               </span>
               <button
                 onClick={() => {
-                  const nonExisting = teamStickers.filter(s => !existing[s.id]);
-                  const allSelected = nonExisting.every(s => basket[s.id]);
-                  setBasket((prev) => {
+                  const newOnes = teamStickers.filter(s => !existing[s.id]);
+                  const allSelected = newOnes.length > 0 && newOnes.every(s => basket[s.id]);
+                  setBasket(prev => {
                     const next = { ...prev };
-                    if (allSelected) {
-                      nonExisting.forEach(s => delete next[s.id]);
-                    } else {
-                      nonExisting.forEach(s => { if (!next[s.id]) next[s.id] = { sticker: s, quantity: 1 }; });
-                    }
+                    if (allSelected) { newOnes.forEach(s => delete next[s.id]); }
+                    else { newOnes.forEach(s => { if (!next[s.id]) next[s.id] = { sticker: s, quantity: 1 }; }); }
                     return next;
                   });
                 }}
-                style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
-              >
-                Select all new
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                {teamStickers.filter(s => !existing[s.id]).every(s => basket[s.id]) ? 'Deselect all' : 'Select all new'}
               </button>
             </div>
 
@@ -808,30 +756,30 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                 const isInBasket = !!basket[s.id];
 
                 if (isExisting) {
-                  // Already in user's list — show greyed out with quantity controls
                   return (
-                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', background: 'var(--bg)', borderBottom: '1px solid var(--border)', opacity: 0.65 }}>
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', background: '#F9FAFB', borderBottom: '1px solid var(--border)', opacity: 0.7 }}>
                       <div style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, background: 'var(--text-muted)', border: '2px solid var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>
+                        <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, background: '#9CA3AF', border: '2px solid #9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ color: 'white', fontSize: 12, lineHeight: 1 }}>✓</span>
                         </div>
                         <div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
-                          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{s.description}</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>already added</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
+                          <span style={{ fontSize: 14, color: '#6B7280' }}>{s.description}</span>
                         </div>
                       </div>
-                      {mode === 'duplicate' && (
+                      {mode === 'duplicate' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
-                          <button onClick={() => updateExistingQty(s.id, existingQty - 1)} style={{ width: 22, height: 22, borderRadius: 4, background: existingQty <= 1 ? 'var(--danger)' : 'var(--border)', border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: existingQty <= 1 ? 'white' : 'var(--text-primary)' }}>
+                          <button onClick={() => updateExistingQty(s.id, existingQty - 1)}
+                            style={{ width: 22, height: 22, borderRadius: 4, background: existingQty <= 1 ? '#FEE2E2' : '#E5E7EB', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: existingQty <= 1 ? '#DC2626' : '#374151' }}>
                             {existingQty <= 1 ? <X size={10} /> : '−'}
                           </button>
-                          <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>{existingQty}</span>
-                          <button onClick={() => updateExistingQty(s.id, existingQty + 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--primary)', border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>+</button>
+                          <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: '#6B7280' }}>{existingQty}</span>
+                          <button onClick={() => updateExistingQty(s.id, existingQty + 1)}
+                            style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>+</button>
                         </div>
-                      )}
-                      {mode === 'need' && (
-                        <button onClick={() => updateExistingQty(s.id, 0)} style={{ marginRight: 12, width: 22, height: 22, borderRadius: 4, background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                      ) : (
+                        <button onClick={() => updateExistingQty(s.id, 0)}
+                          style={{ marginRight: 12, width: 22, height: 22, borderRadius: 4, background: '#FEE2E2', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
                           <X size={11} />
                         </button>
                       )}
@@ -839,13 +787,10 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                   );
                 }
 
-                // Not yet added — show as normal ticked/unticked row
                 return (
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', background: isInBasket ? 'var(--primary-light)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
-                    <button
-                      onClick={() => toggleSticker(s)}
-                      style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                    >
+                    <button onClick={() => toggleBasket(s)}
+                      style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                       <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, background: isInBasket ? 'var(--primary)' : 'transparent', border: `2px solid ${isInBasket ? 'var(--primary)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {isInBasket && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
                       </div>
@@ -856,9 +801,11 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                     </button>
                     {mode === 'duplicate' && isInBasket && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
-                        <button onClick={() => setQty(s.id, (basket[s.id]?.quantity || 1) - 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                        <button onClick={() => setBasketQty(s.id, (basket[s.id]?.quantity || 1) - 1)}
+                          style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                         <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: 'var(--text-primary)' }}>{basket[s.id]?.quantity || 1}</span>
-                        <button onClick={() => setQty(s.id, (basket[s.id]?.quantity || 1) + 1)} style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                        <button onClick={() => setBasketQty(s.id, (basket[s.id]?.quantity || 1) + 1)}
+                          style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                       </div>
                     )}
                   </div>
@@ -868,9 +815,17 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
           </>
         )}
 
-        {!selectedTeam && Object.keys(existing).length === 0 && (
+        {!selectedTeam && (
           <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
             Select a team above to start adding stickers
+          </div>
+        )}
+
+        {basketItems.length > 0 && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+            <Btn variant="primary" onClick={confirmAll} disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
+              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : `Add ${totalCount} sticker${totalCount > 1 ? 's' : ''}`}
+            </Btn>
           </div>
         )}
       </div>
