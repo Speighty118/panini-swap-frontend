@@ -460,6 +460,7 @@ function AuthScreen({ onAuthed }) {
 // Official Panini World Cup 2026 album order — verified from the actual checklist.
 // Teams appear in exactly the order they appear in the physical album.
 const WC2026_GROUP_ORDER = [
+  'FWC',      // Opening foils — appear first in the physical album
   'Mexico',
   'South Africa',
   'South Korea',
@@ -1006,8 +1007,22 @@ function DashboardScreen() {
     setError(null);
     try {
       const [dups, needsList] = await Promise.all([api.getMyDuplicates(token), api.getMyNeeds(token)]);
-      setDuplicates(dups);
-      setNeeds(needsList);
+      // Sort by group order then numerically within team — same order as the physical album
+      const byGroupOrder = (a, b) => {
+        const ai = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(a.team_name));
+        const bi = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(b.team_name));
+        if (ai !== bi) {
+          if (ai === -1) return 1;
+          if (bi === -1) return -1;
+          return ai - bi;
+        }
+        // Within same team, sort numerically
+        const an = parseInt(a.sticker_number.replace(/[^0-9]/g, '')) || 0;
+        const bn = parseInt(b.sticker_number.replace(/[^0-9]/g, '')) || 0;
+        return an - bn;
+      };
+      setDuplicates([...dups].sort(byGroupOrder));
+      setNeeds([...needsList].sort(byGroupOrder));
     } catch (err) {
       setError(err.message);
     } finally {
