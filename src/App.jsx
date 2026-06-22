@@ -582,6 +582,7 @@ function sortTeamsByGroup(teams) {
 
 function StickerPickerModal({ mode, onClose, onPicked }) {
   const { token } = useAuth();
+  const [pickerTab, setPickerTab] = useState('team'); // 'team' | 'search'
   const [teams, setTeams] = useState([]);
   const [teamSort, setTeamSort] = useState('group');
   const [selectedTeam, setSelectedTeam] = useState('');
@@ -590,6 +591,13 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
+
+  // Search tab state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchSelected, setSearchSelected] = useState(null);
+  const [searchQty, setSearchQty] = useState(1);
 
   // Basket: new stickers selected this session, NOT yet saved to the database
   // sticker_id → { sticker, quantity }
@@ -615,6 +623,38 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
     api.searchStickers(token, { team: selectedTeam })
       .then(setTeamStickers).catch(() => {}).finally(() => setTeamLoading(false));
   }, [selectedTeam, token]);
+
+  // Search debounce
+  useEffect(() => {
+    if (pickerTab !== 'search') return;
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const handle = setTimeout(() => {
+      setSearchLoading(true);
+      api.searchStickers(token, { search: searchQuery })
+        .then(setSearchResults).catch(() => {}).finally(() => setSearchLoading(false));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchQuery, token, pickerTab]);
+
+  // Add a single sticker from search directly (saves immediately)
+  const addFromSearch = async (sticker, qty) => {
+    setError(null);
+    try {
+      if (mode === 'duplicate') {
+        await api.addDuplicate(token, sticker.id, qty);
+      } else {
+        await api.addNeed(token, sticker.id);
+      }
+      setExisting(prev => ({ ...prev, [sticker.id]: { sticker_id: sticker.id, quantity: qty, sticker_number: sticker.sticker_number, description: sticker.description, team_name: sticker.team_name } }));
+      setSearchSelected(null);
+      setSearchQty(1);
+      setSearchQuery('');
+      setSearchResults([]);
+      onPicked();
+      setSuccess(`✓ ${sticker.sticker_number} added!`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) { setError(err.message); }
+  };
 
   // Toggle a new sticker in/out of the basket (does NOT save)
   const toggleBasket = (sticker) => {
@@ -701,9 +741,84 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
           <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+          {[['team', 'Browse by team'], ['search', 'Search by code']].map(([tab, label]) => (
+            <button key={tab} onClick={() => setPickerTab(tab)} style={{
+              flex: 1, padding: '10px', fontSize: 13, fontWeight: pickerTab === tab ? 600 : 400,
+              color: pickerTab === tab ? 'var(--primary)' : 'var(--text-muted)',
+              borderBottom: pickerTab === tab ? '2px solid var(--primary)' : '2px solid transparent',
+              background: 'none', border: 'none', cursor: 'pointer',
+            }}>{label}</button>
+          ))}
+        </div>
+
         {success && <div style={{ background: 'var(--success-light)', color: '#065F46', fontSize: 13, fontWeight: 500, padding: '8px 16px', borderBottom: '1px solid var(--border)' }}>{success}</div>}
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
+        {/* Search tab */}
+        {pickerTab === 'search' && (
+          <>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Type a sticker code (e.g. ARG7, FWC3, CC1-EU)"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setSearchSelected(null); }}
+                  style={{ width: '100%', padding: '10px 10px 10px 32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }}
+                />
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+                Search by sticker code or player name — tap a result to select it.
+              </p>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {searchLoading && <Spinner />}
+              {!searchLoading && searchQuery && searchResults.length === 0 && (
+                <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No stickers found for "{searchQuery}"</div>
+              )}
+              {searchResults.map(s => {
+                const isExisting = !!existing[s.id];
+                const isSelected = searchSelected?.id === s.id;
+                return (
+                  <div key={s.id} style={{ borderBottom: '1px solid var(--border)', background: isSelected ? 'var(--primary-light)' : isExisting ? '#F9FAFB' : 'transparent', opacity: isExisting ? 0.7 : 1 }}>
+                    <button onClick={() => { if (!isExisting) { setSearchSelected(s); setSearchQty(1); } }}
+                      style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: isExisting ? 'default' : 'pointer', textAlign: 'left' }}>
+                      <div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: isExisting ? '#9CA3AF' : 'var(--primary)', fontFamily: 'monospace', marginRight: 8 }}>{s.sticker_number}</span>
+                        <span style={{ fontSize: 14, color: isExisting ? '#6B7280' : 'var(--text-primary)' }}>{s.description}</span>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.team_name}{isExisting ? ' · already added' : ''}</div>
+                      </div>
+                      {isSelected && <CheckCircle2 size={16} color="var(--primary)" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                    </button>
+                    {isSelected && (
+                      <div style={{ padding: '0 16px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {mode === 'duplicate' && (
+                          <>
+                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Quantity:</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <button onClick={() => setSearchQty(q => Math.max(1, q - 1))} style={{ width: 26, height: 26, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 700 }}>−</button>
+                              <span style={{ fontSize: 14, fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{searchQty}</span>
+                              <button onClick={() => setSearchQty(q => q + 1)} style={{ width: 26, height: 26, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 700 }}>+</button>
+                            </div>
+                          </>
+                        )}
+                        <Btn variant="primary" onClick={() => addFromSearch(s, searchQty)} style={{ marginLeft: 'auto' }}>
+                          Add {s.sticker_number}{mode === 'duplicate' && searchQty > 1 ? ` ×${searchQty}` : ''}
+                        </Btn>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {pickerTab === 'team' && (<>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             {[['group', 'Group order'], ['alpha', 'A–Z']].map(([val, label]) => (
@@ -828,6 +943,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
             </Btn>
           </div>
         )}
+        </>)}
       </div>
     </div>
   );
