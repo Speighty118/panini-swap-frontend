@@ -94,6 +94,9 @@ const api = {
 
   submitFeedback: (token, message, page) =>
     request('/feedback', { method: 'POST', body: { message, page }, token }),
+
+  logDonationClick: (token, location) =>
+    request('/donations/click', { method: 'POST', body: { location }, token }).catch(() => {}),
 };
 
 // =================================================================
@@ -961,6 +964,11 @@ function DashboardScreen() {
         </p>
       </div>
 
+      {/* Donate prompt — shown under stats when user has at least 1 completed swap */}
+      {duplicates.length + needs.length > 0 && (
+        <DonateButton location="dashboard" variant="full" />
+      )}
+
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: duplicatesOpen ? 12 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1424,6 +1432,17 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </div>
       )}
 
+      {/* Donate prompt shown once both sides have accepted — the best moment */}
+      {swap.status === 'accepted' && swap.user_a_accepted && swap.user_b_accepted && (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--radius-md)', padding: '16px 18px' }}>
+          <div style={{ fontSize: 18, marginBottom: 6 }}>🎉 Swap confirmed!</div>
+          <p style={{ fontSize: 13, color: '#78350F', margin: '0 0 12px', lineHeight: 1.5 }}>
+            You've been matched with {otherName}. This site is completely free — if it's helped you complete your album, you can support hosting and future development with a small donation.
+          </p>
+          <DonateButton location="swap_confirmed" variant="compact" />
+        </div>
+      )}
+
       {swap.status === 'accepted' && !(otherUserAddress?.address_line1 && otherUserAddress?.city) && (
         <div className="rounded-lg p-4 text-sm" style={{ background: '#FBF1D9', border: '1px solid #E8D9A8', color: '#5C4711' }}>
           Waiting for {otherName} to add their address before you can post. This page will update automatically.
@@ -1855,6 +1874,75 @@ function ProfileScreen({ onClose, onSaved }) {
 // showing recent notifications. Polls every 30 seconds for new ones.
 // =================================================================
 // =================================================================
+// DONATE BUTTON
+// Reusable across three locations: swap confirmed, dashboard, footer.
+// Logs the click location before opening the Stripe payment link.
+// =================================================================
+const DONATE_URL = import.meta.env.VITE_STRIPE_DONATE_URL || '#';
+
+function DonateButton({ location, variant = 'full' }) {
+  const { token } = useAuth();
+
+  const handleClick = async () => {
+    await api.logDonationClick(token, location);
+    window.open(DONATE_URL, '_blank', 'noopener,noreferrer');
+  };
+
+  if (variant === 'link') {
+    return (
+      <button
+        onClick={handleClick}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        ❤️ Support Got One Spare?
+      </button>
+    );
+  }
+
+  if (variant === 'compact') {
+    return (
+      <button
+        onClick={handleClick}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px', borderRadius: 20,
+          background: 'var(--bg)', border: '1px solid var(--border)',
+          fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)',
+          cursor: 'pointer', transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+      >
+        ☕ Buy me a coffee
+      </button>
+    );
+  }
+
+  // Full variant — used on swap confirmed banner and dashboard
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '16px 18px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        This site is completely free to use. If it's helped you find stickers for your collection, you can support hosting and future development with a small donation.
+      </p>
+      <button
+        onClick={handleClick}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '10px 20px', borderRadius: 20,
+          background: '#FFFBEB', border: '1px solid #FDE68A',
+          fontSize: 14, fontWeight: 700, color: '#92400E',
+          cursor: 'pointer', transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#FEF3C7'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = '#FFFBEB'; }}
+      >
+        ☕ Buy me a coffee
+      </button>
+    </div>
+  );
+}
+
+// =================================================================
 // FEEDBACK WIDGET
 // Floating button fixed to the bottom-right on every logged-in page.
 // Opens a small panel for submitting feedback directly to the admin.
@@ -2277,6 +2365,11 @@ export default function PaniniSwapApp() {
         </nav>
 
         <FeedbackWidget />
+
+        {/* Footer donate link */}
+        <div style={{ position: 'fixed', bottom: 130, left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+          <DonateButton location="footer" variant="link" />
+        </div>
       </div>
     </AuthContext.Provider>
   );
