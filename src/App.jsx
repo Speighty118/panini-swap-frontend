@@ -2363,8 +2363,8 @@ export default function PaniniSwapApp() {
 
         <FeedbackWidget />
 
-        {/* Footer donate link */}
-        <div style={{ position: 'fixed', bottom: 130, left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+        {/* Footer donate link — sits at the bottom of content, above the nav */}
+        <div style={{ textAlign: 'center', padding: '8px 16px 4px', marginBottom: 4 }}>
           <DonateButton location="footer" variant="link" />
         </div>
       </div>
