@@ -57,6 +57,8 @@ const api = {
   getMyDuplicates: (token) => request('/stickers/me/duplicates', { token }),
   addDuplicate: (token, stickerId, quantity) =>
     request('/stickers/me/duplicates', { method: 'POST', body: { stickerId, quantity }, token }),
+  updateDuplicateQty: (token, stickerId, quantity) =>
+    request('/stickers/me/duplicates', { method: 'POST', body: { stickerId, quantity }, token }),
   addDuplicatesBulk: (token, stickerIds) =>
     request('/stickers/me/duplicates/bulk', { method: 'POST', body: { stickerIds }, token }),
   removeDuplicate: (token, stickerId) =>
@@ -159,7 +161,7 @@ function Logo({ size = 32 }) {
 // =================================================================
 // Shared UI pieces
 // =================================================================
-function StickerCard({ sticker, onAdd, onRemove, qtyOverride, mode = 'duplicate' }) {
+function StickerCard({ sticker, onAdd, onRemove, onUpdateQty, qtyOverride, mode = 'duplicate' }) {
   const qty = qtyOverride ?? sticker.quantity;
   const isDuplicate = mode === 'duplicate' || sticker.quantity !== undefined;
   const bgColor = isDuplicate ? 'var(--blue-light)' : 'var(--primary-light)';
@@ -197,31 +199,57 @@ function StickerCard({ sticker, onAdd, onRemove, qtyOverride, mode = 'duplicate'
           {sticker.sticker_number}
         </div>
 
-        {/* Top-right: quantity badge (when >1) and/or remove button */}
-        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-          {qty > 1 && (
-            <div style={{
-              background: 'var(--navy)', color: 'white',
-              fontSize: 11, fontWeight: 700, padding: '2px 7px',
-              borderRadius: 'var(--radius-full)',
-            }}>
-              ×{qty}
-            </div>
-          )}
-          {onRemove && (
+        {/* Top-right: remove button */}
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              background: 'var(--danger)', color: 'white',
+              width: 22, height: 22, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <X size={11} />
+          </button>
+        )}
+
+        {/* Quantity controls — shown on duplicate cards when onUpdateQty is provided */}
+        {onUpdateQty && qty !== undefined && (
+          <div style={{
+            position: 'absolute', bottom: 6, right: 6,
+            display: 'flex', alignItems: 'center', gap: 3,
+            background: 'rgba(255,255,255,0.92)', borderRadius: 10, padding: '2px 4px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          }}>
             <button
-              onClick={onRemove}
-              style={{
-                background: 'var(--danger)', color: 'white',
-                width: 22, height: 22, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', cursor: 'pointer', flexShrink: 0,
-              }}
+              onClick={(e) => { e.stopPropagation(); if (qty <= 1) onRemove?.(); else onUpdateQty(qty - 1); }}
+              style={{ width: 18, height: 18, borderRadius: '50%', background: qty <= 1 ? 'var(--danger)' : 'var(--border)', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: qty <= 1 ? 'white' : 'var(--text-primary)', fontWeight: 700, lineHeight: 1 }}
             >
-              <X size={11} />
+              {qty <= 1 ? <X size={9} /> : '−'}
             </button>
-          )}
-        </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', minWidth: 14, textAlign: 'center' }}>{qty}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onUpdateQty(qty + 1); }}
+              style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, lineHeight: 1 }}
+            >
+              +
+            </button>
+          </div>
+        )}
+
+        {/* Quantity badge — shown when no controls (e.g. swap detail view) */}
+        {!onUpdateQty && qty > 1 && (
+          <div style={{
+            position: 'absolute', top: 8, right: onRemove ? 30 : 8,
+            background: 'var(--navy)', color: 'white',
+            fontSize: 11, fontWeight: 700, padding: '2px 7px',
+            borderRadius: 'var(--radius-full)',
+          }}>
+            ×{qty}
+          </div>
+        )}
         {onAdd && (
           <button
             onClick={onAdd}
@@ -690,7 +718,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
             })}
           </select>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-            Tick stickers from as many teams as you like — they'll all be added together at the end.
+            Tick the stickers you want to add. Stickers already in your list won't show as ticked here — check your dashboard to see what you've already added.
           </p>
         </div>
 
@@ -1102,7 +1130,10 @@ function DashboardScreen() {
           duplicates.length === 0
             ? <EmptyState text="No duplicates listed yet. Add the stickers you've got spare so others can find them." />
             : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                {duplicates.map((s) => <StickerCard key={s.sticker_id} sticker={s} mode="duplicate" onRemove={() => removeDuplicate(s.sticker_id)} />)}
+                {duplicates.map((s) => <StickerCard key={s.sticker_id} sticker={s} mode="duplicate" onRemove={() => removeDuplicate(s.sticker_id)} onUpdateQty={async (newQty) => {
+                  await api.updateDuplicateQty(token, s.sticker_id, newQty);
+                  setDuplicates(d => d.map(x => x.sticker_id === s.sticker_id ? { ...x, quantity: newQty } : x));
+                }} />)}
               </div>
         )}
       </div>
