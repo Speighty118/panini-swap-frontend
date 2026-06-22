@@ -2016,15 +2016,21 @@ function ProfileScreen({ onClose, onSaved }) {
 
   const hasAddress = Boolean(user.address_line1 && user.city && user.postcode);
 
+  const UK_POSTCODE_REGEX = /^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][ABD-HJLNP-UW-Z]{2}$/i;
+
   const submit = async () => {
     if (!form.address_line1 || !form.city || !form.postcode) {
       setError('Address line 1, city, and postcode are required so swap partners can post to you.');
       return;
     }
+    if (!UK_POSTCODE_REGEX.test(form.postcode.trim())) {
+      setError('Please enter a valid UK postcode (e.g. SW1A 2AA). This platform is for UK-based swaps only.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const updated = await api.updateMe(token, form);
+      const updated = await api.updateMe(token, { ...form, country: 'United Kingdom', postcode: form.postcode.toUpperCase().trim() });
       setSaved(true);
       onSaved(updated);
     } catch (err) {
@@ -2104,19 +2110,15 @@ function ProfileScreen({ onClose, onSaved }) {
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           />
           <input
-            placeholder="Postcode"
+            placeholder="Postcode (e.g. SW1A 2AA)"
             value={form.postcode}
-            onChange={set('postcode')}
+            onChange={(e) => set('postcode')({ target: { value: e.target.value.toUpperCase() } })}
             className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', fontFamily: 'monospace', letterSpacing: '0.05em' }}
           />
-          <input
-            placeholder="Country"
-            value={form.country}
-            onChange={set('country')}
-            className="w-full px-3 py-2 rounded text-sm"
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-          />
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '-4px 0 0' }}>
+            UK postcodes only — this platform is for UK-based collectors.
+          </p>
         </div>
 
         <div className="flex gap-2">
