@@ -114,8 +114,8 @@ const api = {
   markAnnouncementsRead: (token) => request('/announcements/read', { method: 'POST', token }),
   getConversations: (token) => request('/messages', { token }),
   startConversation: (token, recipientId, body) => request('/messages', { method: 'POST', body: { recipientId, body }, token }),
-  getMessages: (token, conversationId) => request(`/messages/${conversationId}`, { token }),
-  sendMessage: (token, conversationId, body) => request(`/messages/${conversationId}/send`, { method: 'POST', body: { body }, token }),
+  getConversationMessages: (token, conversationId) => request(`/messages/${conversationId}`, { token }),
+  sendDirectMessage: (token, conversationId, body) => request(`/messages/${conversationId}/send`, { method: 'POST', body: { body }, token }),
   reportMessage: (token, messageId, reason) => request(`/messages/${messageId}/report`, { method: 'POST', body: { reason }, token }),
   getSwapHistory: (token) => request('/swaps/history', { token }),
   getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
@@ -2378,7 +2378,7 @@ function MessagesScreen() {
     setActiveConv({ conversationId: convId, otherUser });
     setError(null);
     try {
-      const { messages: msgs } = await api.getMessages(token, convId);
+      const { messages: msgs } = await api.getConversationMessages(token, convId);
       setMessages(msgs);
       loadConversations(); // refresh unread counts
     } catch (err) { setError(err.message); }
@@ -2392,7 +2392,7 @@ function MessagesScreen() {
     if (!newMessage.trim() || !activeConv) return;
     setSending(true);
     try {
-      const msg = await api.sendMessage(token, activeConv.conversationId, newMessage);
+      const msg = await api.sendDirectMessage(token, activeConv.conversationId, newMessage);
       setMessages(prev => [...prev, { ...msg, sender_name: user.name, sender_id: user.id }]);
       setNewMessage('');
       loadConversations();
