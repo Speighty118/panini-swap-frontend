@@ -110,6 +110,11 @@ const api = {
     request('/donations/click', { method: 'POST', body: { location }, token }).catch(() => {}),
   getAnnouncements: (token) => request('/announcements', { token }),
   markAnnouncementsRead: (token) => request('/announcements/read', { method: 'POST', token }),
+  getConversations: (token) => request('/messages', { token }),
+  startConversation: (token, recipientId, body) => request('/messages', { method: 'POST', body: { recipientId, body }, token }),
+  getMessages: (token, conversationId) => request(`/messages/${conversationId}`, { token }),
+  sendMessage: (token, conversationId, body) => request(`/messages/${conversationId}/send`, { method: 'POST', body: { body }, token }),
+  reportMessage: (token, messageId, reason) => request(`/messages/${messageId}/report`, { method: 'POST', body: { reason }, token }),
   getSwapHistory: (token) => request('/swaps/history', { token }),
   getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
   searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
@@ -2229,6 +2234,235 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 // may click this from their email client without being logged in.
 // =================================================================
 // =================================================================
+// MESSAGES SCREEN
+// Threaded conversations between users.
+// =================================================================
+function MessagesScreen() {
+  const { token, user } = useAuth();
+  const [conversations, setConversations] = useState([]);
+  const [activeConv, setActiveConv] = useState(null); // { conversationId, otherUser }
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const [showNewMessage, setShowNewMessage] = useState(false);
+  const [reportingId, setReportingId] = useState(null);
+  const messagesEndRef = useRef(null);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const data = await api.getConversations(token);
+      setConversations(data);
+    } catch {}
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadConversations(); }, [loadConversations]);
+
+  const openConversation = async (convId, otherUser) => {
+    setActiveConv({ conversationId: convId, otherUser });
+    setError(null);
+    try {
+      const { messages: msgs } = await api.getMessages(token, convId);
+      setMessages(msgs);
+      loadConversations(); // refresh unread counts
+    } catch (err) { setError(err.message); }
+  };
+
+  useEffect(() => {
+    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !activeConv) return;
+    setSending(true);
+    try {
+      const msg = await api.sendMessage(token, activeConv.conversationId, newMessage);
+      setMessages(prev => [...prev, { ...msg, sender_name: user.name, sender_id: user.id }]);
+      setNewMessage('');
+      loadConversations();
+    } catch (err) { setError(err.message); }
+    finally { setSending(false); }
+  };
+
+  const reportMessage = async (messageId) => {
+    await api.reportMessage(token, messageId, 'Reported by user').catch(() => {});
+    setReportingId(null);
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+  };
+
+  if (activeConv) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+          <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{activeConv.otherUser?.name}</div>
+        </div>
+
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>
+          Messages may be reviewed by the admin team for safety. Be kind and respectful.
+        </p>
+
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {messages.map(m => {
+            const isMe = m.sender_id === user.id;
+            return (
+              <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '80%', padding: '8px 12px', borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  background: isMe ? 'var(--primary)' : 'var(--surface)', color: isMe ? 'white' : 'var(--text-primary)',
+                  border: isMe ? 'none' : '1px solid var(--border)', fontSize: 14, lineHeight: 1.5,
+                }}>
+                  {m.body}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: 8 }}>
+                  <span>{new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                  {!isMe && (
+                    <button onClick={() => setReportingId(m.id)} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Report</button>
+                  )}
+                </div>
+                {reportingId === m.id && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <button onClick={() => reportMessage(m.id)} style={{ fontSize: 11, padding: '3px 8px', background: '#EF4444', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm report</button>
+                    <button onClick={() => setReportingId(null)} style={{ fontSize: 11, padding: '3px 8px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+        <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 8 }}>
+          <input
+            value={newMessage}
+            onChange={e => setNewMessage(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+            placeholder="Type a message…"
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14 }}
+          />
+          <button onClick={sendMessage} disabled={sending || !newMessage.trim()} style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ color: 'white', fontSize: 18 }}>↑</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <SectionHeader eyebrow="Stay connected" title="Messages" />
+        <Btn variant="primary" size="sm" onClick={() => setShowNewMessage(true)}>+ New</Btn>
+      </div>
+
+      {loading && <Spinner />}
+      {!loading && conversations.length === 0 && (
+        <EmptyState text="No messages yet. Start a conversation from the Search tab or from a swap." />
+      )}
+      {conversations.map(c => (
+        <div key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name })}
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, position: 'relative' }}>
+            {c.other_user_name?.split(' ').map(p => p[0]).join('')}
+            {c.unread_count > 0 && (
+              <span style={{ position: 'absolute', top: -2, right: -2, width: 16, height: 16, borderRadius: '50%', background: 'var(--primary)', color: 'white', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.unread_count}</span>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: 'var(--text-primary)' }}>{c.other_user_name}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {c.last_sender_id === user.id ? 'You: ' : ''}{c.last_message || 'No messages yet'}
+            </div>
+          </div>
+          {c.last_message_at && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+              {new Date(c.last_message_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {showNewMessage && (
+        <NewMessageModal
+          onClose={() => setShowNewMessage(false)}
+          onStarted={(convId, otherUser) => {
+            setShowNewMessage(false);
+            openConversation(convId, otherUser);
+            loadConversations();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewMessageModal({ onClose, onStarted }) {
+  const { token } = useAuth();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (query.trim().length < 2) { setResults([]); return; }
+    const h = setTimeout(() => {
+      api.searchUsers(token, query).then(setResults).catch(() => {});
+    }, 300);
+    return () => clearTimeout(h);
+  }, [query, token]);
+
+  const send = async () => {
+    if (!selected || !body.trim()) return;
+    setSending(true);
+    try {
+      const { conversationId } = await api.startConversation(token, selected.id, body);
+      onStarted(conversationId, selected);
+    } catch (err) { setError(err.message); setSending(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg" style={{ background: 'var(--surface)', padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h3 style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>New message</h3>
+          <button onClick={onClose}><X size={18} color="var(--text-muted)" /></button>
+        </div>
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+        {!selected ? (
+          <>
+            <input autoFocus type="text" placeholder="Search for a user…" value={query} onChange={e => setQuery(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box', marginBottom: 8 }} />
+            {results.map(u => (
+              <button key={u.id} onClick={() => setSelected(u)} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', marginBottom: 4, fontSize: 14, color: 'var(--text-primary)' }}>
+                {u.name} {u.city && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {u.city}</span>}
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>To: {selected.name}</span>
+              <button onClick={() => setSelected(null)} style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Change</button>
+            </div>
+            <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your message…" rows={4}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', resize: 'none', marginBottom: 12, boxSizing: 'border-box' }} />
+            <Btn variant="primary" onClick={send} disabled={sending || !body.trim()} style={{ width: '100%', justifyContent: 'center' }}>
+              {sending ? 'Sending…' : 'Send message'}
+            </Btn>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
 // SWAP HISTORY SCREEN
 // =================================================================
 function SwapHistoryScreen() {
@@ -3218,6 +3452,7 @@ export default function PaniniSwapApp() {
     { id: 'matches', label: 'Matches' },
     { id: 'mySwaps', label: 'My swaps' },
     { id: 'history', label: 'History' },
+    { id: 'messages', label: 'Messages' },
     { id: 'search', label: 'Search' },
   ];
 
@@ -3290,6 +3525,7 @@ export default function PaniniSwapApp() {
             />
           )}
           {tab === 'history' && <SwapHistoryScreen />}
+          {tab === 'messages' && <MessagesScreen />}
           {tab === 'search' && <UserSearchScreen />}
           {tab === 'swap' && activeSwapId && (
             <SwapDetailScreen
