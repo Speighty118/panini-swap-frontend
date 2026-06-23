@@ -2075,6 +2075,48 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </button>
       )}
 
+      {/* Standalone proof of postage upload — shown after you've posted but haven't added proof yet */}
+      {swap.status === 'accepted' && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !swap.postage_photo && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>📷 Add proof of postage (optional)</div>
+          {postagePhotoPreview ? (
+            <div style={{ position: 'relative', marginBottom: 8 }}>
+              <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+              <button onClick={() => { setPostagePhoto(null); setPostagePhotoPreview(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto), '✓ Proof of postage uploaded!')} disabled={busy} style={{ marginTop: 8, width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                Upload proof
+              </button>
+            </div>
+          ) : (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const img = new window.Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX = 800;
+                    const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+                    canvas.width = img.width * ratio;
+                    canvas.height = img.height * ratio;
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+                    setPostagePhoto(dataUrl);
+                    setPostagePhotoPreview(dataUrl);
+                  };
+                  img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+              }} />
+              <span style={{ fontSize: 18 }}>📷</span>
+              <span>Tap to add a photo of your proof of postage</span>
+            </label>
+          )}
+        </div>
+      )}
+
       {/* Show postage proof photo if one was uploaded — visible to both parties */}
       {swap.postage_photo && (swap.status === 'accepted' || swap.status === 'posted' || swap.status === 'completed') && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
