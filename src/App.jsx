@@ -39,7 +39,9 @@ async function request(path, { method = 'GET', body, token } = {}) {
   }
 
   if (!res.ok) {
-    throw new Error(data?.error || `Request failed (${res.status})`);
+    const err = new Error(data?.error || `Request failed (${res.status})`);
+    err.stale = data?.stale || false;
+    throw err;
   }
   return data;
 }
@@ -1397,7 +1399,11 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
       const { swap } = await api.createSwap(token, match.id);
       onPropose(swap.id);
     } catch (err) {
-      setError(err.message);
+      if (err.stale) {
+        setError('This match is no longer valid as sticker availability has changed. It has been refreshed — please close this and check your Matches tab in a minute for an updated match.');
+      } else {
+        setError(err.message);
+      }
       setProposing(false);
     }
   };
