@@ -108,6 +108,8 @@ const api = {
 
   logDonationClick: (token, location) =>
     request('/donations/click', { method: 'POST', body: { location }, token }).catch(() => {}),
+  forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: { email } }),
+  resetPassword: (token, password) => request('/auth/reset-password', { method: 'POST', body: { token, password } }),
   getAnnouncements: (token) => request('/announcements', { token }),
   markAnnouncementsRead: (token) => request('/announcements/read', { method: 'POST', token }),
   getConversations: (token) => request('/messages', { token }),
@@ -391,7 +393,7 @@ function Btn({ onClick, disabled, children, variant = 'primary', size = 'md', st
 // AUTH SCREENS
 // =================================================================
 function AuthScreen({ onAuthed }) {
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot' | 'forgot_sent'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -405,6 +407,67 @@ function AuthScreen({ onAuthed }) {
     border: '1px solid var(--border)', background: 'var(--bg)',
     fontSize: 14, color: 'var(--text-primary)', outline: 'none',
   };
+
+  // Forgot password form
+  if (mode === 'forgot' || mode === 'forgot_sent') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
+        <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+          {mode === 'forgot_sent' ? (
+            <>
+              <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>📬</div>
+              <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>Check your email</h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>
+                If an account exists for {email}, we've sent a password reset link. Check your inbox and spam folder.
+              </p>
+              <button onClick={() => setMode('login')} style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer' }}>
+                Back to log in
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Forgot password?</h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>Enter your email and we'll send you a reset link.</p>
+              <ErrorBanner message={error} onDismiss={() => setError(null)} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  style={inputStyle}
+                  autoFocus
+                />
+                <button
+                  onClick={async () => {
+                    if (!email.trim()) { setError('Please enter your email address'); return; }
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      await api.forgotPassword(email.trim());
+                      setMode('forgot_sent');
+                    } catch (err) {
+                      setError(err.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                  style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {loading && <Loader2 className="animate-spin" size={14} />}
+                  Send reset link
+                </button>
+                <button onClick={() => setMode('login')} style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  ← Back to log in
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const submit = async (e) => {
     e.preventDefault();
@@ -510,6 +573,15 @@ function AuthScreen({ onAuthed }) {
           >
             {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
           </button>
+
+          {mode === 'login' && (
+            <button
+              onClick={() => setMode('forgot')}
+              style={{ width: '100%', textAlign: 'center', fontSize: 13, marginTop: 8, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Forgot your password?
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2714,6 +2786,78 @@ function UserSearchScreen() {
 // =================================================================
 // VERIFY EMAIL SCREEN
 // =================================================================
+// =================================================================
+// RESET PASSWORD SCREEN
+// =================================================================
+function ResetPasswordScreen() {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState(null);
+
+  const token = new URLSearchParams(window.location.search).get('token');
+
+  const submit = async () => {
+    if (!password || !confirm) { setError('Please fill in both fields'); return; }
+    if (password !== confirm) { setError('Passwords do not match'); return; }
+    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    setStatus('loading');
+    setError(null);
+    try {
+      await api.resetPassword(token, password);
+      setStatus('done');
+    } catch (err) {
+      setError(err.message);
+      setStatus('idle');
+    }
+  };
+
+  if (!token) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
+        <h2 style={{ fontWeight: 700, marginBottom: 8 }}>Invalid reset link</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>Please request a new password reset.</p>
+        <a href="/" style={{ color: 'var(--primary)', fontWeight: 600 }}>Go to Got One Spare?</a>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+        {status === 'done' ? (
+          <>
+            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>✅</div>
+            <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>Password updated!</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>You can now log in with your new password.</p>
+            <a href="/" style={{ display: 'block', width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none' }}>
+              Go to log in
+            </a>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Choose a new password</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>Must be at least 8 characters.</p>
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="password" placeholder="New password" value={password} onChange={e => setPassword(e.target.value)} autoFocus
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
+              <input type="password" placeholder="Confirm new password" value={confirm} onChange={e => setConfirm(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
+              <button onClick={submit} disabled={status === 'loading'}
+                style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                {status === 'loading' && <Loader2 className="animate-spin" size={14} />}
+                Set new password
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function VerifyEmailScreen() {
   const [status, setStatus] = useState('verifying'); // 'verifying' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
@@ -3438,6 +3582,9 @@ export default function PaniniSwapApp() {
   // across renders (Rules of Hooks).
   if (window.location.pathname === '/verify-email') {
     return <VerifyEmailScreen />;
+  }
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordScreen />;
   }
 
   const handleAuthed = (newToken, newUser) => {
