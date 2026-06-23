@@ -106,6 +106,8 @@ const api = {
 
   logDonationClick: (token, location) =>
     request('/donations/click', { method: 'POST', body: { location }, token }).catch(() => {}),
+  getAnnouncements: (token) => request('/announcements', { token }),
+  markAnnouncementsRead: (token) => request('/announcements/read', { method: 'POST', token }),
   getSwapHistory: (token) => request('/swaps/history', { token }),
   getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
   searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
@@ -2884,6 +2886,81 @@ function FeedbackWidget() {
   );
 }
 
+// =================================================================
+// WHAT'S NEW PANEL
+// Shows announcements/changelog. Icon in header with unread dot.
+// =================================================================
+function WhatsNewPanel() {
+  const { token } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { announcements: items, unreadCount: count } = await api.getAnnouncements(token);
+      setAnnouncements(items);
+      setUnreadCount(count);
+    } catch {}
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleOpen = async () => {
+    setOpen(true);
+    if (unreadCount > 0) {
+      await api.markAnnouncementsRead(token).catch(() => {});
+      setUnreadCount(0);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={handleOpen}
+        style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        title="What's new"
+      >
+        <span style={{ fontSize: 16 }}>📋</span>
+        {unreadCount > 0 && (
+          <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', border: '2px solid var(--surface)' }} />
+        )}
+      </button>
+
+      {open && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: '60px 12px 0' }} onClick={() => setOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 340, maxHeight: '75vh', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>What's new</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Latest updates & bug fixes</div>
+              </div>
+              <button onClick={() => setOpen(false)}><X size={16} color="var(--text-muted)" /></button>
+            </div>
+
+            {announcements.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No announcements yet.</div>
+            ) : (
+              announcements.map((a, i) => (
+                <div key={a.id} style={{ padding: '14px 16px', borderBottom: i < announcements.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{a.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                      {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.body}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function NotificationPanel() {
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
@@ -3150,6 +3227,7 @@ export default function PaniniSwapApp() {
             <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Got One Spare?</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <WhatsNewPanel />
             <NotificationPanel />
             <button
               onClick={() => setShowProfile(true)}
