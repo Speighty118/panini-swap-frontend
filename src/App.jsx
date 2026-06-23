@@ -9,9 +9,14 @@ import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, Ma
 const API_BASE = 'https://panini-swap-production-69ef.up.railway.app/api';
 
 const AuthContext = createContext(null);
+const ThemeContext = createContext({ dark: false, toggle: () => {} });
 
 function useAuth() {
   return useContext(AuthContext);
+}
+
+function useTheme() {
+  return useContext(ThemeContext);
 }
 
 async function request(path, { method = 'GET', body, token } = {}) {
@@ -101,6 +106,11 @@ const api = {
 
   logDonationClick: (token, location) =>
     request('/donations/click', { method: 'POST', body: { location }, token }).catch(() => {}),
+  getSwapHistory: (token) => request('/swaps/history', { token }),
+  getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
+  searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
+  reportNoShow: (token, swapId, notes) =>
+    request('/reports', { method: 'POST', body: { swapId, notes }, token }),
 };
 
 // =================================================================
@@ -133,6 +143,20 @@ const DESIGN_TOKENS = `
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-full: 9999px;
+  }
+  [data-theme="dark"] {
+    --bg: #0F1117;
+    --surface: #1A1F2E;
+    --border: rgba(255,255,255,0.08);
+    --text-primary: #F3F4F6;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    --navy: #1A1F36;
+    --blue-light: #1E3A5F;
+    --primary-light: #0A3D2E;
+    --danger-light: #3B1010;
+    --warning-light: #3B2A00;
+    --success-light: #0A2E1E;
   }
   body { background: var(--bg); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   * { box-sizing: border-box; }
@@ -1236,6 +1260,43 @@ function DashboardScreen() {
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0' }}>
           Based on stickers not listed as needs. Add needs to keep this accurate.
         </p>
+
+        {/* Per-team progress */}
+        {needs.length > 0 && (() => {
+          // Group needs by team and calculate progress per team
+          const teamNeeds = {};
+          needs.forEach(s => {
+            if (!teamNeeds[s.team_name]) teamNeeds[s.team_name] = 0;
+            teamNeeds[s.team_name]++;
+          });
+          const teamsWithNeeds = Object.entries(teamNeeds)
+            .map(([team, needCount]) => {
+              const total = team === 'FWC' ? 19 : team.startsWith('Coca-Cola') ? 12 : 20;
+              const have = total - needCount;
+              return { team, have, total, needCount, pct: Math.round((have / total) * 100) };
+            })
+            .sort((a, b) => b.pct - a.pct);
+          return (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>▸</span> Progress by team
+              </summary>
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {teamsWithNeeds.map(({ team, have, total, pct }) => (
+                  <div key={team}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{team}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{have}/{total}</span>
+                    </div>
+                    <div style={{ height: 5, background: 'var(--border)', borderRadius: 3 }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? 'var(--success)' : 'var(--primary)', borderRadius: 3, transition: 'width 0.4s' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          );
+        })()}
       </div>
 
       <div>
@@ -2159,6 +2220,216 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 // Standalone — doesn't require an existing session, since the user
 // may click this from their email client without being logged in.
 // =================================================================
+// =================================================================
+// SWAP HISTORY SCREEN
+// =================================================================
+function SwapHistoryScreen() {
+  const { token, user } = useAuth();
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showNoShowModal, setShowNoShowModal] = useState(null);
+
+  useEffect(() => {
+    api.getSwapHistory(token)
+      .then(setHistory)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      <SectionHeader eyebrow="Your record" title="Swap history" />
+      {history.length === 0 ? (
+        <EmptyState text="No completed or declined swaps yet." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {history.map(s => {
+            const isCompleted = s.status === 'completed';
+            return (
+              <div key={s.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: isCompleted ? 'var(--primary-light)' : 'var(--bg)', color: isCompleted ? 'var(--primary-dark)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                      {s.other_user_name?.split(' ').map(p => p[0]).join('')}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {new Date(s.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {isCompleted && s.you_gave_count > 0 && ` · gave ${s.you_gave_count}, got ${s.you_got_count}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: isCompleted ? 'var(--success-light)' : 'var(--bg)', color: isCompleted ? '#065F46' : 'var(--text-muted)' }}>
+                      {isCompleted ? '✓ Completed' : 'Declined'}
+                    </span>
+                    {s.your_rating && <StarRating value={s.your_rating} size={12} />}
+                  </div>
+                </div>
+                {isCompleted && (
+                  <button
+                    onClick={() => setShowNoShowModal(s)}
+                    style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Report a problem with this swap
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {showNoShowModal && (
+        <NoShowReportModal
+          swap={showNoShowModal}
+          onClose={() => setShowNoShowModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// =================================================================
+// NO-SHOW REPORT MODAL
+// =================================================================
+function NoShowReportModal({ swap, onClose }) {
+  const { token } = useAuth();
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await api.reportNoShow(token, swap.id, notes);
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg" style={{ background: 'var(--surface)', padding: 24 }}>
+        {done ? (
+          <>
+            <div style={{ fontSize: 32, textAlign: 'center', marginBottom: 12 }}>✅</div>
+            <h3 style={{ textAlign: 'center', fontWeight: 700, marginBottom: 8 }}>Report submitted</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 16 }}>Thanks for letting us know. The admin team will look into it.</p>
+            <button onClick={onClose} style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14 }}>Close</button>
+          </>
+        ) : (
+          <>
+            <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Report a problem</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              Was there an issue with your swap with {swap.other_user_name}? Let us know what happened.
+            </p>
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="e.g. They marked as posted but stickers never arrived…"
+              rows={3}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', resize: 'none', marginBottom: 14, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={submit} disabled={saving} style={{ flex: 1, padding: 11, borderRadius: 'var(--radius-sm)', background: '#EF4444', border: 'none', color: 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                {saving ? 'Sending…' : 'Submit report'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// USER SEARCH SCREEN
+// =================================================================
+function UserSearchScreen() {
+  const { token } = useAuth();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [viewingBadgesFor, setViewingBadgesFor] = useState(null);
+
+  useEffect(() => {
+    if (query.trim().length < 2) { setResults([]); return; }
+    const h = setTimeout(() => {
+      setLoading(true);
+      api.searchUsers(token, query)
+        .then(setResults)
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }, 300);
+    return () => clearTimeout(h);
+  }, [query, token]);
+
+  return (
+    <div>
+      <SectionHeader eyebrow="Find collectors" title="Search users" />
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        <input
+          autoFocus
+          type="text"
+          placeholder="Search by name…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          style={{ width: '100%', padding: '11px 12px 11px 36px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 14, boxSizing: 'border-box' }}
+        />
+      </div>
+
+      {loading && <Spinner />}
+      {!loading && query.length >= 2 && results.length === 0 && (
+        <EmptyState text={`No users found for "${query}"`} />
+      )}
+      {results.map(u => (
+        <div key={u.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+              {u.name?.split(' ').map(p => p[0]).join('')}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{u.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {u.city && <span>{u.city}</span>}
+                {u.completed_swaps > 0 && <span>· {u.completed_swaps} swaps</span>}
+                {u.response_rate && <span>· {u.response_rate}% response rate</span>}
+                {u.swap_streak >= 3 && <span>· 🔥 {u.swap_streak} streak</span>}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setViewingBadgesFor({ id: u.id, name: u.name })}
+            style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            View
+          </button>
+        </div>
+      ))}
+      {viewingBadgesFor && (
+        <UserRatingsModal
+          userId={viewingBadgesFor.id}
+          userName={viewingBadgesFor.name}
+          onClose={() => setViewingBadgesFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// =================================================================
+// VERIFY EMAIL SCREEN
+// =================================================================
 function VerifyEmailScreen() {
   const [status, setStatus] = useState('verifying'); // 'verifying' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
@@ -2272,6 +2543,8 @@ function resizeImageFile(file, maxDimension = 400, quality = 0.8) {
 
 function ProfileScreen({ onClose, onSaved }) {
   const { token, user } = useAuth();
+  const { dark, toggle } = useTheme();
+  const [badges, setBadges] = useState([]);
   const [form, setForm] = useState({
     name: user.name || '',
     address_line1: user.address_line1 || '',
@@ -2281,6 +2554,10 @@ function ProfileScreen({ onClose, onSaved }) {
     country: user.country || '',
     profile_photo: user.profile_photo || null,
   });
+
+  useEffect(() => {
+    if (user?.id) api.getBadges(token, user.id).then(setBadges).catch(() => {});
+  }, [token, user?.id]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -2413,6 +2690,34 @@ function ProfileScreen({ onClose, onSaved }) {
             UK postcodes only — this platform is for UK-based collectors.
           </p>
         </div>
+
+        {/* Dark mode toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Dark mode</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Switch to a darker colour scheme</div>
+          </div>
+          <button
+            onClick={toggle}
+            style={{ width: 48, height: 28, borderRadius: 14, background: dark ? 'var(--primary)' : 'var(--border)', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+          >
+            <span style={{ position: 'absolute', top: 3, left: dark ? 22 : 3, width: 22, height: 22, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+          </button>
+        </div>
+
+        {/* Badges */}
+        {badges.length > 0 && (
+          <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Your badges</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {badges.map(b => (
+                <span key={b.badge_type} title={b.description} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', color: 'var(--primary-dark)', fontWeight: 600 }}>
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
@@ -2759,6 +3064,14 @@ export default function PaniniSwapApp() {
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [checkingSession, setCheckingSession] = useState(Boolean(localStorage.getItem('authToken')));
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+
+  const themeCtx = { dark, toggle: () => setDark(d => !d) };
 
   // Check for the verify-email route before anything else — this
   // page must work even for a logged-out visitor clicking an email link.
@@ -2821,9 +3134,12 @@ export default function PaniniSwapApp() {
     { id: 'dashboard', label: 'My album' },
     { id: 'matches', label: 'Matches' },
     { id: 'mySwaps', label: 'My swaps' },
+    { id: 'history', label: 'History' },
+    { id: 'search', label: 'Search' },
   ];
 
   return (
+    <ThemeContext.Provider value={themeCtx}>
     <AuthContext.Provider value={{ token, user }}>
       <style>{DESIGN_TOKENS}</style>
       <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -2889,6 +3205,8 @@ export default function PaniniSwapApp() {
               }}
             />
           )}
+          {tab === 'history' && <SwapHistoryScreen />}
+          {tab === 'search' && <UserSearchScreen />}
           {tab === 'swap' && activeSwapId && (
             <SwapDetailScreen
               swapId={activeSwapId}
@@ -2934,5 +3252,6 @@ export default function PaniniSwapApp() {
         </div>
       </div>
     </AuthContext.Provider>
+    </ThemeContext.Provider>
   );
 }
