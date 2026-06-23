@@ -71,6 +71,7 @@ const api = {
 
   getMatches: (token) => request('/swaps/matches', { token }),
   getMySwaps: (token) => request('/swaps/mine', { token }),
+  getSwapPreview: (token, matchId) => request(`/swaps/preview/${matchId}`, { token }),
   createSwap: (token, matchId) => request('/swaps', { method: 'POST', body: { matchId }, token }),
   getSwap: (token, swapId) => request(`/swaps/${swapId}`, { token }),
   acceptSwap: (token, swapId) => request(`/swaps/${swapId}/accept`, { method: 'POST', token }),
@@ -1329,12 +1330,109 @@ function DashboardScreen() {
   );
 }
 // =================================================================
+// =================================================================
+// SWAP PREVIEW MODAL
+// Shows the sticker list for a match WITHOUT creating a swap.
+// User can then choose to propose or go back.
+// =================================================================
+function SwapPreviewModal({ match, onClose, onPropose }) {
+  const { token, user } = useAuth();
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [proposing, setProposing] = useState(false);
+
+  useEffect(() => {
+    api.getSwapPreview(token, match.id)
+      .then(setPreview)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [token, match.id]);
+
+  const handlePropose = async () => {
+    setProposing(true);
+    setError(null);
+    try {
+      const { swap } = await api.createSwap(token, match.id);
+      onPropose(swap.id);
+    } catch (err) {
+      setError(err.message);
+      setProposing(false);
+    }
+  };
+
+  const isUserA = preview?.userAId === user?.id;
+  const youGive = preview ? (isUserA ? preview.aGivesB : preview.bGivesA) : [];
+  const youGet = preview ? (isUserA ? preview.bGivesA : preview.aGivesB) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', margin: 0 }}>Swap preview</h3>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>with {match.other_user_name}</div>
+          </div>
+          <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
+        </div>
+
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+          {loading && <Spinner />}
+          {!loading && preview && (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>You give ({youGive.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {youGive.map(s => (
+                    <div key={s.sticker_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--blue)', fontFamily: 'monospace', minWidth: 50 }}>{s.sticker_number}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.description}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>You receive ({youGet.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {youGet.map(s => (
+                    <div key={s.sticker_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: '#F0FDF9', borderRadius: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', minWidth: 50 }}>{s.sticker_number}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.description}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, padding: '10px', background: 'var(--bg)', borderRadius: 6 }}>
+                This is a preview only — nothing has been proposed yet. Tap "Propose swap" to send this to {match.other_user_name}, or go back if you're not happy with it.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', fontSize: 14, fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)' }}>
+            Go back
+          </button>
+          <button onClick={handlePropose} disabled={proposing || loading} style={{ flex: 2, padding: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--primary-dark)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {proposing && <Loader2 size={14} className="animate-spin" />}
+            Propose swap
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MatchesScreen({ onOpenSwap }) {
   const { token } = useAuth();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [creatingId, setCreatingId] = useState(null);
+  const [previewingMatch, setPreviewingMatch] = useState(null);
   const [viewingRatingsFor, setViewingRatingsFor] = useState(null);
 
   const load = useCallback(async () => {
@@ -1350,19 +1448,6 @@ function MatchesScreen({ onOpenSwap }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
-
-  const proposeSwap = async (matchId) => {
-    setCreatingId(matchId);
-    setError(null);
-    try {
-      const { swap } = await api.createSwap(token, matchId);
-      onOpenSwap(swap.id);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setCreatingId(null);
-    }
-  };
 
   if (loading) return <Spinner />;
 
@@ -1394,16 +1479,28 @@ function MatchesScreen({ onOpenSwap }) {
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                  <span>{m.a_gives_b_count} ↔ {m.b_gives_a_count}</span>
+                  <span style={{ color: 'var(--blue)', fontWeight: 600 }}>{m.a_gives_b_count} give</span>
+                  <span style={{ color: 'var(--text-muted)' }}>↔</span>
+                  <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{m.b_gives_a_count} get</span>
                 </div>
-                <Btn variant="primary" size="sm" onClick={() => proposeSwap(m.id)} disabled={creatingId === m.id}>
-                  {creatingId === m.id && <Loader2 className="animate-spin" size={12} />}
-                  View swap
+                <Btn variant="primary" size="sm" onClick={() => setPreviewingMatch(m)}>
+                  Preview swap
                 </Btn>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {previewingMatch && (
+        <SwapPreviewModal
+          match={previewingMatch}
+          onClose={() => setPreviewingMatch(null)}
+          onPropose={(swapId) => {
+            setPreviewingMatch(null);
+            onOpenSwap(swapId);
+          }}
+        />
       )}
 
       {viewingRatingsFor && (
@@ -1503,7 +1600,17 @@ function MySwapsScreen({ onOpenSwap }) {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Swap #{s.id}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Swap #{s.id}</span>
+                      {(s.you_give_count > 0 || s.you_get_count > 0) && (
+                        <>
+                          <span>·</span>
+                          <span style={{ color: 'var(--blue)', fontWeight: 600 }}>{s.you_give_count} give</span>
+                          <span>↔</span>
+                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{s.you_get_count} get</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: colors.bg, color: colors.text, flexShrink: 0 }}>
