@@ -488,58 +488,36 @@ function AuthScreen({ onAuthed }) {
 // =================================================================
 // Official Panini World Cup 2026 album order — verified from the actual checklist.
 // Teams appear in exactly the order they appear in the physical album.
-// Official Panini World Cup 2026 album order — verified from checklist.
-// Names match EXACTLY what is stored in the database.
+// Official FIFA World Cup 2026 groups — verified from FIFA.com and live results.
+// Teams are grouped by their actual FIFA group (A-L) so all 4 teams in each
+// group appear together in the dropdown, matching the physical album.
 const WC2026_GROUP_ORDER = [
   'FWC',
-  'Mexico',
-  'South Africa',
-  'South Korea',
-  'Czechia',
-  'Canada',
-  'Bosnia and Herzegovina',
-  'Qatar',
-  'Switzerland',
-  'Brazil',
-  'Morocco',
-  'Haiti',
-  'Scotland',
-  'USA',
-  'Paraguay',
-  'Australia',
-  'Turkiye',
-  'Germany',
-  'Curacao',
-  'Ivory Coast',
-  'Ecuador',
-  'Netherlands',
-  'Japan',
-  'Sweden',
-  'Tunisia',
-  'Belgium',
-  'Egypt',
-  'Iran',
-  'New Zealand',
-  'Spain',
-  'Cape Verde',
-  'Saudi Arabia',
-  'Uruguay',
-  'France',
-  'Uzbekistan',
-  'Senegal',
-  'Argentina',
-  'England',
-  'Iraq',
-  'Austria',
-  'Algeria',
-  'Portugal',
-  'Colombia',
-  'Jordan',
-  'Norway',
-  'Ghana',
-  'Croatia',
-  'Panama',
-  'Congo DR',
+  // Group A
+  'Mexico', 'South Africa', 'South Korea', 'Czechia',
+  // Group B
+  'Canada', 'Switzerland', 'Qatar', 'Bosnia and Herzegovina',
+  // Group C
+  'Brazil', 'Morocco', 'Haiti', 'Scotland',
+  // Group D
+  'USA', 'Paraguay', 'Australia', 'Turkiye',
+  // Group E
+  'Germany', 'Ivory Coast', 'Ecuador', 'Curacao',
+  // Group F
+  'Netherlands', 'Japan', 'Tunisia', 'Sweden',
+  // Group G
+  'Belgium', 'Egypt', 'Iran', 'New Zealand',
+  // Group H
+  'Spain', 'Cape Verde', 'Saudi Arabia', 'Uruguay',
+  // Group I
+  'France', 'Senegal', 'Norway', 'Iraq',
+  // Group J
+  'Argentina', 'Algeria', 'Austria', 'Jordan',
+  // Group K
+  'Portugal', 'Uzbekistan', 'Colombia', 'Congo DR',
+  // Group L
+  'England', 'Croatia', 'Ghana', 'Panama',
+  // Special sets
   'Coca-Cola (North America)',
   'Coca-Cola (Europe)',
   'Coca-Cola (Latin America)',
