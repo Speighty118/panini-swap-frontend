@@ -41,6 +41,7 @@ async function request(path, { method = 'GET', body, token } = {}) {
   if (!res.ok) {
     const err = new Error(data?.error || `Request failed (${res.status})`);
     err.stale = data?.stale || false;
+    err.autoDeclined = data?.autoDeclined || false;
     throw err;
   }
   return data;
@@ -1863,7 +1864,17 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         setTimeout(() => setActionConfirm(null), 3000);
       }
     } catch (err) {
-      setError(err.message);
+      if (err.autoDeclined) {
+        // Swap was auto-declined — refresh to show the declined state cleanly
+        try {
+          const fresh = await api.getSwap(token, swapId);
+          setData(fresh);
+        } catch {}
+        setActionConfirm('This swap was automatically cancelled as the stickers were no longer available. A fresh match will appear in your Matches tab shortly.');
+        setTimeout(() => setActionConfirm(null), 6000);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setBusy(false);
     }
