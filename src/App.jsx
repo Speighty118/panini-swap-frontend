@@ -1486,7 +1486,7 @@ function DashboardScreen() {
               {teamsWithNeeds.map(({ team, have, total, pct }) => (
                 <div key={team} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 80px', gap: 8, alignItems: 'center' }}>
                   <div style={{ height: 4, background: '#e8e8e8', borderRadius: 2 }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#1AAB8A' : '#0B1120', borderRadius: 2, transition: 'width 0.4s' }} />
+                    <div style={{ height: '100%', width: pct + '%', background: pct === 100 ? '#1AAB8A' : '#0B1120', borderRadius: 2, transition: 'width 0.4s' }} />
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: '#0B1120', textAlign: 'right' }}>{have}/{total}</span>
                   <span style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>{team}</span>
@@ -1501,7 +1501,7 @@ function DashboardScreen() {
         <div style={{ marginTop: 20 }}><DonateButton location="dashboard" variant="full" /></div>
       )}
 
-      {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {      {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
+      {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
         // Silent refresh — don't set loading state which would cause
         // the modal to flicker or close on Android due to re-render
         Promise.all([api.getMyDuplicates(token), api.getMyNeeds(token)])
