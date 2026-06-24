@@ -1372,6 +1372,8 @@ function DashboardScreen() {
     }
   };
 
+  const [activeTeam, setActiveTeam] = useState('All');
+
   if (loading) return <Spinner />;
 
   const totalSpares = duplicates.reduce((s, d) => s + d.quantity, 0);
@@ -1379,7 +1381,6 @@ function DashboardScreen() {
   const totalStickers = 980;
   const completionPct = Math.round(((totalStickers - totalNeeds) / totalStickers) * 100);
 
-  const [activeTeam, setActiveTeam] = useState('All');
   const teamGroups = ['All', 'FWC', 'England', 'Argentina', 'France', 'Brazil', 'Germany', 'Spain', 'Portugal', 'Netherlands'];
   const filteredDuplicates = activeTeam === 'All' ? duplicates : duplicates.filter(s => normaliseTeamName(s.team_name) === activeTeam || s.team_name === activeTeam);
   const filteredNeeds = activeTeam === 'All' ? needs : needs.filter(s => normaliseTeamName(s.team_name) === activeTeam || s.team_name === activeTeam);
