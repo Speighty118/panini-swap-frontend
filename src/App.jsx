@@ -1732,12 +1732,12 @@ function MySwapsScreen({ onOpenSwap }) {
                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span>Swap #{s.id}</span>
-                      {(s.you_give_count > 0 || s.you_get_count > 0) && (
+                    {(s.display_give_count > 0 || s.display_get_count > 0) && (
                         <>
                           <span>·</span>
-                          <span style={{ color: 'var(--blue)', fontWeight: 600 }}>{s.you_give_count} give</span>
+                          <span style={{ color: 'var(--blue)', fontWeight: 600 }}>{s.display_give_count} give</span>
                           <span>↔</span>
-                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{s.you_get_count} get</span>
+                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{s.display_get_count} get</span>
                         </>
                       )}
                     </div>
@@ -2014,11 +2014,11 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
       <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-4 items-start">
         {items.length === 0 && swap.status === 'proposed' ? (
           <div style={{ gridColumn: '1 / -1', padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center' }}>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
-              📦 Sticker list confirmed when both parties accept
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
+              {swap.predicted_count || '?'} stickers each way
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              The exact stickers will be shown once you've both confirmed the swap.
+              Sticker list loading…
             </div>
           </div>
         ) : (
