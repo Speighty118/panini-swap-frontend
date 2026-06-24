@@ -2251,7 +2251,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </div>
       )}
 
-      {(swap.status === 'accepted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && (
+      {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !(isUserA ? swap.user_a_received : swap.user_b_received) && (
         <button onClick={() => act(() => api.markReceived(token, swap.id), '✓ Marked as received — swap complete! Please leave a rating for your swap partner.')} disabled={busy} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
           {busy && <Loader2 className="animate-spin" size={14} />} Mark stickers as received
         </button>
