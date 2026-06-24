@@ -2007,23 +2007,36 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-4 items-start">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--danger)' }}>You send</div>
-          <div className="grid grid-cols-1 gap-2">
-            {youGive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
+        {items.length === 0 && swap.status === 'proposed' ? (
+          <div style={{ gridColumn: '1 / -1', padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              📦 Sticker list confirmed when both parties accept
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              The exact stickers will be shown once you've both confirmed the swap.
+            </div>
           </div>
-        </div>
-        <div className="flex justify-center">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center rotate-90 md:rotate-0" style={{ background: 'var(--warning)' }}>
-            <ArrowRightLeft size={18} color="var(--text-primary)" />
-          </div>
-        </div>
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--primary-dark)' }}>You receive</div>
-          <div className="grid grid-cols-1 gap-2">
-            {youReceive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
-          </div>
-        </div>
+        ) : (
+          <>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--danger)' }}>You send</div>
+              <div className="grid grid-cols-1 gap-2">
+                {youGive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center rotate-90 md:rotate-0" style={{ background: 'var(--warning)' }}>
+                <ArrowRightLeft size={18} color="var(--text-primary)" />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--primary-dark)' }}>You receive</div>
+              <div className="grid grid-cols-1 gap-2">
+                {youReceive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {swap.status === 'proposed' && (() => {
