@@ -587,9 +587,7 @@ function AuthScreen({ onAuthed }) {
 
             <div style={{ padding: '32px 28px', flex: 1 }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#0B1120', lineHeight: 1.1, marginBottom: 6, letterSpacing: '-0.8px' }}>
-                {mode === 'login' ? 'Access your
-collection.' : 'Join the
-exchange.'}
+                {mode === 'login' ? 'Access your collection.' : 'Join the exchange.'}
               </div>
               <div style={{ fontSize: 12, color: '#888', marginBottom: 28, lineHeight: 1.5 }}>
                 {mode === 'login' ? 'Collectors exchange WC2026 stickers by post.' : 'List spares, add needs, get matched automatically.'}
