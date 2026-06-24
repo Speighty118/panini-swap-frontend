@@ -1685,6 +1685,10 @@ const SWAP_STATUS_COLORS = {
   completed: { bg: 'var(--primary)', text: 'white' },
   declined: { bg: 'var(--bg)', text: 'var(--text-muted)' },
   disputed: { bg: 'var(--danger-light)', text: '#991B1B' },
+  'Your turn to accept': { bg: '#FEF3C7', text: '#92400E' },
+  'Waiting for them': { bg: 'var(--success-light)', text: '#065F46' },
+  'You need to post': { bg: '#FEF3C7', text: '#92400E' },
+  'Waiting for them to post': { bg: 'var(--success-light)', text: '#065F46' },
 };
 
 function MySwapsScreen({ onOpenSwap }) {
@@ -1712,7 +1716,8 @@ function MySwapsScreen({ onOpenSwap }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {swaps.map((s) => {
-            const colors = SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
+            const label = getSwapLabel(s, user?.id);
+            const colors = SWAP_STATUS_COLORS[label] || SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
             return (
               <button
                 key={s.id}
@@ -1739,7 +1744,7 @@ function MySwapsScreen({ onOpenSwap }) {
                   </div>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: colors.bg, color: colors.text, flexShrink: 0 }}>
-                  {getSwapLabel(s, user?.id)}
+                  {label}
                 </span>
               </button>
             );
@@ -2046,11 +2051,16 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         if (myAccepted) {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div className="rounded-lg p-4 text-sm flex items-center gap-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                <Clock size={16} color="var(--primary-dark)" />
-                {theirAccepted
-                  ? "You've both accepted — loading next steps..."
-                  : `You've accepted. Waiting for ${otherName} to accept too — this page will update automatically.`}
+              <div style={{ background: 'var(--success-light)', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <CheckCircle2 size={20} color="#065F46" style={{ flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#065F46' }}>You've accepted ✓</div>
+                  <div style={{ fontSize: 13, color: '#065F46', marginTop: 2 }}>
+                    {theirAccepted
+                      ? "You've both accepted — stickers are being confirmed now..."
+                      : `Waiting for ${otherName} to accept. You don't need to do anything else right now.`}
+                  </div>
+                </div>
               </div>
               {!theirAccepted && (
                 <button
@@ -2070,13 +2080,18 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         }
 
         return (
-          <div className="flex gap-2">
-            <button onClick={() => setShowDeclineModal(true)} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-              Decline
-            </button>
-            <button onClick={() => act(() => api.acceptSwap(token, swap.id), '✓ Swap accepted! Waiting for the other person to accept too.')} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
-              {busy && <Loader2 className="animate-spin" size={14} />} Accept swap
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ background: 'var(--warning-light)', border: '1px solid #FDE68A', borderRadius: 'var(--radius-md)', padding: '12px 16px', fontSize: 13, color: '#92400E', fontWeight: 600 }}>
+              ⏳ {otherName} has accepted — it's your turn to accept or decline
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeclineModal(true)} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                Decline
+              </button>
+              <button onClick={() => act(() => api.acceptSwap(token, swap.id), '✓ Swap accepted! Waiting for the other person to accept too.')} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
+                {busy && <Loader2 className="animate-spin" size={14} />} Accept swap
+              </button>
+            </div>
           </div>
         );
       })()}
