@@ -132,19 +132,19 @@ const api = {
 // without prop-drilling colors through every element.
 // =================================================================
 const DESIGN_TOKENS = `
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
   :root {
     --primary: #1AAB8A;
     --primary-light: #C8F0E5;
     --primary-dark: #0E7A63;
     --blue: #5B9BD5;
     --blue-light: #D6E8F7;
-    --navy: #1A1F36;
-    --bg: #F5F6FA;
+    --navy: #0B1120;
+    --bg: #f4f4f2;
     --surface: #FFFFFF;
-    --border: rgba(0,0,0,0.08);
-    --text-primary: #1A1F36;
-    --text-secondary: #6B7280;
+    --border: #e8e8e4;
+    --text-primary: #0B1120;
+    --text-secondary: #555550;
     --text-muted: #9CA3AF;
     --danger: #EF4444;
     --danger-light: #FEE2E2;
@@ -152,9 +152,9 @@ const DESIGN_TOKENS = `
     --warning-light: #FEF3C7;
     --success: #10B981;
     --success-light: #D1FAE5;
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 10px;
     --radius-full: 9999px;
   }
   [data-theme="dark"] {
@@ -171,10 +171,11 @@ const DESIGN_TOKENS = `
     --warning-light: #3B2A00;
     --success-light: #0A2E1E;
   }
-  body { background: var(--bg); color: var(--text-primary); font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body { background: var(--bg); color: var(--text-primary); font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
   * { box-sizing: border-box; }
   button { cursor: pointer; border: none; background: none; padding: 0; font: inherit; }
   input, textarea, select { font: inherit; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid #1AAB8A; outline-offset: 1px; }
 `;
 
 // =================================================================
@@ -196,111 +197,81 @@ function Logo({ size = 32 }) {
 function StickerCard({ sticker, onAdd, onRemove, onUpdateQty, qtyOverride, mode = 'duplicate' }) {
   const qty = qtyOverride ?? sticker.quantity;
   const isDuplicate = mode === 'duplicate' || sticker.quantity !== undefined;
-  const bgColor = isDuplicate ? 'var(--blue-light)' : 'var(--primary-light)';
-  const badgeColor = isDuplicate ? 'var(--blue)' : 'var(--primary)';
+  const accentColor = isDuplicate ? '#1AAB8A' : '#0B1120';
+  const isNeed = mode === 'need';
 
   return (
     <div
       className="relative group"
       style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
+        background: isNeed ? '#fafaf8' : 'white',
+        border: '1px solid #e8e8e4',
+        borderLeft: '3px solid ' + accentColor,
+        borderRadius: 4,
         overflow: 'hidden',
-        cursor: onRemove ? 'default' : 'pointer',
+        cursor: onAdd ? 'pointer' : 'default',
+        transition: 'border-color 0.15s',
       }}
     >
-      <div style={{ position: 'relative' }}>
-        <div style={{ background: bgColor, height: 96, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {isDuplicate ? (
-            <svg width="60" height="60" viewBox="0 0 60 60" style={{ opacity: 0.35 }}>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <line key={i} x1={i * 12 - 20} y1={0} x2={i * 12 + 40} y2={60} stroke={badgeColor} strokeWidth="6" />
-              ))}
-            </svg>
-          ) : (
-            <Plus size={20} color={badgeColor} style={{ opacity: 0.5 }} />
-          )}
-        </div>
-        <div style={{
-          position: 'absolute', top: 8, left: 8,
-          background: badgeColor, color: 'white',
-          fontSize: 11, fontWeight: 600, padding: '2px 8px',
-          borderRadius: 'var(--radius-full)',
+      {/* Sticker number — monospaced, top left */}
+      <div style={{ padding: '8px 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{
+          fontFamily: 'monospace', fontSize: 10, fontWeight: 800,
+          color: accentColor, letterSpacing: '0.05em',
         }}>
           {sticker.sticker_number}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {!onUpdateQty && qty > 1 && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#0B1120', borderRadius: 3, padding: '1px 5px' }}>×{qty}</span>
+          )}
+          {onRemove && (
+            <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#ccc', display: 'flex', alignItems: 'center' }}>
+              <X size={11} />
+            </button>
+          )}
         </div>
-
-        {/* Top-right: remove button */}
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            style={{
-              position: 'absolute', top: 8, right: 8,
-              background: 'var(--danger)', color: 'white',
-              width: 22, height: 22, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            <X size={11} />
-          </button>
-        )}
-
-        {/* Quantity controls — shown on duplicate cards when onUpdateQty is provided */}
-        {onUpdateQty && qty !== undefined && (
-          <div style={{
-            position: 'absolute', bottom: 6, right: 6,
-            display: 'flex', alignItems: 'center', gap: 3,
-            background: 'rgba(255,255,255,0.92)', borderRadius: 10, padding: '2px 4px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); if (qty <= 1) onRemove?.(); else onUpdateQty(qty - 1); }}
-              style={{ width: 18, height: 18, borderRadius: '50%', background: qty <= 1 ? 'var(--danger)' : 'var(--border)', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: qty <= 1 ? 'white' : 'var(--text-primary)', fontWeight: 700, lineHeight: 1 }}
-            >
-              {qty <= 1 ? <X size={9} /> : '−'}
-            </button>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', minWidth: 14, textAlign: 'center' }}>{qty}</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); onUpdateQty(qty + 1); }}
-              style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, lineHeight: 1 }}
-            >
-              +
-            </button>
-          </div>
-        )}
-
-        {/* Quantity badge — shown when no controls (e.g. swap detail view) */}
-        {!onUpdateQty && qty > 1 && (
-          <div style={{
-            position: 'absolute', top: 8, right: onRemove ? 30 : 8,
-            background: 'var(--navy)', color: 'white',
-            fontSize: 11, fontWeight: 700, padding: '2px 7px',
-            borderRadius: 'var(--radius-full)',
-          }}>
-            ×{qty}
-          </div>
-        )}
-        {onAdd && (
-          <button
-            onClick={onAdd}
-            style={{
-              position: 'absolute', inset: 0, background: 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: badgeColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Plus size={16} color="white" />
-            </div>
-          </button>
-        )}
       </div>
-      <div style={{ padding: '8px 10px 10px' }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sticker.description}>
+
+      {/* Team name */}
+      <div style={{ padding: '4px 10px 2px' }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {sticker.team_name}
+        </div>
+      </div>
+
+      {/* Description */}
+      <div style={{ padding: '0 10px 10px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#0B1120', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={sticker.description}>
           {sticker.description?.split(' - ')[0] || sticker.description}
         </div>
       </div>
+
+      {/* Quantity controls */}
+      {onUpdateQty && qty !== undefined && (
+        <div style={{ borderTop: '1px solid #f0f0ec', padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, background: '#fafaf8' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); if (qty <= 1) onRemove?.(); else onUpdateQty(qty - 1); }}
+            style={{ width: 18, height: 18, borderRadius: 3, background: qty <= 1 ? '#fee2e2' : '#f0f0ec', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: qty <= 1 ? '#dc2626' : '#666', fontWeight: 700, lineHeight: 1 }}
+          >
+            {qty <= 1 ? <X size={9} /> : '−'}
+          </button>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#0B1120', minWidth: 14, textAlign: 'center', fontFamily: 'monospace' }}>{qty}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onUpdateQty(qty + 1); }}
+            style={{ width: 18, height: 18, borderRadius: 3, background: '#1AAB8A', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, lineHeight: 1 }}
+          >+</button>
+        </div>
+      )}
+
+      {/* Add overlay */}
+      {onAdd && (
+        <button onClick={onAdd} style={{ position: 'absolute', inset: 0, background: 'rgba(26,171,138,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>
+          <div style={{ width: 28, height: 28, borderRadius: 4, background: '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Plus size={14} color="white" />
+          </div>
+        </button>
+      )}
     </div>
   );
 }
@@ -324,10 +295,10 @@ function StarRating({ value, size = 14, onChange }) {
 
 function SectionHeader({ eyebrow, title, action }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.2px' }}>{title}</h2>
-        {eyebrow && <span style={{ fontSize: 11, fontWeight: 700, background: '#1AAB8A', color: 'white', borderRadius: 4, padding: '2px 6px' }}>{eyebrow}</span>}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '2px solid #0B1120' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 900, color: '#0B1120', margin: 0, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{title}</h2>
+        {eyebrow && <span style={{ fontSize: 10, fontWeight: 700, color: '#1AAB8A', fontFamily: 'monospace' }}>{eyebrow}</span>}
       </div>
       {action}
     </div>
@@ -1657,36 +1628,63 @@ function MatchesScreen({ onOpenSwap }) {
       {matches.length === 0 ? (
         <EmptyState text="No matches yet — list more duplicates and needs to improve your chances." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {matches.map((m) => (
-            <div key={m.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                <button
-                  onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })}
-                  style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}
-                >
-                  {m.other_user_name.split(' ').map((p) => p[0]).join('')}
-                </button>
-                <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })} style={{ textAlign: 'left', minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{m.other_user_name}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                    <StarRating value={m.rating_avg} size={12} />
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>({m.rating_count})</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {matches.map((m, idx) => {
+            const swapCount = Math.min(m.a_gives_b_count, m.b_gives_a_count);
+            const score = Math.min(100, Math.round((swapCount / 10) * 100));
+            const initials = m.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase();
+            return (
+              <div key={m.id} style={{ background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid #1AAB8A', borderRadius: 4, overflow: 'hidden' }}>
+                {/* Header row — user + score */}
+                <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #f0f0ec' }}>
+                  <button
+                    onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })}
+                    style={{ width: 36, height: 36, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'monospace' }}
+                  >{initials}</button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })} style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0, width: '100%' }}>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}</div>
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <StarRating value={m.rating_avg} size={11} />
+                      <span style={{ fontSize: 10, color: '#bbb', fontFamily: 'monospace' }}>({m.rating_count})</span>
+                    </div>
                   </div>
-                </button>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                  <span style={{ color: 'var(--blue)', fontWeight: 600 }}>{m.a_gives_b_count} give</span>
-                  <span style={{ color: 'var(--text-muted)' }}>↔</span>
-                  <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{m.b_gives_a_count} get</span>
+                  {/* Match score */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: '#1AAB8A', lineHeight: 1, fontFamily: 'monospace' }}>{swapCount}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>stickers each</div>
+                  </div>
                 </div>
-                <Btn variant="primary" size="sm" onClick={() => setPreviewingMatch(m)}>
-                  Preview swap
-                </Btn>
+                {/* Swap breakdown bar */}
+                <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, background: '#fafaf8' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#0B1120' }}>You give</span>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#0B1120', fontFamily: 'monospace' }}>{m.a_gives_b_count}</span>
+                    </div>
+                    <div style={{ height: 3, background: '#e0e0e0', borderRadius: 2 }}>
+                      <div style={{ height: '100%', width: Math.min(100, (m.a_gives_b_count / 10) * 100) + '%', background: '#0B1120', borderRadius: 2 }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#ccc', fontWeight: 700 }}>↔</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#1AAB8A' }}>You get</span>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#1AAB8A', fontFamily: 'monospace' }}>{m.b_gives_a_count}</span>
+                    </div>
+                    <div style={{ height: 3, background: '#e0e0e0', borderRadius: 2 }}>
+                      <div style={{ height: '100%', width: Math.min(100, (m.b_gives_a_count / 10) * 100) + '%', background: '#1AAB8A', borderRadius: 2 }} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPreviewingMatch(m)}
+                    style={{ padding: '7px 14px', background: '#0B1120', color: 'white', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.2px', flexShrink: 0 }}
+                  >Analyse →</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1791,32 +1789,32 @@ function MySwapsScreen({ onOpenSwap }) {
           {swaps.map((s) => {
             const label = getSwapLabel(s, user?.id);
             const colors = SWAP_STATUS_COLORS[label] || SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
+            const isActionNeeded = label.includes('your turn') || label.includes('You need');
+            const borderAccent = isActionNeeded ? '#f59e0b' : label.includes('Waiting') || label.includes('Completed') ? '#1AAB8A' : '#0B1120';
             return (
               <button
                 key={s.id}
                 onClick={() => onOpenSwap(s.id)}
-                style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
+                style={{ width: '100%', background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid ' + borderAccent, borderRadius: 4, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                    {s.other_user_name.split(' ').map((p) => p[0]).join('')}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, fontFamily: 'monospace' }}>
+                    {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>Swap #{s.id}</span>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}</div>
+                    <div style={{ fontSize: 10, color: '#bbb', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontFamily: 'monospace' }}>
+                      <span>#{s.id}</span>
                     {(s.display_give_count > 0 || s.display_get_count > 0) && (
                         <>
                           <span>·</span>
-                          <span style={{ color: 'var(--blue)', fontWeight: 600 }}>{s.display_give_count} give</span>
-                          <span>↔</span>
-                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{s.display_get_count} get</span>
+                          <span style={{ color: '#0B1120', fontWeight: 700 }}>{s.display_give_count}↔{s.display_get_count}</span>
                         </>
                       )}
                     </div>
                   </div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: colors.bg, color: colors.text, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 3, background: colors.bg, color: colors.text, flexShrink: 0, letterSpacing: '0.02em' }}>
                   {label}
                 </span>
               </button>
