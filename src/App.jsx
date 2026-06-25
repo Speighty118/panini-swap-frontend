@@ -55,6 +55,7 @@ const api = {
   verifyEmail: (verificationToken) => request('/auth/verify-email', { method: 'POST', body: { token: verificationToken } }),
   resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
   getStats: () => request('/stats'),
+  getActivity: () => request('/activity'),
 
   searchStickers: (token, { search, team } = {}) => {
     const params = new URLSearchParams();
@@ -273,6 +274,38 @@ function StickerCard({ sticker, onAdd, onRemove, onUpdateQty, qtyOverride, mode 
           </div>
         </button>
       )}
+    </div>
+  );
+}
+
+function ActivityTicker() {
+  const [events, setEvents] = useState([]);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    const load = () => api.getActivity().then(data => {
+      if (data?.length) setEvents(data);
+    }).catch(() => {});
+    load();
+    const refresh = setInterval(load, 60000);
+    return () => clearInterval(refresh);
+  }, []);
+
+  useEffect(() => {
+    if (events.length < 2) return;
+    const rotate = setInterval(() => setIdx(i => (i + 1) % events.length), 12000);
+    return () => clearInterval(rotate);
+  }, [events.length]);
+
+  if (!events.length) return null;
+
+  const event = events[idx];
+  const emoji = event.type === 'swap_completed' ? '✅' : event.type === 'swap_agreed' ? '🤝' : '🎉';
+
+  return (
+    <div style={{ background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '6px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 32 }}>
+      <span style={{ fontSize: 13 }}>{emoji}</span>
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600, transition: 'opacity 0.3s' }}>{event.label}</span>
     </div>
   );
 }
@@ -3739,6 +3772,7 @@ export default function PaniniSwapApp() {
         </header>
 
         <CommunityBanner />
+        <ActivityTicker />
 
         {!user.email_verified && <VerificationBanner />}
         {user.email_verified && !(user.address_line1 && user.city && user.postcode) && (
