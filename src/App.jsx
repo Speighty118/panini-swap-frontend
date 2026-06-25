@@ -1629,7 +1629,7 @@ function MatchesScreen({ onOpenSwap }) {
         <EmptyState text="No matches yet — list more duplicates and needs to improve your chances." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {matches.map((m, idx) => {
+          {[...matches].sort((a, b) => Math.min(b.a_gives_b_count, b.b_gives_a_count) - Math.min(a.a_gives_b_count, a.b_gives_a_count)).map((m, idx) => {
             const swapCount = Math.min(m.a_gives_b_count, m.b_gives_a_count);
             const score = Math.min(100, Math.round((swapCount / 10) * 100));
             const initials = m.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase();
@@ -1653,34 +1653,24 @@ function MatchesScreen({ onOpenSwap }) {
                   {/* Match score */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 22, fontWeight: 900, color: '#1AAB8A', lineHeight: 1, fontFamily: 'monospace' }}>{swapCount}</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>stickers each</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>each way</div>
                   </div>
                 </div>
                 {/* Swap breakdown bar */}
                 <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, background: '#fafaf8' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#0B1120' }}>You give</span>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: '#0B1120', fontFamily: 'monospace' }}>{m.a_gives_b_count}</span>
-                    </div>
-                    <div style={{ height: 3, background: '#e0e0e0', borderRadius: 2 }}>
-                      <div style={{ height: '100%', width: Math.min(100, (m.a_gives_b_count / 10) * 100) + '%', background: '#0B1120', borderRadius: 2 }} />
-                    </div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: '#0B1120' }}>{swapCount} stickers</div>
+                    <div style={{ fontSize: 10, color: '#bbb', fontWeight: 600, marginTop: 2 }}>you give</div>
                   </div>
-                  <div style={{ fontSize: 10, color: '#ccc', fontWeight: 700 }}>↔</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#1AAB8A' }}>You get</span>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: '#1AAB8A', fontFamily: 'monospace' }}>{m.b_gives_a_count}</span>
-                    </div>
-                    <div style={{ height: 3, background: '#e0e0e0', borderRadius: 2 }}>
-                      <div style={{ height: '100%', width: Math.min(100, (m.b_gives_a_count / 10) * 100) + '%', background: '#1AAB8A', borderRadius: 2 }} />
-                    </div>
+                  <div style={{ fontSize: 16, color: '#1AAB8A', fontWeight: 900 }}>↔</div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: '#1AAB8A' }}>{swapCount} stickers</div>
+                    <div style={{ fontSize: 10, color: '#bbb', fontWeight: 600, marginTop: 2 }}>you get</div>
                   </div>
                   <button
                     onClick={() => setPreviewingMatch(m)}
                     style={{ padding: '7px 14px', background: '#0B1120', color: 'white', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.2px', flexShrink: 0 }}
-                  >Analyse →</button>
+                  >Preview →</button>
                 </div>
               </div>
             );
