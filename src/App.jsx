@@ -409,66 +409,6 @@ function AuthScreen({ onAuthed }) {
     fontSize: 14, color: 'var(--text-primary)', outline: 'none',
   };
 
-  // Forgot password form
-  if (mode === 'forgot' || mode === 'forgot_sent') {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
-        <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
-          {mode === 'forgot_sent' ? (
-            <>
-              <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>📬</div>
-              <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>Check your email</h2>
-              <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>
-                If an account exists for {email}, we've sent a password reset link. Check your inbox and spam folder.
-              </p>
-              <button onClick={() => setMode('login')} style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer' }}>
-                Back to log in
-              </button>
-            </>
-          ) : (
-            <>
-              <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Forgot password?</h2>
-              <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>Enter your email and we'll send you a reset link.</p>
-              <ErrorBanner message={error} onDismiss={() => setError(null)} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  style={inputStyle}
-                  autoFocus
-                />
-                <button
-                  onClick={async () => {
-                    if (!email.trim()) { setError('Please enter your email address'); return; }
-                    setLoading(true);
-                    setError(null);
-                    try {
-                      await api.forgotPassword(email.trim());
-                      setMode('forgot_sent');
-                    } catch (err) {
-                      setError(err.message);
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                  disabled={loading}
-                  style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  {loading && <Loader2 className="animate-spin" size={14} />}
-                  Send reset link
-                </button>
-                <button onClick={() => setMode('login')} style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  ← Back to log in
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   const submit = async (e) => {
     e.preventDefault();
