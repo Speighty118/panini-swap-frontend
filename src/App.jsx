@@ -397,6 +397,11 @@ function AuthScreen({ onAuthed }) {
   const [inviteRequired, setInviteRequired] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    api.getStats().then(setStats).catch(() => {});
+  }, []);
 
   const inputStyle = {
     width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)',
@@ -576,9 +581,20 @@ function AuthScreen({ onAuthed }) {
 
             {/* Bottom stats strip */}
             <div style={{ background: '#fafaf8', borderTop: '1px solid #f0f0f0', padding: '10px 24px', display: 'flex', justifyContent: 'space-around' }}>
-              {['980 stickers', 'UK collectors', 'Post by post'].map(t => (
-                <span key={t} style={{ fontSize: 11, fontWeight: 600, color: '#ccc' }}>{t}</span>
-              ))}
+              {stats ? [
+                [stats.collectors, 'collectors'],
+                [stats.swaps, 'swaps completed'],
+                [stats.activeThisWeek, 'active this week'],
+              ].map(([val, label]) => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#0B1120', fontFamily: 'monospace' }}>{val.toLocaleString()}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#ccc', marginTop: 1 }}>{label}</div>
+                </div>
+              )) : (
+                ['980 stickers', 'UK collectors', 'Post by post'].map(t => (
+                  <span key={t} style={{ fontSize: 11, fontWeight: 600, color: '#ccc' }}>{t}</span>
+                ))
+              )}
             </div>
           </div>
 
