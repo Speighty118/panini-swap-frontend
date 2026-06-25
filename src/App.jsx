@@ -326,7 +326,6 @@ function CommunityBanner() {
       <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>🌍 Community</span>
       {[
         [stats.collectors, 'collectors'],
-        [stats.swaps, 'swaps completed'],
         [stats.matches, 'matches waiting'],
         [stats.activeThisWeek, 'active this week'],
       ].map(([val, label], i) => (
@@ -558,7 +557,6 @@ function AuthScreen({ onAuthed }) {
             <div style={{ background: '#fafaf8', borderTop: '1px solid #f0f0f0', padding: '10px 24px', display: 'flex', justifyContent: 'space-around' }}>
               {stats ? [
                 [stats.collectors, 'collectors'],
-                [stats.swaps, 'swaps completed'],
                 [stats.activeThisWeek, 'active this week'],
               ].map(([val, label]) => (
                 <div key={label} style={{ textAlign: 'center' }}>
