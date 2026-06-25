@@ -3419,12 +3419,12 @@ function WhatsNewPanel() {
     <>
       <button
         onClick={handleOpen}
-        style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        style={{ position: 'relative', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
         title="What's new"
       >
-        <span style={{ fontSize: 16 }}>📋</span>
+        <span style={{ fontSize: 15 }}>📋</span>
         {unreadCount > 0 && (
-          <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', border: '2px solid var(--surface)' }} />
+          <span style={{ position: 'absolute', top: 2, right: 2, width: 7, height: 7, borderRadius: '50%', background: '#1AAB8A', border: '2px solid #0B1120' }} />
         )}
       </button>
 
