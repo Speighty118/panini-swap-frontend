@@ -3791,18 +3791,7 @@ export default function PaniniSwapApp() {
           />
         )}
 
-        {/* Status line — one line, not a dashboard header */}
-        {tab === 'dashboard' && (
-          <div style={{ background: '#0B1120', padding: '7px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{user.name?.split(' ')[0]}</span>
-              <span style={{ fontSize: 11, color: '#1AAB8A', fontWeight: 700 }}>WC2026</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.02em' }}>
-              Collector archive — {new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}
-            </div>
-          </div>
-        )}
+        {/* Status line — mobile only */}
 
         <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 90px' }}>
           {tab === 'dashboard' && <DashboardScreen />}
