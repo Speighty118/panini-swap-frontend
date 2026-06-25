@@ -56,7 +56,7 @@ const api = {
   resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
   getStats: () => request('/stats'),
   getActivity: () => request('/activity'),
-  getUnreadMessageCount: (token) => request('/messages/conversations', { token }).then(convos => convos.reduce((sum, c) => sum + (parseInt(c.unread_count) || 0), 0)).catch(() => 0),
+  getUnreadMessageCount: (token) => request('/messages', { token }).then(convos => convos.reduce((sum, c) => sum + (parseInt(c.unread_count) || 0), 0)).catch(() => 0),
   getFutureCollections: (token) => request('/future-collections/me', { token }),
   voteFutureCollection: (token, key, selected) => request('/future-collections/vote', { method: 'POST', body: { key, selected }, token }),
 
