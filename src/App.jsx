@@ -1254,32 +1254,45 @@ function FutureCollectionsWidget() {
   const [open, setOpen] = useState(false);
   const [collections, setCollections] = useState([]);
   const [voted, setVoted] = useState(new Set());
+  const [pending, setPending] = useState(new Set());
+  const [submitted, setSubmitted] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     api.getFutureCollections(token).then(data => {
       setCollections(data.collections || []);
-      setVoted(new Set(data.voted || []));
+      const existing = new Set(data.voted || []);
+      setVoted(existing);
+      setPending(new Set(existing));
+      if (existing.size > 0) setSubmitted(true);
       setLoaded(true);
     }).catch(() => { setLoaded(true); });
   }, [token]);
 
-  const toggle = async (key) => {
-    const selected = !voted.has(key);
-    const newVoted = new Set(voted);
-    selected ? newVoted.add(key) : newVoted.delete(key);
-    setVoted(newVoted);
-    api.voteFutureCollection(token, key, selected).catch(() => {
-      const revert = new Set(voted);
-      setVoted(revert);
+  const toggle = (key) => {
+    setPending(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
     });
-    // Auto-minimise after any vote
-    if (selected) {
-      setTimeout(() => setOpen(false), 800);
-    }
+  };
+
+  const submit = async () => {
+    // Save all pending votes — add new ones, remove deselected ones
+    const toAdd = [...pending].filter(k => !voted.has(k));
+    const toRemove = [...voted].filter(k => !pending.has(k));
+    await Promise.all([
+      ...toAdd.map(k => api.voteFutureCollection(token, k, true)),
+      ...toRemove.map(k => api.voteFutureCollection(token, k, false)),
+    ]).catch(() => {});
+    setVoted(new Set(pending));
+    setSubmitted(true);
+    setTimeout(() => setOpen(false), 800);
   };
 
   if (!loaded) return null;
+
+  const hasChanges = [...pending].some(k => !voted.has(k)) || [...voted].some(k => !pending.has(k));
 
   return (
     <div style={{ position: 'fixed', bottom: 128, right: 16, zIndex: 200 }}>
@@ -1299,9 +1312,9 @@ function FutureCollectionsWidget() {
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}><X size={14} /></button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
             {collections.map(c => {
-              const checked = voted.has(c.key);
+              const checked = pending.has(c.key);
               return (
                 <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '7px 10px', borderRadius: 6, border: '1px solid ' + (checked ? '#1AAB8A' : 'var(--border)'), background: checked ? 'rgba(26,171,138,0.08)' : 'var(--bg)', transition: 'all 0.15s' }}>
                   <input type="checkbox" checked={checked} onChange={() => toggle(c.key)} style={{ width: 14, height: 14, accentColor: '#1AAB8A', flexShrink: 0, cursor: 'pointer' }} />
@@ -1311,12 +1324,17 @@ function FutureCollectionsWidget() {
             })}
           </div>
 
-          {voted.size > 0 && (
-            <div style={{ marginTop: 10, fontSize: 11, color: '#1AAB8A', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>✓ {voted.size} selection{voted.size !== 1 ? 's' : ''} saved</span>
-              <button onClick={() => setOpen(false)} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Minimise</button>
-            </div>
-          )}
+          <button
+            onClick={submit}
+            disabled={pending.size === 0}
+            style={{ width: '100%', padding: '9px 0', background: pending.size === 0 ? 'var(--border)' : '#1AAB8A', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: pending.size === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+          >
+            {submitted && !hasChanges ? '✓ Saved — update selections' : `Submit${pending.size > 0 ? ` (${pending.size} selected)` : ''}`}
+          </button>
+
+          <button onClick={() => setOpen(false)} style={{ width: '100%', textAlign: 'center', fontSize: 11, marginTop: 8, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+            Minimise
+          </button>
         </div>
       )}
 
