@@ -56,6 +56,7 @@ const api = {
   resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
   getStats: () => request('/stats'),
   getActivity: () => request('/activity'),
+  getUnreadMessageCount: (token) => request('/messages/conversations', { token }).then(convos => convos.reduce((sum, c) => sum + (parseInt(c.unread_count) || 0), 0)).catch(() => 0),
   getFutureCollections: (token) => request('/future-collections/me', { token }),
   voteFutureCollection: (token, key, selected) => request('/future-collections/vote', { method: 'POST', body: { key, selected }, token }),
 
@@ -3761,8 +3762,21 @@ export default function PaniniSwapApp() {
   const [tab, setTab] = useState('dashboard');
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [checkingSession, setCheckingSession] = useState(Boolean(localStorage.getItem('authToken')));
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+
+  useEffect(() => {
+    if (!token) return;
+    const load = () => api.getUnreadMessageCount(token).then(setUnreadMessages).catch(() => {});
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === 'messages') setUnreadMessages(0);
+  }, [tab]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
@@ -3963,7 +3977,14 @@ export default function PaniniSwapApp() {
                     transition: 'border-color 0.15s',
                   }}
                 >
-                  <i className={`ti ${t.icon}`} style={{ fontSize: 18, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)' }} aria-hidden="true" />
+                  <div style={{ position: 'relative', display: 'inline-flex' }}>
+                    <i className={`ti ${t.icon}`} style={{ fontSize: 18, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)' }} aria-hidden="true" />
+                    {t.id === 'messages' && unreadMessages > 0 && (
+                      <span style={{ position: 'absolute', top: -4, right: -6, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 15, height: 15, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #0B1120', lineHeight: 1 }}>
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </span>
+                    )}
+                  </div>
                   <span style={{ fontSize: 9, fontWeight: 700, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)', letterSpacing: '0.03em' }}>
                     {t.label}
                   </span>
