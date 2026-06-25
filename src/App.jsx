@@ -56,6 +56,8 @@ const api = {
   resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
   getStats: () => request('/stats'),
   getActivity: () => request('/activity'),
+  getFutureCollections: (token) => request('/future-collections/me', { token }),
+  voteFutureCollection: (token, key, selected) => request('/future-collections/vote', { method: 'POST', body: { key, selected }, token }),
 
   searchStickers: (token, { search, team } = {}) => {
     const params = new URLSearchParams();
@@ -1247,6 +1249,94 @@ function UserRatingsModal({ userId, userName, onClose }) {
 // =================================================================
 // DASHBOARD (duplicates + needs), now backed by real API state
 // =================================================================
+function FutureCollectionsWidget() {
+  const { token } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [collections, setCollections] = useState([]);
+  const [voted, setVoted] = useState(new Set());
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    api.getFutureCollections(token).then(data => {
+      setCollections(data.collections || []);
+      setVoted(new Set(data.voted || []));
+      setLoaded(true);
+    }).catch(() => { setLoaded(true); });
+  }, [token]);
+
+  const toggle = async (key) => {
+    const selected = !voted.has(key);
+    const newVoted = new Set(voted);
+    selected ? newVoted.add(key) : newVoted.delete(key);
+    setVoted(newVoted);
+    api.voteFutureCollection(token, key, selected).catch(() => {
+      const revert = new Set(voted);
+      setVoted(revert);
+    });
+    // Auto-minimise after any vote
+    if (selected) {
+      setTimeout(() => setOpen(false), 800);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div style={{ position: 'fixed', bottom: 128, right: 16, zIndex: 200 }}>
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 48, right: 0,
+          width: 300, background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 16,
+          maxHeight: '70vh', overflowY: 'auto',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>🚀 Shape our future</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Which collections next? Select all that apply.</div>
+            </div>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}><X size={14} /></button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {collections.map(c => {
+              const checked = voted.has(c.key);
+              return (
+                <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '7px 10px', borderRadius: 6, border: '1px solid ' + (checked ? '#1AAB8A' : 'var(--border)'), background: checked ? 'rgba(26,171,138,0.08)' : 'var(--bg)', transition: 'all 0.15s' }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(c.key)} style={{ width: 14, height: 14, accentColor: '#1AAB8A', flexShrink: 0, cursor: 'pointer' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{c.emoji} {c.label}</span>
+                </label>
+              );
+            })}
+          </div>
+
+          {voted.size > 0 && (
+            <div style={{ marginTop: 10, fontSize: 11, color: '#1AAB8A', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>✓ {voted.size} selection{voted.size !== 1 ? 's' : ''} saved</span>
+              <button onClick={() => setOpen(false)} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Minimise</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: 40, height: 40, borderRadius: '50%',
+          background: open ? 'var(--navy)' : '#1AAB8A',
+          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', border: 'none', cursor: 'pointer',
+          transition: 'background 0.15s', fontSize: 18,
+        }}
+        title="Shape our future"
+      >
+        🚀
+      </button>
+    </div>
+  );
+}
+
 function DashboardScreen() {
   const { token } = useAuth();
   const [duplicates, setDuplicates] = useState([]);
@@ -3852,6 +3942,7 @@ export default function PaniniSwapApp() {
           </div>
         </nav>
 
+        <FutureCollectionsWidget />
         <FeedbackWidget />
 
         <div style={{ textAlign: 'center', padding: '4px 16px 4px', marginBottom: 4 }}>
