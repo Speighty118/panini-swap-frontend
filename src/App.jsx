@@ -287,7 +287,7 @@ function CommunityBanner() {
   }, []);
   if (!stats) return null;
   return (
-    <div style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '7px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '7px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>🌍 Community</span>
       {[
         [stats.collectors, 'collectors'],
