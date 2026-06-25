@@ -3037,12 +3037,12 @@ function ResetPasswordScreen() {
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>Must be at least 8 characters.</p>
             <ErrorBanner message={error} onDismiss={() => setError(null)} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input type="password" placeholder="New password" value={password} onChange={e => setPassword(e.target.value)} autoFocus
+              <input type="password" placeholder="New password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} autoFocus
                 style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
-              <input type="password" placeholder="Confirm new password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              <input type="password" placeholder="Confirm new password" value={confirm} onChange={e => setConfirm(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
                 style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
               <button onClick={submit} disabled={status === 'loading'}
-                style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                style={{ width: '100%', padding: '13px 0', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
                 {status === 'loading' && <Loader2 className="animate-spin" size={14} />}
                 Set new password
               </button>
