@@ -10,19 +10,25 @@ self.addEventListener('push', (event) => {
   } catch (e) {}
 
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      tag: 'gotonespare',
-      data: { url: data.url },
-      vibrate: [200, 100, 200],
-    })
+    Promise.all([
+      self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: 'gotonespare',
+        data: { url: data.url },
+        vibrate: [200, 100, 200],
+      }),
+      // Set badge count on app icon
+      navigator.setAppBadge ? navigator.setAppBadge(1) : Promise.resolve(),
+    ])
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  // Clear the badge when user taps the notification
+  if (navigator.clearAppBadge) navigator.clearAppBadge();
   const url = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
