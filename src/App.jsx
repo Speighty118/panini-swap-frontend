@@ -3842,11 +3842,9 @@ export default function PaniniSwapApp() {
 
   useEffect(() => {
     if (!token) return;
-    // Track PWA install if opened from home screen
     const isStandalone = window.navigator.standalone === true;
     if (isStandalone) api.trackInstall(token).catch(() => {});
 
-    // Register service worker and subscribe to push notifications
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.register('/sw.js').then(async (reg) => {
         if (Notification.permission === 'default') {
@@ -3857,10 +3855,19 @@ export default function PaniniSwapApp() {
         if (Notification.permission !== 'granted') return;
         const { key } = await api.getVapidKey().catch(() => ({ key: null }));
         if (!key) return;
+
+        // Convert base64url VAPID key to Uint8Array (required by pushManager)
+        const urlB64ToUint8Array = (base64String) => {
+          const padding = '='.repeat((4 - base64String.length % 4) % 4);
+          const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+          const rawData = window.atob(base64);
+          return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+        };
+
         const existing = await reg.pushManager.getSubscription();
         const subscription = existing || await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: key,
+          applicationServerKey: urlB64ToUint8Array(key),
         });
         await api.subscribePush(token, subscription.toJSON(), isStandalone).catch(() => {});
       }).catch(() => {});
