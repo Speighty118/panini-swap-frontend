@@ -333,8 +333,10 @@ function IOSInstallBanner() {
       <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 }}>Add to Home Screen</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
-          Tap <strong style={{ color: 'white' }}>Share</strong> then <strong style={{ color: 'white' }}>"Add to Home Screen"</strong> for the best experience
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>
+          1. Tap the <strong style={{ color: 'white' }}>Share icon</strong> <span style={{ fontSize: 14 }}>⎋</span> at the bottom of Safari<br />
+          2. Tap <strong style={{ color: 'white' }}>"View More"</strong><br />
+          3. Tap <strong style={{ color: 'white' }}>"Add to Home Screen"</strong> at the bottom
         </div>
       </div>
       <button onClick={() => { setShow(false); localStorage.setItem('ios_install_dismissed', '1'); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, flexShrink: 0 }}>×</button>
