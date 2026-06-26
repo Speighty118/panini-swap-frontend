@@ -313,6 +313,35 @@ function ActivityTicker() {
   );
 }
 
+function IOSInstallBanner() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    // Only show on iOS Safari, not already installed, not dismissed
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true;
+    const dismissed = localStorage.getItem('ios_install_dismissed');
+    if (isIOS && !isStandalone && !dismissed) {
+      setTimeout(() => setShow(true), 3000); // show after 3s
+    }
+  }, []);
+
+  if (!show) return null;
+
+  return (
+    <div style={{ position: 'fixed', bottom: 80, left: 12, right: 12, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 }}>Add to Home Screen</div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+          Tap <strong style={{ color: 'white' }}>Share</strong> then <strong style={{ color: 'white' }}>"Add to Home Screen"</strong> for the best experience
+        </div>
+      </div>
+      <button onClick={() => { setShow(false); localStorage.setItem('ios_install_dismissed', '1'); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, flexShrink: 0 }}>×</button>
+    </div>
+  );
+}
+
 function CommunityBanner() {
   const [stats, setStats] = useState(null);
   useEffect(() => {
@@ -4028,6 +4057,7 @@ export default function PaniniSwapApp() {
 
         <FutureCollectionsWidget />
         <FeedbackWidget />
+        <IOSInstallBanner />
 
         <div style={{ textAlign: 'center', padding: '4px 16px 4px', marginBottom: 4 }}>
           <DonateButton location="footer" variant="link" />
