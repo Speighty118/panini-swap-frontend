@@ -59,6 +59,9 @@ const api = {
   getUnreadMessageCount: (token) => request('/messages', { token }).then(convos => convos.reduce((sum, c) => sum + (parseInt(c.unread_count) || 0), 0)).catch(() => 0),
   getFutureCollections: (token) => request('/future-collections/me', { token }),
   voteFutureCollection: (token, key, selected) => request('/future-collections/vote', { method: 'POST', body: { key, selected }, token }),
+  getVapidKey: () => request('/push/vapid-public-key'),
+  subscribePush: (token, subscription, isStandalone) => request('/push/subscribe', { method: 'POST', body: { subscription, isStandalone }, token }),
+  trackInstall: (token) => request('/push/track-install', { method: 'POST', token }),
 
   searchStickers: (token, { search, team } = {}) => {
     const params = new URLSearchParams();
@@ -3835,6 +3838,33 @@ export default function PaniniSwapApp() {
     load();
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    // Track PWA install if opened from home screen
+    const isStandalone = window.navigator.standalone === true;
+    if (isStandalone) api.trackInstall(token).catch(() => {});
+
+    // Register service worker and subscribe to push notifications
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/sw.js').then(async (reg) => {
+        if (Notification.permission === 'default') {
+          await new Promise(r => setTimeout(r, 5000));
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') return;
+        }
+        if (Notification.permission !== 'granted') return;
+        const { key } = await api.getVapidKey().catch(() => ({ key: null }));
+        if (!key) return;
+        const existing = await reg.pushManager.getSubscription();
+        const subscription = existing || await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+        await api.subscribePush(token, subscription.toJSON(), isStandalone).catch(() => {});
+      }).catch(() => {});
+    }
   }, [token]);
 
   useEffect(() => {
