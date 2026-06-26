@@ -4,10 +4,14 @@
  */
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Got One Spare?', body: 'You have a new notification', url: '/' };
+  let data = { title: 'Got One Spare?', body: 'You have a new notification', url: '/', badgeCount: 1 };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch (e) {}
+
+  const badgePromise = self.navigator?.setAppBadge
+    ? self.navigator.setAppBadge(data.badgeCount || 1)
+    : Promise.resolve();
 
   event.waitUntil(
     Promise.all([
@@ -19,8 +23,7 @@ self.addEventListener('push', (event) => {
         data: { url: data.url },
         vibrate: [200, 100, 200],
       }),
-      // Set badge count on app icon
-      navigator.setAppBadge ? navigator.setAppBadge(1) : Promise.resolve(),
+      badgePromise,
     ])
   );
 });
@@ -28,7 +31,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   // Clear the badge when user taps the notification
-  if (navigator.clearAppBadge) navigator.clearAppBadge();
+  if (self.navigator?.clearAppBadge) self.navigator.clearAppBadge();
   const url = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
