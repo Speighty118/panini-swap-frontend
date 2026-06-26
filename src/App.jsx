@@ -3320,17 +3320,17 @@ function ProfileScreen({ onClose, onSaved }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>📧 Email Notifications</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Choose what emails you'd like to receive.</div>
           {[
-            { key: 'email_swap_proposed', label: 'Someone proposes a swap with me' },
-            { key: 'email_swap_accepted', label: 'Someone accepts my swap' },
-            { key: 'email_swap_posted', label: 'Someone marks stickers as posted' },
-            { key: 'email_swap_received', label: 'Someone confirms they received stickers' },
-            { key: 'email_swap_reminders', label: 'Remind me about unanswered swaps (24h)' },
-            { key: 'email_chat_messages', label: 'Email me when I receive a chat message' },
+            { key: 'email_swap_proposed', label: 'Email me when someone proposes a swap', default: true },
+            { key: 'email_swap_accepted', label: 'Email me when someone accepts my swap', default: false },
+            { key: 'email_swap_posted', label: 'Email me when someone marks stickers as posted', default: false },
+            { key: 'email_swap_received', label: 'Email me when someone confirms receipt', default: false },
+            { key: 'email_swap_reminders', label: 'Remind me about unanswered swaps (24h)', default: true },
+            { key: 'email_chat_messages', label: 'Email me when I receive a chat message', default: false },
           ].map(pref => (
             <label key={pref.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
               <input
                 type="checkbox"
-                checked={form[pref.key] !== false}
+                checked={form[pref.key] !== undefined ? form[pref.key] !== false : pref.default}
                 onChange={async (e) => {
                   const val = e.target.checked;
                   setForm(f => ({ ...f, [pref.key]: val }));
