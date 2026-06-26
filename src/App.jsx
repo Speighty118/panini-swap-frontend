@@ -3315,6 +3315,38 @@ function ProfileScreen({ onClose, onSaved }) {
           </p>
         </div>
 
+        {/* Email Notifications */}
+        <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>📧 Email Notifications</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Choose what emails you'd like to receive.</div>
+          {[
+            { key: 'email_swap_proposed', label: 'Someone proposes a swap with me' },
+            { key: 'email_swap_accepted', label: 'Someone accepts my swap' },
+            { key: 'email_swap_posted', label: 'Someone marks stickers as posted' },
+            { key: 'email_swap_received', label: 'Someone confirms they received stickers' },
+            { key: 'email_swap_reminders', label: 'Remind me about unanswered swaps (24h)' },
+            { key: 'email_chat_messages', label: 'Email me when I receive a chat message' },
+          ].map(pref => (
+            <label key={pref.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+              <input
+                type="checkbox"
+                checked={form[pref.key] !== false}
+                onChange={async (e) => {
+                  const val = e.target.checked;
+                  setForm(f => ({ ...f, [pref.key]: val }));
+                  try {
+                    await api.updateMe(token, { [pref.key]: val });
+                  } catch (err) {
+                    setForm(f => ({ ...f, [pref.key]: !val }));
+                  }
+                }}
+                style={{ width: 16, height: 16, accentColor: 'var(--primary)', flexShrink: 0 }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{pref.label}</span>
+            </label>
+          ))}
+        </div>
+
         {/* Dark mode toggle */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
           <div>
