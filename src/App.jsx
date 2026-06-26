@@ -4025,6 +4025,19 @@ export default function PaniniSwapApp() {
         <CommunityBanner />
         <ActivityTicker />
 
+        {/* TEMP DEBUG — remove after push is working */}
+        {(() => {
+          const isStandalone = window.navigator.standalone === true;
+          const hasSW = 'serviceWorker' in navigator;
+          const hasPush = 'PushManager' in window;
+          const perm = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+          return (
+            <div style={{ background: '#1a1a2e', padding: '4px 12px', fontSize: 10, color: '#1AAB8A', fontFamily: 'monospace' }}>
+              standalone:{isStandalone ? '✓' : '✗'} SW:{hasSW ? '✓' : '✗'} Push:{hasPush ? '✓' : '✗'} perm:{perm}
+            </div>
+          );
+        })()}
+
         {!user.email_verified && <VerificationBanner />}
         {user.email_verified && !(user.address_line1 && user.city && user.postcode) && (
           <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#FEF3C7', borderBottom: '1px solid #FDE68A', fontSize: 13, color: '#92400E', fontWeight: 600 }}>
