@@ -3834,6 +3834,8 @@ export default function PaniniSwapApp() {
 
   useEffect(() => {
     if (!token) return;
+    // Clear badge count when app is opened
+    if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
     const load = () => api.getUnreadMessageCount(token).then(setUnreadMessages).catch(() => {});
     load();
     const interval = setInterval(load, 30000);
