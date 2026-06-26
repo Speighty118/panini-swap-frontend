@@ -284,52 +284,6 @@ function StickerCard({ sticker, onAdd, onRemove, onUpdateQty, qtyOverride, mode 
   );
 }
 
-function PushDebug({ token }) {
-  const [status, setStatus] = useState('idle');
-
-  const trySubscribe = async () => {
-    setStatus('registering SW...');
-    try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      setStatus('getting VAPID key...');
-      const res = await fetch('https://panini-swap-production-69ef.up.railway.app/api/push/vapid-public-key');
-      const { key } = await res.json();
-      setStatus('got key: ' + key.slice(0, 20) + '...');
-      const urlB64ToUint8Array = (b) => {
-        const padding = '='.repeat((4 - b.length % 4) % 4);
-        const base64 = (b + padding).replace(/-/g, '+').replace(/_/g, '/');
-        return Uint8Array.from([...atob(base64)].map(c => c.charCodeAt(0)));
-      };
-      setStatus('subscribing...');
-      const existing = await reg.pushManager.getSubscription();
-      if (existing) { setStatus('already subscribed! saving...'); }
-      const sub = existing || await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(key),
-      });
-      setStatus('subscribed! saving to server...');
-      const saveRes = await fetch('https://panini-swap-production-69ef.up.railway.app/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ subscription: sub.toJSON(), isStandalone: window.navigator.standalone }),
-      });
-      const saveData = await saveRes.json();
-      setStatus('DONE: ' + JSON.stringify(saveData));
-    } catch (err) {
-      setStatus('ERROR: ' + err.message + ' (' + err.name + ')');
-    }
-  };
-
-  return (
-    <div style={{ background: '#0a0a1a', padding: '6px 12px', fontSize: 10, color: '#ff9', fontFamily: 'monospace' }}>
-      <div>Push: {status}</div>
-      <button onClick={trySubscribe} style={{ marginTop: 4, fontSize: 10, padding: '2px 8px', background: '#1AAB8A', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>
-        Try subscribe
-      </button>
-    </div>
-  );
-}
-
 function ActivityTicker() {
   const [events, setEvents] = useState([]);
   const [idx, setIdx] = useState(0);
@@ -3891,49 +3845,46 @@ export default function PaniniSwapApp() {
     const isStandalone = window.navigator.standalone === true;
     if (isStandalone) api.trackInstall(token).catch(() => {});
 
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.log('[PWA] Not supported');
-      return;
-    }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(async (reg) => {
-      console.log('[PWA] SW registered, permission:', Notification.permission);
+    const tryPush = async () => {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        let permission = Notification.permission;
+        if (permission === 'denied') return;
+        if (permission !== 'granted') {
+          permission = await Notification.requestPermission();
+        }
+        if (permission !== 'granted') return;
 
-      if (Notification.permission === 'denied') {
-        console.log('[PWA] Permission denied by user');
-        return;
+        const res = await fetch(`${API_BASE}/push/vapid-public-key`);
+        const { key } = await res.json();
+        if (!key) return;
+
+        const urlB64ToUint8Array = (b) => {
+          const padding = '='.repeat((4 - b.length % 4) % 4);
+          const base64 = (b + padding).replace(/-/g, '+').replace(/_/g, '/');
+          return Uint8Array.from([...atob(base64)].map(c => c.charCodeAt(0)));
+        };
+
+        const existing = await reg.pushManager.getSubscription();
+        const sub = existing || await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8Array(key),
+        });
+        if (!sub) return;
+
+        await fetch(`${API_BASE}/push/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ subscription: sub.toJSON(), isStandalone }),
+        });
+      } catch (err) {
+        console.log('[PWA] Push error:', err.message);
       }
+    };
 
-      let permission = Notification.permission;
-      if (permission !== 'granted') {
-        permission = await Notification.requestPermission();
-        console.log('[PWA] Permission result:', permission);
-      }
-      if (permission !== 'granted') return;
-
-      const { key } = await api.getVapidKey().catch(err => {
-        console.log('[PWA] VAPID error:', err.message);
-        return { key: null };
-      });
-      if (!key) { console.log('[PWA] No VAPID key'); return; }
-
-      const urlB64ToUint8Array = (b) => {
-        const padding = '='.repeat((4 - b.length % 4) % 4);
-        const base64 = (b + padding).replace(/-/g, '+').replace(/_/g, '/');
-        return Uint8Array.from([...atob(base64)].map(c => c.charCodeAt(0)));
-      };
-
-      const existing = await reg.pushManager.getSubscription();
-      const sub = existing || await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(key),
-      }).catch(err => { console.log('[PWA] Subscribe error:', err.message); return null; });
-
-      if (!sub) return;
-      console.log('[PWA] Subscribed, saving...');
-      await api.subscribePush(token, sub.toJSON(), isStandalone).catch(err => console.log('[PWA] Save error:', err.message));
-      console.log('[PWA] Done');
-    }).catch(err => console.log('[PWA] SW register failed:', err.message));
+    tryPush();
   }, [token]);
 
   useEffect(() => {
@@ -4070,20 +4021,6 @@ export default function PaniniSwapApp() {
 
         <CommunityBanner />
         <ActivityTicker />
-
-        {/* TEMP DEBUG — remove after push is working */}
-        {(() => {
-          const isStandalone = window.navigator.standalone === true;
-          const hasSW = 'serviceWorker' in navigator;
-          const hasPush = 'PushManager' in window;
-          const perm = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
-          return (
-            <div style={{ background: '#1a1a2e', padding: '4px 12px', fontSize: 10, color: '#1AAB8A', fontFamily: 'monospace' }}>
-              standalone:{isStandalone ? '✓' : '✗'} SW:{hasSW ? '✓' : '✗'} Push:{hasPush ? '✓' : '✗'} perm:{perm}
-            </div>
-          );
-        })()}
-        <PushDebug token={token} />
 
         {!user.email_verified && <VerificationBanner />}
         {user.email_verified && !(user.address_line1 && user.city && user.postcode) && (
