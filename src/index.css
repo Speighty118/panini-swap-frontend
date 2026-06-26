@@ -11,9 +11,4 @@ html, body, #root {
   padding: 0;
   width: 100%;
   min-height: 100vh;
-  /* Prevent content from going under the iOS notch / home indicator */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
 }
