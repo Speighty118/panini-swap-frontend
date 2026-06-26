@@ -284,6 +284,52 @@ function StickerCard({ sticker, onAdd, onRemove, onUpdateQty, qtyOverride, mode 
   );
 }
 
+function PushDebug({ token }) {
+  const [status, setStatus] = useState('idle');
+
+  const trySubscribe = async () => {
+    setStatus('registering SW...');
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      setStatus('getting VAPID key...');
+      const res = await fetch('https://panini-swap-production-69ef.up.railway.app/api/push/vapid-public-key');
+      const { key } = await res.json();
+      setStatus('got key: ' + key.slice(0, 20) + '...');
+      const urlB64ToUint8Array = (b) => {
+        const padding = '='.repeat((4 - b.length % 4) % 4);
+        const base64 = (b + padding).replace(/-/g, '+').replace(/_/g, '/');
+        return Uint8Array.from([...atob(base64)].map(c => c.charCodeAt(0)));
+      };
+      setStatus('subscribing...');
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) { setStatus('already subscribed! saving...'); }
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(key),
+      });
+      setStatus('subscribed! saving to server...');
+      const saveRes = await fetch('https://panini-swap-production-69ef.up.railway.app/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subscription: sub.toJSON(), isStandalone: window.navigator.standalone }),
+      });
+      const saveData = await saveRes.json();
+      setStatus('DONE: ' + JSON.stringify(saveData));
+    } catch (err) {
+      setStatus('ERROR: ' + err.message + ' (' + err.name + ')');
+    }
+  };
+
+  return (
+    <div style={{ background: '#0a0a1a', padding: '6px 12px', fontSize: 10, color: '#ff9', fontFamily: 'monospace' }}>
+      <div>Push: {status}</div>
+      <button onClick={trySubscribe} style={{ marginTop: 4, fontSize: 10, padding: '2px 8px', background: '#1AAB8A', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>
+        Try subscribe
+      </button>
+    </div>
+  );
+}
+
 function ActivityTicker() {
   const [events, setEvents] = useState([]);
   const [idx, setIdx] = useState(0);
@@ -4037,6 +4083,7 @@ export default function PaniniSwapApp() {
             </div>
           );
         })()}
+        <PushDebug token={token} />
 
         {!user.email_verified && <VerificationBanner />}
         {user.email_verified && !(user.address_line1 && user.city && user.postcode) && (
