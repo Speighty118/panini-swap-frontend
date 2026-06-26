@@ -332,9 +332,9 @@ function IOSInstallBanner() {
     <div style={{ position: 'fixed', bottom: 80, left: 12, right: 12, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
       <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 }}>Add to Home Screen</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 }}>Add to Home Screen for the best experience</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>
-          1. Tap the <strong style={{ color: 'white' }}>Share icon</strong> <span style={{ fontSize: 14 }}>⎋</span> at the bottom of Safari<br />
+          1. Tap the <strong style={{ color: 'white' }}>Share icon</strong> <span style={{ fontSize: 14 }}>⬆</span> at the bottom of Safari<br />
           2. Tap <strong style={{ color: 'white' }}>"View More"</strong><br />
           3. Tap <strong style={{ color: 'white' }}>"Add to Home Screen"</strong> at the bottom
         </div>
