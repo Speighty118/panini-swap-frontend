@@ -3845,33 +3845,49 @@ export default function PaniniSwapApp() {
     const isStandalone = window.navigator.standalone === true;
     if (isStandalone) api.trackInstall(token).catch(() => {});
 
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      navigator.serviceWorker.register('/sw.js').then(async (reg) => {
-        if (Notification.permission === 'default') {
-          await new Promise(r => setTimeout(r, 5000));
-          const permission = await Notification.requestPermission();
-          if (permission !== 'granted') return;
-        }
-        if (Notification.permission !== 'granted') return;
-        const { key } = await api.getVapidKey().catch(() => ({ key: null }));
-        if (!key) return;
-
-        // Convert base64url VAPID key to Uint8Array (required by pushManager)
-        const urlB64ToUint8Array = (base64String) => {
-          const padding = '='.repeat((4 - base64String.length % 4) % 4);
-          const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-          const rawData = window.atob(base64);
-          return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
-        };
-
-        const existing = await reg.pushManager.getSubscription();
-        const subscription = existing || await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlB64ToUint8Array(key),
-        });
-        await api.subscribePush(token, subscription.toJSON(), isStandalone).catch(() => {});
-      }).catch(() => {});
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.log('[PWA] Not supported');
+      return;
     }
+
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(async (reg) => {
+      console.log('[PWA] SW registered, permission:', Notification.permission);
+
+      if (Notification.permission === 'denied') {
+        console.log('[PWA] Permission denied by user');
+        return;
+      }
+
+      let permission = Notification.permission;
+      if (permission !== 'granted') {
+        permission = await Notification.requestPermission();
+        console.log('[PWA] Permission result:', permission);
+      }
+      if (permission !== 'granted') return;
+
+      const { key } = await api.getVapidKey().catch(err => {
+        console.log('[PWA] VAPID error:', err.message);
+        return { key: null };
+      });
+      if (!key) { console.log('[PWA] No VAPID key'); return; }
+
+      const urlB64ToUint8Array = (b) => {
+        const padding = '='.repeat((4 - b.length % 4) % 4);
+        const base64 = (b + padding).replace(/-/g, '+').replace(/_/g, '/');
+        return Uint8Array.from([...atob(base64)].map(c => c.charCodeAt(0)));
+      };
+
+      const existing = await reg.pushManager.getSubscription();
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(key),
+      }).catch(err => { console.log('[PWA] Subscribe error:', err.message); return null; });
+
+      if (!sub) return;
+      console.log('[PWA] Subscribed, saving...');
+      await api.subscribePush(token, sub.toJSON(), isStandalone).catch(err => console.log('[PWA] Save error:', err.message));
+      console.log('[PWA] Done');
+    }).catch(err => console.log('[PWA] SW register failed:', err.message));
   }, [token]);
 
   useEffect(() => {
