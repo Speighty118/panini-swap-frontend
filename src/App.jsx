@@ -1936,14 +1936,21 @@ It's completely free and has already helped me complete more swaps.
 https://gotonespare.com`;
 
 function AmbassadorCard({ token, swapId, user, setUser }) {
-  const [status, setStatus] = useState(null); // null | 'pending' | 'approved' | 'rejected'
+  const [status, setStatus] = useState('loading');
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    api.getAmbassadorStatus(token).then(d => setStatus(d.status)).catch(() => {});
+    if (!token) { setStatus('none'); return; }
+    api.getAmbassadorStatus(token)
+      .then(d => setStatus(d?.status || 'none'))
+      .catch(() => { setStatus('none'); });
   }, [token]);
+
+  if (status === 'loading') return null;
+  if (error) return null;
 
   if (status === 'approved') {
     return (
@@ -1957,7 +1964,7 @@ function AmbassadorCard({ token, swapId, user, setUser }) {
     );
   }
 
-  if (status === 'pending' || submitted) {
+  if (status === 'pending' || (submitted && status !== 'approved')) {
     return (
       <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 20 }}>⏳</span>
