@@ -94,6 +94,7 @@ const api = {
   declineSwap: (token, swapId, reason) => request(`/swaps/${swapId}/decline`, { method: 'POST', body: { reason }, token }),
   withdrawSwap: (token, swapId) => request(`/swaps/${swapId}/withdraw`, { method: 'POST', token }),
   markPosted: (token, swapId, photo) => request(`/swaps/${swapId}/posted`, { method: 'POST', body: { photo }, token }),
+  uploadStickerPhoto: (token, swapId, photo) => request(`/swaps/${swapId}/sticker-photo`, { method: 'POST', body: { photo }, token }),
   markReceived: (token, swapId) => request(`/swaps/${swapId}/received`, { method: 'POST', token }),
 
   submitRating: (token, swapId, stars, comment) =>
@@ -1937,6 +1938,8 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const [declineReason, setDeclineReason] = useState('');
   const [postagePhoto, setPostagePhoto] = useState(null);
   const [postagePhotoPreview, setPostagePhotoPreview] = useState(null);
+  const [stickerPhoto, setStickerPhoto] = useState(null);
+  const [stickerPhotoPreview, setStickerPhotoPreview] = useState(null);
   const [actionConfirm, setActionConfirm] = useState(null); // brief success message
   const [disputeFiled, setDisputeFiled] = useState(false);
   const [showOtherRatings, setShowOtherRatings] = useState(false);
@@ -2272,6 +2275,65 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           </div>
         );
       })()}
+
+      {/* ── Sticker photo — share evidence of what you're sending ── */}
+      {(swap.status === 'accepted' || swap.status === 'posted') && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            📸 Sticker photos
+          </div>
+
+          {/* Your sticker photo */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your stickers</div>
+            {(isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo) && !stickerPhotoPreview ? (
+              <img src={isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo} alt="Your stickers" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+            ) : stickerPhotoPreview ? (
+              <div style={{ position: 'relative' }}>
+                <img src={stickerPhotoPreview} alt="Your stickers" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                <button onClick={() => { setStickerPhoto(null); setStickerPhotoPreview(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                <button onClick={async () => { setBusy(true); try { await api.uploadStickerPhoto(token, swap.id, stickerPhoto); const fresh = await api.getSwap(token, swapId); setData(fresh); setStickerPhoto(null); setStickerPhotoPreview(null); } catch(err) { setError(err.message); } finally { setBusy(false); } }} disabled={busy} style={{ marginTop: 6, width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                  {busy ? 'Uploading...' : '✓ Share this photo'}
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px 0' }}>
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const img = new window.Image();
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const MAX = 900;
+                      let w = img.width, h = img.height;
+                      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+                      canvas.width = w; canvas.height = h;
+                      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                      setStickerPhoto(dataUrl);
+                      setStickerPhotoPreview(dataUrl);
+                    };
+                    img.src = ev.target.result;
+                  };
+                  reader.readAsDataURL(file);
+                }} />
+                <span style={{ fontSize: 18 }}>📷</span>
+                <span>Add photo of your stickers <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>(optional)</span></span>
+              </label>
+            )}
+          </div>
+
+          {/* Their sticker photo */}
+          {(isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo) && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{otherName}'s stickers</div>
+              <img src={isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo} alt="Their stickers" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+            </div>
+          )}
+        </div>
+      )}
 
       {(swap.status === 'accepted' || swap.status === 'posted') && !(isUserA ? swap.user_a_posted : swap.user_b_posted) && otherUserAddress?.address_line1 && otherUserAddress?.city && (
         <div className="rounded-lg p-4" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
