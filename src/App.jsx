@@ -95,7 +95,10 @@ const api = {
   withdrawSwap: (token, swapId) => request(`/swaps/${swapId}/withdraw`, { method: 'POST', token }),
   markPosted: (token, swapId, photo) => request(`/swaps/${swapId}/posted`, { method: 'POST', body: { photo }, token }),
   uploadStickerPhoto: (token, swapId, photo) => request(`/swaps/${swapId}/sticker-photo`, { method: 'POST', body: { photo }, token }),
+  submitAmbassador: (token, swapId) => request('/ambassador/submit', { method: 'POST', body: { swapId }, token }),
+  getAmbassadorStatus: (token) => request('/ambassador/status', { token }),
   markReceived: (token, swapId) => request(`/swaps/${swapId}/received`, { method: 'POST', token }),
+  awardAmbassadorBadge: (token) => request('/auth/me', { method: 'PUT', body: { has_shared_facebook: true }, token }),
 
   submitRating: (token, swapId, stars, comment) =>
     request('/ratings', { method: 'POST', body: { swapId, stars, comment }, token }),
@@ -1926,6 +1929,120 @@ function MySwapsScreen({ onOpenSwap }) {
 // =================================================================
 // SWAP DETAIL SCREEN
 // =================================================================
+const FB_GROUP = 'https://www.facebook.com/groups/849861075871339/';
+const AMBASSADOR_POST = `Just completed another sticker swap using Got One Spare! ⚽
+It automatically finds people who need your spares and have the stickers you're missing.
+It's completely free and has already helped me complete more swaps.
+https://gotonespare.com`;
+
+function AmbassadorCard({ token, swapId, user, setUser }) {
+  const [status, setStatus] = useState(null); // null | 'pending' | 'approved' | 'rejected'
+  const [copied, setCopied] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    api.getAmbassadorStatus(token).then(d => setStatus(d.status)).catch(() => {});
+  }, [token]);
+
+  if (status === 'approved') {
+    return (
+      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>🏅</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46' }}>Ambassador badge earned!</div>
+          <div style={{ fontSize: 12, color: '#065F46' }}>Thanks for spreading the word about Got One Spare?</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'pending' || submitted) {
+    return (
+      <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 20 }}>⏳</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>Under review</div>
+          <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.4 }}>We'll check within 24 hours and award your Ambassador badge.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+      <div style={{ background: '#0B1120', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 18 }}>🏅</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Become a Got One Spare ambassador</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Help collectors find us and earn your badge</div>
+        </div>
+      </div>
+      <div style={{ padding: '14px 16px' }}>
+
+        {/* Step 1 */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: copied ? '#1AAB8A' : '#0B1120', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>1</div>
+          <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Copy the post text below.
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, margin: '6px 0', fontStyle: 'italic', whiteSpace: 'pre-line' }}>{AMBASSADOR_POST}</div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(AMBASSADOR_POST).catch(() => {}); setCopied(true); }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              📋 {copied ? 'Copied!' : 'Copy post text'}
+            </button>
+          </div>
+        </div>
+
+        {/* Step 2 */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0B1120', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>2</div>
+          <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Open the Facebook group, paste the post and share it.
+            <div style={{ marginTop: 8 }}>
+              <a
+                href={FB_GROUP}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-sm)', background: '#1877F2', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                Open Facebook group
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Step 3 */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0B1120', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>3</div>
+          <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            We'll check within 24 hours and award your badge.
+          </div>
+        </div>
+
+        <button
+          disabled={submitting}
+          onClick={async () => {
+            setSubmitting(true);
+            try {
+              await api.submitAmbassador(token, swapId);
+              setSubmitted(true);
+              setStatus('pending');
+            } catch(e) {
+              setSubmitting(false);
+            }
+          }}
+          style={{ width: '100%', padding: '11px', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', border: 'none', fontSize: 13, fontWeight: 700, cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+        >
+          ✓ I've posted it — submit for review
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SwapDetailScreen({ swapId, onRated, onBack }) {
   const { token, user } = useAuth();
   const [data, setData] = useState(null);
@@ -2410,6 +2527,11 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           </p>
           <DonateButton location="swap_confirmed" variant="compact" />
         </div>
+      )}
+
+      {/* Ambassador badge — shown on accepted swaps, not yet submitted */}
+      {(swap.status === 'accepted' || swap.status === 'posted') && swap.user_a_accepted && swap.user_b_accepted && (
+        <AmbassadorCard token={token} swapId={swap.id} user={user} setUser={setUser} />
       )}
 
       {swap.status === 'accepted' && !(otherUserAddress?.address_line1 && otherUserAddress?.city) && (
