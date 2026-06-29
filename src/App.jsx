@@ -2143,8 +2143,17 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 
   const { swap, items, otherUserAddress } = data;
   const isUserA = swap.user_a_id === user.id;
-  const youGive = items.filter((i) => i.from_user_id === user.id);
-  const youReceive = items.filter((i) => i.to_user_id === user.id);
+  const sortByAlbumOrder = (arr) => [...arr].sort((a, b) => {
+    const an = normaliseTeamName(a.team_name);
+    const bn = normaliseTeamName(b.team_name);
+    const ai = WC2026_GROUP_ORDER.indexOf(an);
+    const bi = WC2026_GROUP_ORDER.indexOf(bn);
+    if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return (a.sticker_number || '').localeCompare(b.sticker_number || '', undefined, { numeric: true });
+  });
+
+  const youGive = sortByAlbumOrder(items.filter((i) => i.from_user_id === user.id));
+  const youReceive = sortByAlbumOrder(items.filter((i) => i.to_user_id === user.id));
   const otherName = otherUserAddress?.name || (isUserA ? `User #${swap.user_b_id}` : `User #${swap.user_a_id}`);
   const otherUserId = isUserA ? swap.user_b_id : swap.user_a_id;
 
@@ -2568,7 +2577,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
       )}
 
       {/* Standalone proof of postage upload — shown after you've posted but haven't added proof yet */}
-      {swap.status === 'accepted' && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !swap.postage_photo && (
+      {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo) && !swap.postage_photo && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>📷 Add proof of postage (optional)</div>
           {postagePhotoPreview ? (
