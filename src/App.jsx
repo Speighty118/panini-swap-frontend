@@ -2303,7 +2303,6 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   style={{ display: 'none' }}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -2391,7 +2390,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             </div>
           ) : (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-              <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => {
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 const reader = new FileReader();
