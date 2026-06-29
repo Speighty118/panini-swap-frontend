@@ -1935,7 +1935,7 @@ It automatically finds people who need your spares and have the stickers you're 
 It's completely free and has already helped me complete more swaps.
 https://gotonespare.com`;
 
-function AmbassadorCard({ token, swapId, user, setUser }) {
+function AmbassadorCard({ token, swapId }) {
   const [status, setStatus] = useState('loading');
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2538,7 +2538,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 
       {/* Ambassador badge — shown on accepted swaps, not yet submitted */}
       {(swap.status === 'accepted' || swap.status === 'posted') && swap.user_a_accepted && swap.user_b_accepted && (
-        <AmbassadorCard token={token} swapId={swap.id} user={user} setUser={setUser} />
+        <AmbassadorCard token={token} swapId={swap.id} />
       )}
 
       {swap.status === 'accepted' && !(otherUserAddress?.address_line1 && otherUserAddress?.city) && (
