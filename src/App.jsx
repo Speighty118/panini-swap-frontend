@@ -1877,47 +1877,98 @@ function MySwapsScreen({ onOpenSwap }) {
 
   if (loading) return <Spinner />;
 
+  const SwapCard = ({ s }) => {
+    const label = getSwapLabel(s, user?.id);
+    const colors = SWAP_STATUS_COLORS[label] || SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
+    const isActionNeeded = label.includes('Your turn') || label.includes('You need');
+    const borderAccent = isActionNeeded ? '#f59e0b' : ['Waiting for them', 'Waiting for them to post', 'Completed', 'completed'].some(l => label.includes(l)) ? '#1AAB8A' : '#0B1120';
+    return (
+      <button
+        key={s.id}
+        onClick={() => onOpenSwap(s.id)}
+        style={{ width: '100%', background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid ' + borderAccent, borderRadius: 4, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, fontFamily: 'monospace' }}>
+            {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}</div>
+            <div style={{ fontSize: 10, color: '#bbb', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontFamily: 'monospace' }}>
+              <span>#{s.id}</span>
+              {(s.display_give_count > 0 || s.display_get_count > 0) && (
+                <><span>·</span><span style={{ color: '#0B1120', fontWeight: 700 }}>{s.display_give_count}↔{s.display_get_count}</span></>
+              )}
+            </div>
+          </div>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 3, background: colors.bg, color: colors.text, flexShrink: 0, letterSpacing: '0.02em' }}>
+          {label}
+        </span>
+      </button>
+    );
+  };
+
+  // Group swaps into sections
+  const groups = [
+    {
+      key: 'action',
+      title: '👋 Action needed',
+      emoji: '👋',
+      filter: (s) => {
+        const label = getSwapLabel(s, user?.id);
+        return label === 'Your turn to accept' || label === 'You need to post';
+      },
+    },
+    {
+      key: 'waiting',
+      title: '⏳ Waiting for them',
+      filter: (s) => {
+        const label = getSwapLabel(s, user?.id);
+        return label === 'Waiting for them' || label === 'Awaiting acceptance' || label === 'Waiting for them to post' || label === 'Ready to post';
+      },
+    },
+    {
+      key: 'posted',
+      title: '📬 In the post',
+      filter: (s) => s.status === 'posted',
+    },
+    {
+      key: 'completed',
+      title: '✅ Completed',
+      filter: (s) => s.status === 'completed',
+    },
+    {
+      key: 'declined',
+      title: '❌ Declined',
+      filter: (s) => s.status === 'declined' || s.status === 'disputed',
+    },
+  ];
+
+  const hasAny = swaps.length > 0;
+
   return (
     <div>
       <SectionHeader eyebrow="History" title="My swaps" />
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-      {swaps.length === 0 ? (
+      {!hasAny ? (
         <EmptyState text="No swaps yet — propose one from your matches." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {swaps.map((s) => {
-            const label = getSwapLabel(s, user?.id);
-            const colors = SWAP_STATUS_COLORS[label] || SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
-            const isActionNeeded = label.includes('your turn') || label.includes('You need');
-            const borderAccent = isActionNeeded ? '#f59e0b' : label.includes('Waiting') || label.includes('Completed') ? '#1AAB8A' : '#0B1120';
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {groups.map(group => {
+            const items = swaps.filter(group.filter);
+            if (items.length === 0) return null;
             return (
-              <button
-                key={s.id}
-                onClick={() => onOpenSwap(s.id)}
-                style={{ width: '100%', background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid ' + borderAccent, borderRadius: 4, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, fontFamily: 'monospace' }}>
-                    {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}</div>
-                    <div style={{ fontSize: 10, color: '#bbb', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontFamily: 'monospace' }}>
-                      <span>#{s.id}</span>
-                    {(s.display_give_count > 0 || s.display_get_count > 0) && (
-                        <>
-                          <span>·</span>
-                          <span style={{ color: '#0B1120', fontWeight: 700 }}>{s.display_give_count}↔{s.display_get_count}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+              <div key={group.key}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {group.title}
+                  <span style={{ background: 'var(--bg)', color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, border: '1px solid var(--border)' }}>{items.length}</span>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 3, background: colors.bg, color: colors.text, flexShrink: 0, letterSpacing: '0.02em' }}>
-                  {label}
-                </span>
-              </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {items.map(s => <SwapCard key={s.id} s={s} />)}
+                </div>
+              </div>
             );
           })}
         </div>
