@@ -332,7 +332,7 @@ function IOSInstallBanner() {
   if (!show) return null;
 
   return (
-    <div style={{ position: 'fixed', bottom: 80, left: 12, right: 12, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+    <div style={{ position: 'fixed', bottom: 90, left: 12, right: 70, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
       <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 }}>Add to Home Screen for the best experience</div>
@@ -1467,23 +1467,23 @@ function DashboardScreen() {
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
       {/* ── Stats ticker — one line, left-anchored, not a card ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid #0B1120', paddingBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid var(--text-primary)', paddingBottom: 10 }}>
         {[
           [980 - totalNeeds, 'collected'],
           [totalSpares, 'spares'],
           [totalNeeds, 'needed'],
           [completionPct + '%', 'complete'],
         ].map(([v, l], i) => (
-          <div key={l} style={{ flex: 1, borderRight: i < 3 ? '1px solid #e0e0e0' : 'none', padding: '0 12px' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#0B1120', lineHeight: 1 }}>{v}</div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>{l}</div>
+          <div key={l} style={{ flex: 1, borderRight: i < 3 ? '1px solid var(--border)' : 'none', padding: '0 12px' }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>{v}</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>{l}</div>
           </div>
         ))}
         <div style={{ flex: 1, padding: '0 0 0 12px' }}>
-          <div style={{ height: 3, background: '#e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: completionPct + '%', background: '#1AAB8A', transition: 'width 0.5s' }} />
           </div>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>Progress</div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>Progress</div>
         </div>
       </div>
 
@@ -2273,7 +2273,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         );
       })()}
 
-      {swap.status === 'accepted' && otherUserAddress?.address_line1 && otherUserAddress?.city && (
+      {(swap.status === 'accepted' || swap.status === 'posted') && !(isUserA ? swap.user_a_posted : swap.user_b_posted) && otherUserAddress?.address_line1 && otherUserAddress?.city && (
         <div className="rounded-lg p-4" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2 mb-2">
             <MapPin size={16} color="var(--primary-dark)" />
