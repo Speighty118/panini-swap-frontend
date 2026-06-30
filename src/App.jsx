@@ -2505,12 +2505,12 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
                     const img = new window.Image();
                     img.onload = () => {
                       const canvas = document.createElement('canvas');
-                      const MAX = 900;
+                      const MAX = 800;
                       let w = img.width, h = img.height;
                       if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
                       canvas.width = w; canvas.height = h;
                       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                      const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
                       setStickerPhoto(dataUrl);
                       setStickerPhotoPreview(dataUrl);
                     };
