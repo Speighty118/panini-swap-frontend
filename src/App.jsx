@@ -396,6 +396,20 @@ function StarRating({ value, size = 14, onChange }) {
   );
 }
 
+// Small inline 🏅 mark shown next to a name wherever it appears, for
+// users who've earned the Got One Spare Ambassador badge.
+function AmbassadorMark({ show, size = 12 }) {
+  if (!show) return null;
+  return (
+    <span
+      title="Got One Spare Ambassador"
+      style={{ fontSize: size, marginLeft: 4, verticalAlign: 'middle', lineHeight: 1 }}
+    >
+      🏅
+    </span>
+  );
+}
+
 function SectionHeader({ eyebrow, title, action }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '2px solid #0B1120' }}>
@@ -1753,7 +1767,7 @@ function MatchesScreen({ onOpenSwap }) {
                   >{initials}</button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name })} style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0, width: '100%' }}>
-                      <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}</div>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}<AmbassadorMark show={m.other_user_ambassador_badge} /></div>
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                       <StarRating value={m.rating_avg} size={11} />
@@ -1893,7 +1907,7 @@ function MySwapsScreen({ onOpenSwap }) {
             {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}</div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}<AmbassadorMark show={s.other_user_ambassador_badge} /></div>
             <div style={{ fontSize: 10, color: '#bbb', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontFamily: 'monospace' }}>
               <span>#{s.id}</span>
               {(s.display_give_count > 0 || s.display_get_count > 0) && (
@@ -2192,7 +2206,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   if (initialLoading) return <Spinner />;
   if (!data) return <ErrorBanner message={error || 'Swap not found'} onDismiss={() => {}} />;
 
-  const { swap, items, otherUserAddress } = data;
+  const { swap, items, otherUserAddress, otherUser } = data;
   const isUserA = swap.user_a_id === user.id;
   const sortByAlbumOrder = (arr) => [...arr].sort((a, b) => {
     const an = normaliseTeamName(a.team_name);
@@ -2205,7 +2219,8 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
 
   const youGive = sortByAlbumOrder(items.filter((i) => i.from_user_id === user.id));
   const youReceive = sortByAlbumOrder(items.filter((i) => i.to_user_id === user.id));
-  const otherName = otherUserAddress?.name || (isUserA ? `User #${swap.user_b_id}` : `User #${swap.user_a_id}`);
+  const otherName = otherUser?.name || otherUserAddress?.name || (isUserA ? `User #${swap.user_b_id}` : `User #${swap.user_a_id}`);
+  const otherIsAmbassador = !!otherUser?.ambassador_badge;
   const otherUserId = isUserA ? swap.user_b_id : swap.user_a_id;
 
   const steps = ['proposed', 'accepted', 'posted', 'completed'];
@@ -2335,7 +2350,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             Swap #{swap.id}
           </div>
           <h2 className="text-2xl font-black" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-            with {otherName}
+            with {otherName}<AmbassadorMark show={otherIsAmbassador} size={16} />
           </h2>
           <button onClick={() => setShowOtherRatings(true)} className="text-xs font-semibold underline" style={{ color: 'var(--primary-dark)' }}>
             View their ratings
@@ -2891,7 +2906,7 @@ function MessagesScreen() {
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
           <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
-          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{activeConv.otherUser?.name}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /></div>
         </div>
 
         <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>
@@ -2958,7 +2973,7 @@ function MessagesScreen() {
         <EmptyState text="No messages yet. Start a conversation from the Search tab or from a swap." />
       )}
       {conversations.map(c => (
-        <div key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name })}
+        <div key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name, ambassador_badge: c.other_user_ambassador_badge })}
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, position: 'relative' }}>
             {c.other_user_name?.split(' ').map(p => p[0]).join('')}
@@ -2967,7 +2982,7 @@ function MessagesScreen() {
             )}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: 'var(--text-primary)' }}>{c.other_user_name}</div>
+            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: 'var(--text-primary)' }}>{c.other_user_name}<AmbassadorMark show={c.other_user_ambassador_badge} /></div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.last_sender_id === user.id ? 'You: ' : ''}{c.last_message || 'No messages yet'}
             </div>
@@ -3034,14 +3049,14 @@ function NewMessageModal({ onClose, onStarted }) {
               style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box', marginBottom: 8 }} />
             {results.map(u => (
               <button key={u.id} onClick={() => setSelected(u)} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', marginBottom: 4, fontSize: 14, color: 'var(--text-primary)' }}>
-                {u.name} {u.city && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {u.city}</span>}
+                {u.name}<AmbassadorMark show={u.ambassador_badge} /> {u.city && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {u.city}</span>}
               </button>
             ))}
           </>
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>To: {selected.name}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>To: {selected.name}<AmbassadorMark show={selected.ambassador_badge} /></span>
               <button onClick={() => setSelected(null)} style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Change</button>
             </div>
             <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your message…" rows={4}
@@ -3091,7 +3106,7 @@ function SwapHistoryScreen() {
                       {s.other_user_name?.split(' ').map(p => p[0]).join('')}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}<AmbassadorMark show={s.other_user_ambassador_badge} /></div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         {new Date(s.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {isCompleted && s.you_gave_count > 0 && ` · gave ${s.you_gave_count}, got ${s.you_got_count}`}
@@ -3235,7 +3250,7 @@ function UserSearchScreen() {
               {u.name?.split(' ').map(p => p[0]).join('')}
             </div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{u.name}</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{u.name}<AmbassadorMark show={u.ambassador_badge} /></div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {u.city && <span>{u.city}</span>}
                 {u.completed_swaps > 0 && <span>· {u.completed_swaps} swaps</span>}
