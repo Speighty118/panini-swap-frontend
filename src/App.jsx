@@ -320,33 +320,129 @@ function ActivityTicker() {
   );
 }
 
-function IOSInstallBanner() {
+function InstallAndNotifyBanner() {
   const [show, setShow] = useState(false);
+  const [variant, setVariant] = useState(null); // 'ios-install' | 'android-install' | 'notifications-blocked'
+  const deferredPromptRef = useRef(null);
+
+  // Android/Chrome fires this once, early — has to be captured and
+  // deferred with preventDefault(), or it's lost for good and there's
+  // no way to trigger the native install dialog later.
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      deferredPromptRef.current = e;
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   useEffect(() => {
-    // Only show on iOS Safari, not already installed, not dismissed
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isStandalone = window.navigator.standalone === true;
-    const dismissed = localStorage.getItem('ios_install_dismissed');
-    if (isIOS && !isStandalone && !dismissed) {
-      setTimeout(() => setShow(true), 3000); // show after 3s
-    }
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true
+      || window.matchMedia('(display-mode: standalone)').matches;
+
+    // Re-prompt after a week rather than dismissing forever — someone
+    // who taps the × on day 1 might well say yes on day 8.
+    const dismissedAt = parseInt(localStorage.getItem('install_banner_dismissed_at') || '0', 10);
+    const cooledDown = Date.now() - dismissedAt > 7 * 24 * 60 * 60 * 1000;
+
+    if (!cooledDown) return;
+
+    const timer = setTimeout(() => {
+      if (isIOS && !isStandalone) {
+        setVariant('ios-install');
+        setShow(true);
+      } else if (isAndroid && !isStandalone && deferredPromptRef.current) {
+        setVariant('android-install');
+        setShow(true);
+      } else if ('Notification' in window && Notification.permission === 'denied') {
+        // Covers anyone (installed or not) who denied notifications at
+        // some point — the browser will never re-prompt automatically,
+        // so this is the only way they find out how to turn it back on.
+        setVariant('notifications-blocked');
+        setShow(true);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, []);
+
+  const dismiss = () => {
+    setShow(false);
+    localStorage.setItem('install_banner_dismissed_at', String(Date.now()));
+  };
+
+  const installAndroid = async () => {
+    const promptEvent = deferredPromptRef.current;
+    if (!promptEvent) return dismiss();
+    promptEvent.prompt();
+    try { await promptEvent.userChoice; } catch {}
+    deferredPromptRef.current = null;
+    dismiss();
+  };
 
   if (!show) return null;
 
-  return (
-    <div style={{ position: 'fixed', bottom: 90, left: 12, right: 70, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-      <img src="/icon-192.png" alt="" style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 }}>Add to Home Screen for the best experience</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>
-          1. Tap the <strong style={{ color: 'white' }}>Share icon</strong> <span style={{ fontSize: 14 }}>⬆</span> at the bottom of Safari<br />
-          2. Tap <strong style={{ color: 'white' }}>"View More"</strong><br />
-          3. Tap <strong style={{ color: 'white' }}>"Add to Home Screen"</strong> at the bottom
+  const BENEFITS = "Get notified the instant someone matches with you or accepts a swap — so you don't lose out to a faster swapper.";
+  const wrapStyle = { position: 'fixed', bottom: 90, left: 12, right: 70, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 };
+  const iconStyle = { width: 44, height: 44, borderRadius: 10, flexShrink: 0 };
+  const titleStyle = { fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 };
+  const bodyStyle = { fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 };
+  const benefitStyle = { fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5, marginTop: 6, fontStyle: 'italic' };
+  const closeStyle = { background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, flexShrink: 0 };
+
+  if (variant === 'ios-install') {
+    return (
+      <div style={wrapStyle}>
+        <img src="/icon-192.png" alt="" style={iconStyle} />
+        <div style={{ flex: 1 }}>
+          <div style={titleStyle}>Add to Home Screen for instant alerts</div>
+          <div style={bodyStyle}>
+            1. Tap the <strong style={{ color: 'white' }}>Share icon</strong> <span style={{ fontSize: 14 }}>⬆</span> at the bottom of Safari<br />
+            2. Tap <strong style={{ color: 'white' }}>"View More"</strong><br />
+            3. Tap <strong style={{ color: 'white' }}>"Add to Home Screen"</strong>
+          </div>
+          <div style={benefitStyle}>{BENEFITS}</div>
         </div>
+        <button onClick={dismiss} style={closeStyle}>×</button>
       </div>
-      <button onClick={() => { setShow(false); localStorage.setItem('ios_install_dismissed', '1'); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, flexShrink: 0 }}>×</button>
+    );
+  }
+
+  if (variant === 'android-install') {
+    return (
+      <div style={wrapStyle}>
+        <img src="/icon-192.png" alt="" style={iconStyle} />
+        <div style={{ flex: 1 }}>
+          <div style={titleStyle}>Install the app for instant alerts</div>
+          <div style={benefitStyle}>{BENEFITS}</div>
+          <button onClick={installAndroid} style={{ marginTop: 8, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            Install app
+          </button>
+        </div>
+        <button onClick={dismiss} style={closeStyle}>×</button>
+      </div>
+    );
+  }
+
+  // notifications-blocked — browsers won't let us re-trigger the
+  // permission prompt via code once denied, so this is manual steps.
+  const isIOSDevice = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return (
+    <div style={wrapStyle}>
+      <img src="/icon-192.png" alt="" style={iconStyle} />
+      <div style={{ flex: 1 }}>
+        <div style={titleStyle}>Turn notifications back on</div>
+        <div style={bodyStyle}>
+          {isIOSDevice
+            ? <>Go to <strong style={{ color: 'white' }}>Settings → Notifications → Got One Spare?</strong> and turn Allow Notifications on.</>
+            : <>Tap the <strong style={{ color: 'white' }}>lock/info icon</strong> next to the address bar → Permissions → Notifications → Allow.</>}
+        </div>
+        <div style={benefitStyle}>{BENEFITS}</div>
+      </div>
+      <button onClick={dismiss} style={closeStyle}>×</button>
     </div>
   );
 }
@@ -4361,7 +4457,7 @@ export default function PaniniSwapApp() {
 
         <FutureCollectionsWidget />
         <FeedbackWidget />
-        <IOSInstallBanner />
+        <InstallAndNotifyBanner />
 
         <div style={{ textAlign: 'center', padding: '4px 16px 4px', marginBottom: 4 }}>
           <DonateButton location="footer" variant="link" />
