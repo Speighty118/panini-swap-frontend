@@ -2623,7 +2623,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </div>
       )}
 
-      {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !(isUserA ? swap.user_a_received : swap.user_b_received) && (
+      {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_b_posted : swap.user_a_posted) && !(isUserA ? swap.user_a_received : swap.user_b_received) && (
         <button onClick={async () => {
           setBusy(true);
           setError(null);
