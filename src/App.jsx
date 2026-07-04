@@ -103,6 +103,7 @@ const api = {
   submitRating: (token, swapId, stars, comment) =>
     request('/ratings', { method: 'POST', body: { swapId, stars, comment }, token }),
   getUserRatings: (token, userId) => request(`/ratings/user/${userId}`, { token }),
+  getStats: (token, userId) => request(`/swaps/stats/${userId}`, { token }),
 
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
@@ -499,6 +500,43 @@ function formatMessageTimestamp(dateStr) {
   yesterday.setDate(now.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
   return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${time}`;
+}
+
+// Reusable stats grid — used on your own profile (full detail) and
+// when viewing someone else's reliability profile (same data, same
+// component). Add more entries to STAT_DEFS to extend later.
+function StatsGrid({ stats, compact = false }) {
+  if (!stats) return null;
+
+  const STAT_DEFS = [
+    { key: 'completedSwaps', label: 'Completed swaps', format: (v) => v ?? 0 },
+    { key: 'successRatePct', label: 'Successful swaps', format: (v) => (v == null ? '—' : `${v}%`) },
+    { key: 'stickersExchanged', label: 'Stickers exchanged', format: (v) => v ?? 0 },
+    { key: 'activeSwaps', label: 'Active swaps', format: (v) => v ?? 0 },
+    { key: 'avgResponseHours', label: 'Average response', format: (v) => (v == null ? '—' : `${v}h`) },
+    { key: 'avgDispatchDays', label: 'Average dispatch', format: (v) => (v == null ? '—' : `${v}d`) },
+    { key: 'fastestCompletedDays', label: 'Fastest swap', format: (v) => (v == null ? '—' : `${v}d`) },
+    { key: 'longestCompletedDays', label: 'Longest swap', format: (v) => (v == null ? '—' : `${v}d`) },
+    { key: 'currentStreak', label: 'Current streak', format: (v) => (v ? `🔥 ${v}` : '0') },
+    {
+      key: 'memberSince',
+      label: 'Member since',
+      format: (v) => (v ? new Date(v).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '—'),
+    },
+  ];
+
+  const visible = compact ? STAT_DEFS.slice(0, 4) : STAT_DEFS;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+      {visible.map(({ key, label, format }) => (
+        <div key={key} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{format(stats[key])}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{label}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function StarRating({ value, size = 14, onChange }) {
@@ -1345,6 +1383,7 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
 function UserRatingsModal({ userId, userName, ambassadorBadge, onClose }) {
   const { token } = useAuth();
   const [data, setData] = useState(null);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -1355,6 +1394,7 @@ function UserRatingsModal({ userId, userName, ambassadorBadge, onClose }) {
       .then((res) => { if (!cancelled) setData(res); })
       .catch((err) => { if (!cancelled) setError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
+    api.getStats(token, userId).then((res) => { if (!cancelled) setStats(res); }).catch(() => {});
     return () => { cancelled = true; };
   }, [token, userId]);
 
@@ -1380,6 +1420,13 @@ function UserRatingsModal({ userId, userName, ambassadorBadge, onClose }) {
                 ({data.rating_count} {data.rating_count === 1 ? 'review' : 'reviews'})
               </span>
             </div>
+
+            {stats && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Reliability</div>
+                <StatsGrid stats={stats} compact />
+              </div>
+            )}
 
             {data.recentRatings.length === 0 ? (
               <EmptyState text="No reviews yet — be the first to swap and rate." />
@@ -1516,7 +1563,7 @@ function FutureCollectionsWidget() {
 }
 
 function DashboardScreen() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [duplicates, setDuplicates] = useState([]);
   const [needs, setNeeds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1591,6 +1638,12 @@ function DashboardScreen() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+      {user?.matching_paused && (
+        <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#92400E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+          🔴 Matching paused — you won't receive new matches until you turn this off in your profile.
+        </div>
+      )}
 
       {/* ── Stats ticker — one line, left-anchored, not a card ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid var(--text-primary)', paddingBottom: 10 }}>
@@ -2237,7 +2290,7 @@ function AmbassadorCard({ token, swapId }) {
   );
 }
 
-function SwapDetailScreen({ swapId, onRated, onBack }) {
+function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
   const { token, user } = useAuth();
   const [data, setData] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true); // only true on first load
@@ -2256,6 +2309,9 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const [showOtherRatings, setShowOtherRatings] = useState(false);
   const [needsRestored, setNeedsRestored] = useState(false);
   const [restoringNeeds, setRestoringNeeds] = useState(false);
+  const [findingMatch, setFindingMatch] = useState(false);
+  const [noMoreMatches, setNoMoreMatches] = useState(false);
+  const [nextMatch, setNextMatch] = useState(null);
 
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -2346,6 +2402,28 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
       setRestoringNeeds(false);
     }
   };
+
+  const findAnotherMatch = async () => {
+    setFindingMatch(true);
+    setNoMoreMatches(false);
+    setError(null);
+    try {
+      const matches = await api.getMatches(token);
+      if (!matches.length) {
+        setNoMoreMatches(true);
+      } else {
+        const top = [...matches].sort(
+          (a, b) => Math.min(b.a_gives_b_count, b.b_gives_a_count) - Math.min(a.a_gives_b_count, a.b_gives_a_count)
+        )[0];
+        setNextMatch(top);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setFindingMatch(false);
+    }
+  };
+
   const sortByAlbumOrder = (arr) => [...arr].sort((a, b) => {
     const an = normaliseTeamName(a.team_name);
     const bn = normaliseTeamName(b.team_name);
@@ -2360,9 +2438,6 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
   const otherName = otherUser?.name || otherUserAddress?.name || (isUserA ? `User #${swap.user_b_id}` : `User #${swap.user_a_id}`);
   const otherIsAmbassador = Boolean(otherUser?.ambassador_badge);
   const otherUserId = isUserA ? swap.user_b_id : swap.user_a_id;
-
-  const steps = ['proposed', 'accepted', 'posted', 'completed'];
-  const currentStep = steps.indexOf(swap.status === 'declined' ? 'proposed' : swap.status);
 
   const act = async (fn, confirmMsg) => {
     setBusy(true);
@@ -2445,6 +2520,24 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </div>
       )}
 
+      {swap.status === 'declined' && (
+        <div>
+          <button
+            onClick={findAnotherMatch}
+            disabled={findingMatch}
+            className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2"
+            style={{ background: 'var(--primary-dark)', color: 'var(--surface)', opacity: findingMatch ? 0.7 : 1 }}
+          >
+            {findingMatch && <Loader2 className="animate-spin" size={14} />} Find another collector
+          </button>
+          {noMoreMatches && (
+            <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px', background: 'var(--bg)', borderRadius: 8 }}>
+              No alternative matches available yet. We'll notify you when another collector joins.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Decline reason modal */}
       {showDeclineModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -2496,37 +2589,54 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </div>
       </div>
 
-      {swap.status !== 'declined' && (
-        <div className="flex items-center">
-          {['Proposed', 'Accepted', 'Posted', 'Done'].map((label, i) => {
-            // When status is 'accepted' but the current user has already posted,
-            // show the Posted step as "in progress" rather than future
-            const myPosted = isUserA ? swap.user_a_posted : swap.user_b_posted;
-            const effectiveStep = swap.status === 'accepted' && myPosted && i === 2 ? 'current' : null;
-            const isPast = i < currentStep;
-            const isCurrent = i === currentStep;
-            const isEffectiveCurrent = effectiveStep === 'current';
-            const stepLabel = (isCurrent && swap.status === 'accepted' && myPosted) ? 'Waiting' : label;
-            return (
-              <React.Fragment key={label}>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{
-                    background: isPast || isEffectiveCurrent ? 'var(--primary-dark)' : isCurrent ? 'var(--primary-dark)' : 'var(--bg)',
-                    color: isPast || isCurrent || isEffectiveCurrent ? 'var(--surface)' : 'var(--text-muted)',
-                    opacity: isEffectiveCurrent ? 0.6 : 1,
-                  }}>
-                    {isPast ? <CheckCircle2 size={15} /> : (isCurrent || isEffectiveCurrent) ? <Clock size={14} /> : i + 1}
-                  </div>
-                  <span className="text-[10px] font-medium" style={{ color: isPast || isCurrent || isEffectiveCurrent ? 'var(--primary-dark)' : 'var(--text-muted)' }}>
-                    {stepLabel}
-                  </span>
-                </div>
-                {i < 3 && <div className="flex-1 h-0.5 mb-4" style={{ background: isPast ? 'var(--primary-dark)' : 'var(--border)' }} />}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
+      {swap.status !== 'declined' && (() => {
+        const myPosted = isUserA ? swap.user_a_posted : swap.user_b_posted;
+        const myReceived = isUserA ? swap.user_a_received : swap.user_b_received;
+        const bothAccepted = swap.user_a_accepted && swap.user_b_accepted;
+
+        // Reflects THIS user's own progress through the swap — some
+        // steps are shared (Accepted, Both posted, Completed), some
+        // are personal (You posted, You received).
+        let currentStepIdx;
+        if (swap.status === 'completed') currentStepIdx = 5;
+        else if (myReceived) currentStepIdx = 4;
+        else if (swap.status === 'posted') currentStepIdx = 3;
+        else if (myPosted) currentStepIdx = 2;
+        else if (bothAccepted) currentStepIdx = 1;
+        else currentStepIdx = 0;
+
+        const STEP_LABELS = ['Proposal sent', 'Accepted', 'You posted', 'Both posted', 'You received', 'Completed'];
+
+        return (
+          <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
+            <div className="flex items-center" style={{ minWidth: 460 }}>
+              {STEP_LABELS.map((label, i) => {
+                const isPast = i < currentStepIdx;
+                const isCurrent = i === currentStepIdx;
+                return (
+                  <React.Fragment key={label}>
+                    <div className="flex flex-col items-center gap-1" style={{ flexShrink: 0 }}>
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{
+                        background: isPast ? 'var(--primary-dark)' : isCurrent ? 'var(--warning)' : 'var(--bg)',
+                        color: isPast ? 'var(--surface)' : isCurrent ? 'var(--text-primary)' : 'var(--text-muted)',
+                        border: isCurrent ? '2px solid var(--warning)' : 'none',
+                      }}>
+                        {isPast ? <CheckCircle2 size={13} /> : isCurrent ? <Clock size={12} /> : i + 1}
+                      </div>
+                      <span className="text-[9px] font-medium" style={{ color: isPast ? 'var(--primary-dark)' : isCurrent ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {label}
+                      </span>
+                    </div>
+                    {i < STEP_LABELS.length - 1 && (
+                      <div className="flex-1 h-0.5 mb-4" style={{ background: isPast ? 'var(--primary-dark)' : 'var(--border)', minWidth: 16 }} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-4 items-start">
         {items.length === 0 && swap.status === 'proposed' ? (
@@ -2777,6 +2887,39 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
         </div>
       )}
 
+      {swap.status === 'posted' && !(isUserA ? swap.user_a_received : swap.user_b_received) && (() => {
+        const aAt = swap.user_a_posted_at ? new Date(swap.user_a_posted_at) : null;
+        const bAt = swap.user_b_posted_at ? new Date(swap.user_b_posted_at) : null;
+        // Use whichever side posted LAST as day 0 — falls back to
+        // updated_at for swaps predating the posted_at columns. Using
+        // this rather than updated_at directly also means a later
+        // proof-of-postage photo upload (which also touches updated_at)
+        // doesn't reset the countdown.
+        const bothPostedAt = (aAt && bAt) ? new Date(Math.max(aAt, bAt)) : new Date(swap.updated_at);
+        const daysSince = Math.max(0, Math.floor((Date.now() - bothPostedAt) / 86_400_000));
+        const dayLabel = `Day ${daysSince + 1}`;
+        const barFilled = Math.min(daysSince + 1, 3);
+        const overdue = daysSince >= 7;
+
+        return (
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>📬 Estimated delivery</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>2–3 working days from posting (Royal Mail 2nd class estimate)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', minWidth: 44, fontFamily: 'monospace' }}>{dayLabel}</span>
+              <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${(barFilled / 3) * 100}%`, background: overdue ? 'var(--warning)' : 'var(--primary)', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+            {overdue && (
+              <div style={{ marginTop: 10, fontSize: 12, color: '#92400E', background: '#FEF3C7', borderRadius: 6, padding: '8px 10px', lineHeight: 1.5 }}>
+                <strong>Not arrived?</strong> You can message your swap partner using the chat below, or report a problem if it's been a while.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_b_posted : swap.user_a_posted) && !(isUserA ? swap.user_a_received : swap.user_b_received) && (
         <button onClick={async () => {
           setBusy(true);
@@ -2915,6 +3058,17 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           userId={otherUserId}
           userName={otherName}
           onClose={() => setShowOtherRatings(false)}
+        />
+      )}
+
+      {nextMatch && (
+        <SwapPreviewModal
+          match={nextMatch}
+          onClose={() => setNextMatch(null)}
+          onPropose={(newSwapId) => {
+            setNextMatch(null);
+            onOpenSwap?.(newSwapId);
+          }}
         />
       )}
 
@@ -3640,6 +3794,9 @@ function ProfileScreen({ onClose, onSaved }) {
   const { token, user } = useAuth();
   const { dark, toggle } = useTheme();
   const [badges, setBadges] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [matchingPaused, setMatchingPaused] = useState(Boolean(user.matching_paused));
+  const [pausingBusy, setPausingBusy] = useState(false);
   const [form, setForm] = useState({
     name: user.name || '',
     address_line1: user.address_line1 || '',
@@ -3652,7 +3809,23 @@ function ProfileScreen({ onClose, onSaved }) {
 
   useEffect(() => {
     if (user?.id) api.getBadges(token, user.id).then(setBadges).catch(() => {});
+    if (user?.id) api.getStats(token, user.id).then(setStats).catch(() => {});
   }, [token, user?.id]);
+
+  const toggleMatchingPaused = async () => {
+    const next = !matchingPaused;
+    setPausingBusy(true);
+    try {
+      const updated = await api.updateMe(token, { matching_paused: next });
+      setMatchingPaused(next);
+      onSaved(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPausingBusy(false);
+    }
+  };
+
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -3787,6 +3960,27 @@ function ProfileScreen({ onClose, onSaved }) {
         </div>
 
 
+        {/* Availability — pause matching */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {matchingPaused ? '🔴 Matching paused' : '🟢 Available for swaps'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {matchingPaused
+                ? "You won't receive new matches until you turn this back on."
+                : 'Your spares/needs lists stay saved either way — this just pauses new matches.'}
+            </div>
+          </div>
+          <button
+            onClick={toggleMatchingPaused}
+            disabled={pausingBusy}
+            style={{ width: 48, height: 28, borderRadius: 14, background: matchingPaused ? 'var(--danger)' : 'var(--primary)', border: 'none', cursor: pausingBusy ? 'default' : 'pointer', position: 'relative', transition: 'background 0.2s', opacity: pausingBusy ? 0.6 : 1, flexShrink: 0 }}
+          >
+            <span style={{ position: 'absolute', top: 3, left: matchingPaused ? 3 : 22, width: 22, height: 22, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+          </button>
+        </div>
+
         {/* Dark mode toggle */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
           <div>
@@ -3800,6 +3994,14 @@ function ProfileScreen({ onClose, onSaved }) {
             <span style={{ position: 'absolute', top: 3, left: dark ? 22 : 3, width: 22, height: 22, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
           </button>
         </div>
+
+        {/* Your swapping stats */}
+        {stats && (
+          <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Your swapping stats</div>
+            <StatsGrid stats={stats} />
+          </div>
+        )}
 
         {/* Badges */}
         {badges.length > 0 && (
@@ -4475,6 +4677,7 @@ export default function PaniniSwapApp() {
               swapId={activeSwapId}
               onRated={() => setTab('dashboard')}
               onBack={() => setTab('mySwaps')}
+              onOpenSwap={(newSwapId) => setActiveSwapId(newSwapId)}
             />
           )}
           {tab === 'swap' && !activeSwapId && (
