@@ -1773,10 +1773,15 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>You give ({youGive.length})</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {youGive.map(s => (
-                    <div key={s.sticker_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--blue)', fontFamily: 'monospace', minWidth: 50 }}>{s.sticker_number}</span>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.description}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
+                    <div key={s.sticker_id} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--blue)', fontFamily: 'monospace', minWidth: 50 }}>{s.sticker_number}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.description}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
+                      </div>
+                      {s.also_in_progress && (
+                        <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>⚠️ Also part of your swap #{s.other_swap_id}</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1785,10 +1790,15 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>You receive ({youGet.length})</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {youGet.map(s => (
-                    <div key={s.sticker_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: '#F0FDF9', borderRadius: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', minWidth: 50 }}>{s.sticker_number}</span>
-                      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.description}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
+                    <div key={s.sticker_id} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 10px', background: '#F0FDF9', borderRadius: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', minWidth: 50 }}>{s.sticker_number}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.description}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
+                      </div>
+                      {s.also_in_progress && (
+                        <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>⚠️ {match.other_user_name} has also committed this to another swap in progress</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2516,7 +2526,14 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             <div>
               <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--danger)' }}>You send</div>
               <div className="grid grid-cols-1 gap-2">
-                {youGive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
+                {youGive.map((s) => (
+                  <div key={s.sticker_id}>
+                    <StickerCard sticker={s} qtyOverride={1} />
+                    {s.also_in_progress && (
+                      <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ Also part of swap #{s.other_swap_id}</div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
             <div className="flex justify-center">
@@ -2527,7 +2544,14 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
             <div>
               <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--primary-dark)' }}>You receive</div>
               <div className="grid grid-cols-1 gap-2">
-                {youReceive.map((s) => <StickerCard key={s.sticker_id} sticker={s} qtyOverride={1} />)}
+                {youReceive.map((s) => (
+                  <div key={s.sticker_id}>
+                    <StickerCard sticker={s} qtyOverride={1} />
+                    {s.also_in_progress && (
+                      <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ {otherName} has also committed this to swap #{s.other_swap_id}</div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </>
