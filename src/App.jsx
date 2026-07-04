@@ -487,6 +487,20 @@ function AmbassadorMark({ show, size = 13 }) {
   );
 }
 
+// Shows a plain time for messages sent today, "Yesterday, HH:MM" for
+// yesterday, and a full date otherwise — so a conversation spanning
+// more than a day always makes it clear which day something was sent.
+function formatMessageTimestamp(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${time}`;
+}
+
 function StarRating({ value, size = 14, onChange }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -2938,7 +2952,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
                         {m.body}
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                        {isMe ? 'You' : m.sender_name} · {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {isMe ? 'You' : m.sender_name} · {formatMessageTimestamp(m.created_at)}
                       </span>
                     </div>
                   );
@@ -3077,7 +3091,7 @@ function MessagesScreen() {
                   {m.body}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: 8 }}>
-                  <span>{new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>{formatMessageTimestamp(m.created_at)}</span>
                   {!isMe && (
                     <button onClick={() => setReportingId(m.id)} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Report</button>
                   )}
