@@ -1813,6 +1813,9 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
                       {s.also_in_progress && (
                         <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>⚠️ {match.other_user_name} has also committed this to another swap in progress</div>
                       )}
+                      {s.already_receiving && (
+                        <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600 }}>ℹ️ You're already receiving this from swap #{s.already_receiving_swap_id}</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2563,6 +2566,9 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
                     <StickerCard sticker={s} qtyOverride={1} />
                     {s.also_in_progress && (
                       <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ {otherName} has also committed this to swap #{s.other_swap_id}</div>
+                    )}
+                    {s.already_receiving && (
+                      <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>ℹ️ You're already receiving this from swap #{s.already_receiving_swap_id}</div>
                     )}
                   </div>
                 ))}
