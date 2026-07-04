@@ -2635,10 +2635,10 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your stickers</div>
             {(isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo) && !stickerPhotoPreview ? (
-              <img src={isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo} alt="Your stickers" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+              <img src={isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo} alt="Your stickers" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
             ) : stickerPhotoPreview ? (
               <div style={{ position: 'relative' }}>
-                <img src={stickerPhotoPreview} alt="Your stickers" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                <img src={stickerPhotoPreview} alt="Your stickers" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
                 <button onClick={() => { setStickerPhoto(null); setStickerPhotoPreview(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 <button onClick={async () => { setBusy(true); try { await api.uploadStickerPhoto(token, swap.id, stickerPhoto); const fresh = await api.getSwap(token, swapId); setData(fresh); setStickerPhoto(null); setStickerPhotoPreview(null); } catch(err) { setError(err.message); } finally { setBusy(false); } }} disabled={busy} style={{ marginTop: 6, width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
                   {busy ? 'Uploading...' : '✓ Share this photo'}
@@ -2677,7 +2677,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           {(isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo) && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{otherName}'s stickers</div>
-              <img src={isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo} alt="Their stickers" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+              <img src={isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo} alt="Their stickers" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
             </div>
           )}
         </div>
@@ -2699,7 +2699,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           <div style={{ marginTop: 12 }}>
             {postagePhotoPreview ? (
               <div style={{ position: 'relative', marginBottom: 10 }}>
-                <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
                 <button
                   onClick={() => { setPostagePhoto(null); setPostagePhotoPreview(null); }}
                   style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -2797,7 +2797,7 @@ function SwapDetailScreen({ swapId, onRated, onBack }) {
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>📷 Add proof of postage (optional)</div>
           {postagePhotoPreview ? (
             <div style={{ position: 'relative', marginBottom: 8 }}>
-              <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+              <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
               <button onClick={() => { setPostagePhoto(null); setPostagePhotoPreview(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto), '✓ Proof of postage uploaded!')} disabled={busy} style={{ marginTop: 8, width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
                 Upload proof
