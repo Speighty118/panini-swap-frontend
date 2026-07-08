@@ -84,7 +84,6 @@ const api = {
   addNeedsBulk: (token, stickerIds) =>
     request('/stickers/me/needs/bulk', { method: 'POST', body: { stickerIds }, token }),
   removeNeed: (token, stickerId) => request(`/stickers/me/needs/${stickerId}`, { method: 'DELETE', token }),
-  clearAllStickers: (token) => request('/stickers/me/all', { method: 'DELETE', token }),
 
   getMatches: (token) => request('/swaps/matches', { token }),
   getMySwaps: (token) => request('/swaps/mine', { token }),
@@ -104,7 +103,7 @@ const api = {
   submitRating: (token, swapId, stars, comment) =>
     request('/ratings', { method: 'POST', body: { swapId, stars, comment }, token }),
   getUserRatings: (token, userId) => request(`/ratings/user/${userId}`, { token }),
-  getStats: (token, userId) => request(`/swaps/stats/${userId}`, { token }),
+  getUserStats: (token, userId) => request(`/swaps/stats/${userId}`, { token }),
 
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
@@ -1402,7 +1401,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
       .then((res) => { if (!cancelled) setData(res); })
       .catch((err) => { if (!cancelled) setError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
-    api.getStats(token, userId).then((res) => { if (!cancelled) setStats(res); }).catch(() => {});
+    api.getUserStats(token, userId).then((res) => { if (!cancelled) setStats(res); }).catch(() => {});
     return () => { cancelled = true; };
   }, [token, userId]);
 
@@ -1949,7 +1948,7 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{s.team_name}</span>
                       </div>
                       {s.also_in_progress && (
-                        <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>⚠️ You may not have enough of this sticker left for all your open proposals</div>
+                        <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>⚠️ Also part of your swap #{s.other_swap_id}</div>
                       )}
                     </div>
                   ))}
@@ -2403,7 +2402,6 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
   const [disputeFiled, setDisputeFiled] = useState(false);
   const [needsRestored, setNeedsRestored] = useState(false);
   const [restoringNeeds, setRestoringNeeds] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState(null);
   const [findingMatch, setFindingMatch] = useState(false);
   const [noMoreMatches, setNoMoreMatches] = useState(false);
   const [nextMatch, setNextMatch] = useState(null);
@@ -2756,7 +2754,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                   <div key={s.sticker_id}>
                     <StickerCard sticker={s} qtyOverride={1} />
                     {s.also_in_progress && (
-                      <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ You may not have enough of this sticker left for all your open proposals</div>
+                      <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ Also part of swap #{s.other_swap_id}</div>
                     )}
                   </div>
                 ))}
@@ -2774,7 +2772,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                   <div key={s.sticker_id}>
                     <StickerCard sticker={s} qtyOverride={1} />
                     {s.also_in_progress && (
-                      <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ {otherName} may not have enough of this sticker left for all their open proposals</div>
+                      <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ {otherName} has also committed this to swap #{s.other_swap_id}</div>
                     )}
                     {s.already_receiving && (
                       <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>ℹ️ You're already receiving this from swap #{s.already_receiving_swap_id}</div>
@@ -2825,9 +2823,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ background: 'var(--warning-light)', border: '1px solid #FDE68A', borderRadius: 'var(--radius-md)', padding: '12px 16px', fontSize: 13, color: '#92400E', fontWeight: 600 }}>
-              {theirAccepted
-                ? `⏳ ${otherName} has accepted — it's your turn to accept or decline`
-                : '⏳ Review the stickers below and accept or decline this swap'}
+              ⏳ {otherName} has accepted — it's your turn to accept or decline
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowDeclineModal(true)} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
@@ -2852,7 +2848,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your stickers</div>
             {(isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo) && !stickerPhotoPreview ? (
-              <img src={isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo} alt="Your stickers" onClick={() => setLightboxSrc(isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo)} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }} />
+              <img src={isUserA ? swap.user_a_sticker_photo : swap.user_b_sticker_photo} alt="Your stickers" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
             ) : stickerPhotoPreview ? (
               <div style={{ position: 'relative' }}>
                 <img src={stickerPhotoPreview} alt="Your stickers" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
@@ -2894,7 +2890,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           {(isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo) && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{otherName}'s stickers</div>
-              <img src={isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo} alt="Their stickers" onClick={() => setLightboxSrc(isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo)} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }} />
+              <img src={isUserA ? swap.user_b_sticker_photo : swap.user_a_sticker_photo} alt="Their stickers" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
             </div>
           )}
         </div>
@@ -2916,7 +2912,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           <div style={{ marginTop: 12 }}>
             {postagePhotoPreview ? (
               <div style={{ position: 'relative', marginBottom: 10 }}>
-                <img src={postagePhotoPreview} alt="Postage proof" onClick={() => setLightboxSrc(postagePhotoPreview)} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }} />
+                <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
                 <button
                   onClick={() => { setPostagePhoto(null); setPostagePhotoPreview(null); }}
                   style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -3042,12 +3038,12 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
       )}
 
       {/* Standalone proof of postage upload — shown after you've posted but haven't added proof yet */}
-      {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo) && (
+      {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo) && !swap.postage_photo && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>📷 Add proof of postage (optional)</div>
           {postagePhotoPreview ? (
             <div style={{ position: 'relative', marginBottom: 8 }}>
-              <img src={postagePhotoPreview} alt="Postage proof" onClick={() => setLightboxSrc(postagePhotoPreview)} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }} />
+              <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
               <button onClick={() => { setPostagePhoto(null); setPostagePhotoPreview(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: 'white', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto), '✓ Proof of postage uploaded!')} disabled={busy} style={{ marginTop: 8, width: '100%', padding: '8px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
                 Upload proof
@@ -3084,44 +3080,19 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
       )}
 
       {/* Show postage proof photo if one was uploaded — visible to both parties */}
-      {(swap.status === 'accepted' || swap.status === 'posted' || swap.status === 'completed') && (swap.user_a_postage_photo || swap.user_b_postage_photo || swap.postage_photo) && (
+      {swap.postage_photo && (swap.status === 'accepted' || swap.status === 'posted' || swap.status === 'completed') && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             📷 Proof of postage
           </div>
-
-          {(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo) && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>Yours</div>
-              <img
-                src={isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo}
-                alt="Your proof of postage"
-                onClick={() => setLightboxSrc(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo)}
-                style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
-              />
-            </div>
-          )}
-
-          {(isUserA ? swap.user_b_postage_photo : swap.user_a_postage_photo) && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>{otherName}'s</div>
-              <img
-                src={isUserA ? swap.user_b_postage_photo : swap.user_a_postage_photo}
-                alt="Their proof of postage"
-                onClick={() => setLightboxSrc(isUserA ? swap.user_b_postage_photo : swap.user_a_postage_photo)}
-                style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
-              />
-            </div>
-          )}
-
-          {!swap.user_a_postage_photo && !swap.user_b_postage_photo && swap.postage_photo && (
-            <img
-              src={swap.postage_photo}
-              alt="Proof of postage"
-              onClick={() => setLightboxSrc(swap.postage_photo)}
-              style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
-            />
-          )}
+          <img
+            src={swap.postage_photo}
+            alt="Proof of postage"
+            style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            Uploaded by {isUserA ? (swap.user_b_posted ? otherName : 'you') : (swap.user_a_posted ? otherName : 'you')}
+          </div>
         </div>
       )}
 
@@ -3188,21 +3159,6 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
             onOpenSwap?.(newSwapId);
           }}
         />
-      )}
-
-      {lightboxSrc && (
-        <div
-          onClick={() => setLightboxSrc(null)}
-          style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, cursor: 'zoom-out' }}
-        >
-          <button
-            onClick={() => setLightboxSrc(null)}
-            style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          >
-            <X size={20} color="white" />
-          </button>
-          <img src={lightboxSrc} alt="Full size" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4 }} />
-        </div>
       )}
 
       {/* ---- Chat panel ---- */}
@@ -3942,8 +3898,6 @@ function ProfileScreen({ onClose, onSaved }) {
   const [stats, setStats] = useState(null);
   const [matchingPaused, setMatchingPaused] = useState(Boolean(user.matching_paused));
   const [pausingBusy, setPausingBusy] = useState(false);
-  const [clearingBusy, setClearingBusy] = useState(false);
-  const [clearResult, setClearResult] = useState(null);
   const [form, setForm] = useState({
     name: user.name || '',
     address_line1: user.address_line1 || '',
@@ -3956,7 +3910,7 @@ function ProfileScreen({ onClose, onSaved }) {
 
   useEffect(() => {
     if (user?.id) api.getBadges(token, user.id).then(setBadges).catch(() => {});
-    if (user?.id) api.getStats(token, user.id).then(setStats).catch(() => {});
+    if (user?.id) api.getUserStats(token, user.id).then(setStats).catch(() => {});
   }, [token, user?.id]);
 
   const toggleMatchingPaused = async () => {
@@ -3970,22 +3924,6 @@ function ProfileScreen({ onClose, onSaved }) {
       setError(err.message);
     } finally {
       setPausingBusy(false);
-    }
-  };
-
-  const clearEverything = async () => {
-    if (!window.confirm("This will remove ALL your spares and needs from your lists — useful if your list hasn't kept up with your actual collection and you'd rather start fresh. It won't affect any swap already in progress. This can't be undone. Continue?")) {
-      return;
-    }
-    setClearingBusy(true);
-    setClearResult(null);
-    try {
-      const result = await api.clearAllStickers(token);
-      setClearResult(`✓ Cleared ${result.duplicatesCleared} spare${result.duplicatesCleared !== 1 ? 's' : ''} and ${result.needsCleared} need${result.needsCleared !== 1 ? 's' : ''}. Add your list back whenever you're ready.`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setClearingBusy(false);
     }
   };
 
@@ -4179,24 +4117,6 @@ function ProfileScreen({ onClose, onSaved }) {
             </div>
           </div>
         )}
-
-        {/* Danger zone */}
-        <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)', marginBottom: 4 }}>Danger zone</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-            If your list hasn't kept up with your actual collection, you can clear everything and start again rather than deleting items one by one. Won't affect any swap already in progress.
-          </div>
-          {clearResult && (
-            <div style={{ fontSize: 12, color: '#065F46', background: 'var(--success-light)', borderRadius: 6, padding: '8px 10px', marginBottom: 8 }}>{clearResult}</div>
-          )}
-          <button
-            onClick={clearEverything}
-            disabled={clearingBusy}
-            style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', background: 'var(--danger-light)', border: '1px solid #FCA5A5', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: clearingBusy ? 'default' : 'pointer', opacity: clearingBusy ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          >
-            {clearingBusy && <Loader2 size={14} className="animate-spin" />} Clear all spares & needs
-          </button>
-        </div>
 
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
