@@ -1380,12 +1380,19 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
 // Shows a person's average rating, count, and recent written
 // reviews — reachable by tapping their name on a match or swap.
 // =================================================================
-function UserRatingsModal({ userId, userName, ambassadorBadge, onClose }) {
-  const { token } = useAuth();
+function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
+  const { token, user, openConversationWith } = useAuth();
+  const isSelf = user?.id === userId;
+
   const [data, setData] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [composing, setComposing] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1398,53 +1405,147 @@ function UserRatingsModal({ userId, userName, ambassadorBadge, onClose }) {
     return () => { cancelled = true; };
   }, [token, userId]);
 
+  const sendFirstMessage = async () => {
+    if (!messageText.trim()) return;
+    setSending(true);
+    setError(null);
+    try {
+      await api.startConversation(token, userId, messageText.trim());
+      setSent(true);
+      setMessageText('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const initials = (stats?.name || data?.name || '?').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
+      <div className="w-full max-w-sm rounded-lg p-6 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
+
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>{userName}'s reviews<AmbassadorMark show={ambassadorBadge} /></h3>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Profile</span>
           <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
         {loading && <Spinner />}
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-        {data && (
+        {stats && (
           <>
+            {/* Identity header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', background: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {stats.profilePhoto ? (
+                  <img src={stats.profilePhoto} alt={stats.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 20, fontWeight: 800, color: 'white' }}>{initials}</span>
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+                  {stats.name}<AmbassadorMark show={stats.ambassadorBadge} />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {stats.city ? `${stats.city} · ` : ''}Member since {stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '—'}
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 mb-5 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
-              <StarRating value={data.rating_avg} size={18} />
+              <StarRating value={stats.ratingAvg} size={18} />
               <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                {data.rating_avg ? Number(data.rating_avg).toFixed(1) : 'No ratings yet'}
+                {stats.ratingAvg ? Number(stats.ratingAvg).toFixed(1) : 'No ratings yet'}
               </span>
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                ({data.rating_count} {data.rating_count === 1 ? 'review' : 'reviews'})
+                ({stats.ratingCount} {stats.ratingCount === 1 ? 'review' : 'reviews'})
               </span>
             </div>
 
-            {stats && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Reliability</div>
-                <StatsGrid stats={stats} compact />
-              </div>
-            )}
-
-            {data.recentRatings.length === 0 ? (
-              <EmptyState text="No reviews yet — be the first to swap and rate." />
-            ) : (
-              <div className="space-y-3">
-                {data.recentRatings.map((r, i) => (
-                  <div key={i} className="rounded-lg p-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{r.rater_name}</span>
-                      <StarRating value={r.stars} size={12} />
-                    </div>
-                    {r.comment && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{r.comment}</p>}
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                      {new Date(r.created_at).toLocaleDateString()}
-                    </p>
+            {/* Action button — message someone else, or edit your own profile */}
+            <div style={{ marginBottom: 20 }}>
+              {isSelf ? (
+                <button
+                  onClick={onEditOwnProfile}
+                  className="w-full py-2.5 rounded text-sm font-semibold"
+                  style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                >
+                  ✏️ Edit your profile
+                </button>
+              ) : sent ? (
+                <div style={{ background: 'var(--success-light)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: '#065F46', fontWeight: 600 }}>✓ Message sent</span>
+                  <button
+                    onClick={() => openConversationWith?.(userId)}
+                    style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-dark)', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    Go to conversation →
+                  </button>
+                </div>
+              ) : composing ? (
+                <div>
+                  <textarea
+                    autoFocus
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    placeholder={`Write a message to ${stats.name}…`}
+                    rows={3}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', resize: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setComposing(false); setMessageText(''); }}
+                      style={{ flex: 1, padding: '9px 0', borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={sendFirstMessage}
+                      disabled={sending || !messageText.trim()}
+                      style={{ flex: 2, padding: '9px 0', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', border: 'none', fontSize: 13, fontWeight: 700, color: 'white', cursor: 'pointer', opacity: sending || !messageText.trim() ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      {sending && <Loader2 size={13} className="animate-spin" />} Send
+                    </button>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setComposing(true)}
+                  className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2"
+                  style={{ background: 'var(--primary)', color: 'white' }}
+                >
+                  <MessageCircle size={15} /> Message {stats.name?.split(' ')[0]}
+                </button>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Reliability</div>
+              <StatsGrid stats={stats} compact />
+            </div>
+
+            {data && (
+              data.recentRatings.length === 0 ? (
+                <EmptyState text="No reviews yet — be the first to swap and rate." />
+              ) : (
+                <div className="space-y-3">
+                  {data.recentRatings.map((r, i) => (
+                    <div key={i} className="rounded-lg p-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{r.rater_name}</span>
+                        <StarRating value={r.stars} size={12} />
+                      </div>
+                      {r.comment && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{r.comment}</p>}
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </>
         )}
@@ -1895,12 +1996,11 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
 }
 
 function MatchesScreen({ onOpenSwap }) {
-  const { token } = useAuth();
+  const { token, openProfile } = useAuth();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [previewingMatch, setPreviewingMatch] = useState(null);
-  const [viewingRatingsFor, setViewingRatingsFor] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1936,11 +2036,11 @@ function MatchesScreen({ onOpenSwap }) {
                 {/* Header row — user + score */}
                 <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #f0f0ec' }}>
                   <button
-                    onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name, ambassador_badge: m.ambassador_badge })}
+                    onClick={() => openProfile(m.other_user_id)}
                     style={{ width: 36, height: 36, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'monospace' }}
                   >{initials}</button>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <button onClick={() => setViewingRatingsFor({ id: m.other_user_id, name: m.other_user_name, ambassador_badge: m.ambassador_badge })} style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0, width: '100%' }}>
+                    <button onClick={() => openProfile(m.other_user_id)} style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0, width: '100%' }}>
                       <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}<AmbassadorMark show={m.ambassador_badge} /></div>
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -1984,15 +2084,6 @@ function MatchesScreen({ onOpenSwap }) {
             setPreviewingMatch(null);
             onOpenSwap(swapId);
           }}
-        />
-      )}
-
-      {viewingRatingsFor && (
-        <UserRatingsModal
-          userId={viewingRatingsFor.id}
-          userName={viewingRatingsFor.name}
-          ambassadorBadge={viewingRatingsFor.ambassador_badge}
-          onClose={() => setViewingRatingsFor(null)}
         />
       )}
     </div>
@@ -2052,7 +2143,7 @@ const SWAP_STATUS_COLORS = {
 };
 
 function MySwapsScreen({ onOpenSwap }) {
-  const { token, user } = useAuth();
+  const { token, user, openProfile } = useAuth();
   const [swaps, setSwaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -2072,13 +2163,16 @@ function MySwapsScreen({ onOpenSwap }) {
     const isActionNeeded = label.includes('Your turn') || label.includes('You need');
     const borderAccent = isActionNeeded ? '#f59e0b' : ['Waiting for them', 'Waiting for them to post', 'Completed', 'completed'].some(l => label.includes(l)) ? '#1AAB8A' : '#0B1120';
     return (
-      <button
+      <div
         key={s.id}
         onClick={() => onOpenSwap(s.id)}
         style={{ width: '100%', background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid ' + borderAccent, borderRadius: 4, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, fontFamily: 'monospace' }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); openProfile(s.other_user_id); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+        >
+          <div style={{ width: 34, height: 34, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, fontFamily: 'monospace', overflow: 'hidden' }}>
             {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
           </div>
           <div>
@@ -2090,11 +2184,11 @@ function MySwapsScreen({ onOpenSwap }) {
               )}
             </div>
           </div>
-        </div>
+        </button>
         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 3, background: colors.bg, color: colors.text, flexShrink: 0, letterSpacing: '0.02em' }}>
           {label}
         </span>
-      </button>
+      </div>
     );
   };
 
@@ -2291,7 +2385,7 @@ function AmbassadorCard({ token, swapId }) {
 }
 
 function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
-  const { token, user } = useAuth();
+  const { token, user, openProfile } = useAuth();
   const [data, setData] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true); // only true on first load
   const [error, setError] = useState(null);
@@ -2306,7 +2400,6 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
   const [stickerPhotoPreview, setStickerPhotoPreview] = useState(null);
   const [actionConfirm, setActionConfirm] = useState(null); // brief success message
   const [disputeFiled, setDisputeFiled] = useState(false);
-  const [showOtherRatings, setShowOtherRatings] = useState(false);
   const [needsRestored, setNeedsRestored] = useState(false);
   const [restoringNeeds, setRestoringNeeds] = useState(false);
   const [findingMatch, setFindingMatch] = useState(false);
@@ -2581,10 +2674,14 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
             Swap #{swap.id}
           </div>
           <h2 className="text-2xl font-black" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-            with {otherName}<AmbassadorMark show={otherIsAmbassador} size={16} />
+            with{' '}
+            <button onClick={() => openProfile(otherUserId)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', textDecoration: 'underline' }}>
+              {otherName}
+            </button>
+            <AmbassadorMark show={otherIsAmbassador} size={16} />
           </h2>
-          <button onClick={() => setShowOtherRatings(true)} className="text-xs font-semibold underline" style={{ color: 'var(--primary-dark)' }}>
-            View their ratings
+          <button onClick={() => openProfile(otherUserId)} className="text-xs font-semibold underline" style={{ color: 'var(--primary-dark)' }}>
+            View their profile
           </button>
         </div>
       </div>
@@ -3053,14 +3150,6 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         />
       )}
 
-      {showOtherRatings && (
-        <UserRatingsModal
-          userId={otherUserId}
-          userName={otherName}
-          onClose={() => setShowOtherRatings(false)}
-        />
-      )}
-
       {nextMatch && (
         <SwapPreviewModal
           match={nextMatch}
@@ -3170,8 +3259,8 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
 // MESSAGES SCREEN
 // Threaded conversations between users.
 // =================================================================
-function MessagesScreen() {
-  const { token, user } = useAuth();
+function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
+  const { token, user, openProfile } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null); // { conversationId, otherUser }
   const [messages, setMessages] = useState([]);
@@ -3204,6 +3293,23 @@ function MessagesScreen() {
     } catch (err) { setError(err.message); }
   };
 
+  // If we arrived here via a profile's "Message" button (which already
+  // sent the first message directly), jump straight into that
+  // conversation once it shows up in the loaded list.
+  useEffect(() => {
+    if (!pendingOpenUserId || loading) return;
+    const match = conversations.find(c => c.other_user_id === pendingOpenUserId);
+    if (match) {
+      openConversation(match.conversation_id, {
+        id: match.other_user_id,
+        name: match.other_user_name,
+        ambassador_badge: match.other_user_ambassador_badge,
+      });
+    }
+    onPendingOpened?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenUserId, loading, conversations]);
+
   useEffect(() => {
     if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -3231,7 +3337,9 @@ function MessagesScreen() {
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
           <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
-          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /></div>
+          <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
+            {activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} />
+          </button>
         </div>
 
         <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>
@@ -3400,7 +3508,7 @@ function NewMessageModal({ onClose, onStarted }) {
 // SWAP HISTORY SCREEN
 // =================================================================
 function SwapHistoryScreen() {
-  const { token, user } = useAuth();
+  const { token, user, openProfile } = useAuth();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNoShowModal, setShowNoShowModal] = useState(null);
@@ -3426,7 +3534,10 @@ function SwapHistoryScreen() {
             return (
               <div key={s.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    onClick={() => openProfile(s.other_user_id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                  >
                     <div style={{ width: 40, height: 40, borderRadius: '50%', background: isCompleted ? 'var(--primary-light)' : 'var(--bg)', color: isCompleted ? 'var(--primary-dark)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
                       {s.other_user_name?.split(' ').map(p => p[0]).join('')}
                     </div>
@@ -3437,7 +3548,7 @@ function SwapHistoryScreen() {
                         {isCompleted && s.you_gave_count > 0 && ` · gave ${s.you_gave_count}, got ${s.you_got_count}`}
                       </div>
                     </div>
-                  </div>
+                  </button>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: isCompleted ? 'var(--success-light)' : 'var(--bg)', color: isCompleted ? '#065F46' : 'var(--text-muted)' }}>
                       {isCompleted ? '✓ Completed' : 'Declined'}
@@ -3531,11 +3642,10 @@ function NoShowReportModal({ swap, onClose }) {
 // USER SEARCH SCREEN
 // =================================================================
 function UserSearchScreen() {
-  const { token } = useAuth();
+  const { token, openProfile } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [viewingBadgesFor, setViewingBadgesFor] = useState(null);
 
   useEffect(() => {
     if (query.trim().length < 2) { setResults([]); return; }
@@ -3569,10 +3679,14 @@ function UserSearchScreen() {
         <EmptyState text={`No users found for "${query}"`} />
       )}
       {results.map(u => (
-        <div key={u.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button
+          key={u.id}
+          onClick={() => openProfile(u.id)}
+          style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
-              {u.name?.split(' ').map(p => p[0]).join('')}
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, overflow: 'hidden', flexShrink: 0 }}>
+              {u.profile_photo ? <img src={u.profile_photo} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.name?.split(' ').map(p => p[0]).join('')}
             </div>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{u.name}<AmbassadorMark show={u.ambassador_badge} /></div>
@@ -3584,22 +3698,9 @@ function UserSearchScreen() {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => setViewingBadgesFor({ id: u.id, name: u.name, ambassador_badge: u.ambassador_badge })}
-            style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            View
-          </button>
-        </div>
+          <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600, flexShrink: 0 }}>View →</span>
+        </button>
       ))}
-      {viewingBadgesFor && (
-        <UserRatingsModal
-          userId={viewingBadgesFor.id}
-          userName={viewingBadgesFor.name}
-          ambassadorBadge={viewingBadgesFor.ambassador_badge}
-          onClose={() => setViewingBadgesFor(null)}
-        />
-      )}
     </div>
   );
 }
@@ -4436,6 +4537,8 @@ export default function PaniniSwapApp() {
   const [tab, setTab] = useState('dashboard');
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [viewingProfileUserId, setViewingProfileUserId] = useState(null);
+  const [pendingConversationUserId, setPendingConversationUserId] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [checkingSession, setCheckingSession] = useState(Boolean(localStorage.getItem('authToken')));
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -4588,7 +4691,16 @@ export default function PaniniSwapApp() {
 
   return (
     <ThemeContext.Provider value={themeCtx}>
-    <AuthContext.Provider value={{ token, user }}>
+    <AuthContext.Provider value={{
+      token,
+      user,
+      openProfile: (userId) => setViewingProfileUserId(userId),
+      openConversationWith: (userId) => {
+        setViewingProfileUserId(null);
+        setPendingConversationUserId(userId);
+        setTab('messages');
+      },
+    }}>
       <style>{DESIGN_TOKENS}</style>
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css" />
@@ -4606,7 +4718,7 @@ export default function PaniniSwapApp() {
               <WhatsNewPanel />
               <NotificationPanel />
               <button
-                onClick={() => setShowProfile(true)}
+                onClick={() => setViewingProfileUserId(user.id)}
                 title="Your profile"
                 style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}
               >
@@ -4649,6 +4761,14 @@ export default function PaniniSwapApp() {
           />
         )}
 
+        {viewingProfileUserId && (
+          <UserProfileModal
+            userId={viewingProfileUserId}
+            onClose={() => setViewingProfileUserId(null)}
+            onEditOwnProfile={() => { setViewingProfileUserId(null); setShowProfile(true); }}
+          />
+        )}
+
         {/* Status line — mobile only */}
 
         <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 90px' }}>
@@ -4670,7 +4790,12 @@ export default function PaniniSwapApp() {
             />
           )}
           {tab === 'history' && <SwapHistoryScreen />}
-          {tab === 'messages' && <MessagesScreen />}
+          {tab === 'messages' && (
+            <MessagesScreen
+              pendingOpenUserId={pendingConversationUserId}
+              onPendingOpened={() => setPendingConversationUserId(null)}
+            />
+          )}
           {tab === 'search' && <UserSearchScreen />}
           {tab === 'swap' && activeSwapId && (
             <SwapDetailScreen
