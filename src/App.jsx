@@ -1556,7 +1556,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
                 )}
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: stats.isFounder ? '#B45309' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
                   {stats.name}<AmbassadorMark show={stats.ambassadorBadge} /><FounderBadge show={stats.isFounder} />
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -2148,7 +2148,7 @@ function MatchesScreen({ onOpenSwap }) {
                   >{initials}</button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <button onClick={() => openProfile(m.other_user_id)} style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0, width: '100%' }}>
-                      <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}<AmbassadorMark show={m.ambassador_badge} /><FounderBadge show={m.founder_member} /></div>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: m.founder_member ? '#B45309' : '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}<AmbassadorMark show={m.ambassador_badge} /><FounderBadge show={m.founder_member} /></div>
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                       <StarRating value={m.rating_avg} size={11} />
@@ -2275,7 +2275,7 @@ function MySwapsScreen({ onOpenSwap }) {
             {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}<AmbassadorMark show={s.ambassador_badge} /><FounderBadge show={s.founder_member} /></div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: s.founder_member ? '#B45309' : '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}<AmbassadorMark show={s.ambassador_badge} /><FounderBadge show={s.founder_member} /></div>
             <div style={{ fontSize: 10, color: '#bbb', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontFamily: 'monospace' }}>
               <span>#{s.id}</span>
               {(s.display_give_count > 0 || s.display_get_count > 0) && (
@@ -2758,7 +2758,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           </div>
           <h2 className="text-2xl font-black" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
             with{' '}
-            <button onClick={() => openProfile(otherUserId)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', textDecoration: 'underline' }}>
+            <button onClick={() => openProfile(otherUserId)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: otherIsFounder ? '#B45309' : 'inherit', textDecoration: 'underline' }}>
               {otherName}
             </button>
             <AmbassadorMark show={otherIsAmbassador} size={16} /><FounderBadge show={otherIsFounder} size={16} />
@@ -3279,7 +3279,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <MessageCircle size={16} color="var(--primary)" />
-            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: otherIsFounder ? '#B45309' : 'var(--text-primary)' }}>
               Chat with {otherName}<AmbassadorMark show={otherIsAmbassador} size={12} /><FounderBadge show={otherIsFounder} size={12} />
             </span>
             {messages.length > 0 && (
@@ -3437,7 +3437,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
           <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
-          <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
+          <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: activeConv.otherUser?.founder_member ? '#B45309' : 'var(--text-primary)' }}>
             {activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /><FounderBadge show={activeConv.otherUser?.founder_member} />
           </button>
         </div>
@@ -3515,7 +3515,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
             )}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: 'var(--text-primary)' }}>{c.other_user_name}<AmbassadorMark show={c.other_user_ambassador_badge} /><FounderBadge show={c.other_user_founder_member} /></div>
+            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: c.other_user_founder_member ? '#B45309' : 'var(--text-primary)' }}>{c.other_user_name}<AmbassadorMark show={c.other_user_ambassador_badge} /><FounderBadge show={c.other_user_founder_member} /></div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.last_sender_id === user.id ? 'You: ' : ''}{c.last_message || 'No messages yet'}
             </div>
@@ -3642,7 +3642,7 @@ function SwapHistoryScreen() {
                       {s.other_user_name?.split(' ').map(p => p[0]).join('')}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{s.other_user_name}<AmbassadorMark show={s.ambassador_badge} /><FounderBadge show={s.founder_member} /></div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: s.founder_member ? '#B45309' : 'var(--text-primary)' }}>{s.other_user_name}<AmbassadorMark show={s.ambassador_badge} /><FounderBadge show={s.founder_member} /></div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         {new Date(s.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {isCompleted && s.you_gave_count > 0 && ` · gave ${s.you_gave_count}, got ${s.you_got_count}`}
@@ -3789,7 +3789,7 @@ function UserSearchScreen() {
               {u.profile_photo ? <img src={u.profile_photo} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.name?.split(' ').map(p => p[0]).join('')}
             </div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{u.name}<AmbassadorMark show={u.ambassador_badge} /><FounderBadge show={u.founder_member} /></div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: u.founder_member ? '#B45309' : 'var(--text-primary)' }}>{u.name}<AmbassadorMark show={u.ambassador_badge} /><FounderBadge show={u.founder_member} /></div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {u.city && <span>{u.city}</span>}
                 {u.completed_swaps > 0 && <span>· {u.completed_swaps} swaps</span>}
