@@ -1367,6 +1367,7 @@ function FounderModal({ onClose }) {
   const startCheckout = async () => {
     setLoading(true);
     setError(null);
+    api.logDonationClick(token, 'become_a_founder').catch(() => {});
     try {
       const { url } = await api.createFounderCheckout(token);
       window.location.href = url;
