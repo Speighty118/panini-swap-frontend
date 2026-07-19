@@ -499,6 +499,45 @@ function FounderBadge({ show, size = 13 }) {
   );
 }
 
+// Colour tier + precise relative-time text (e.g. "3d ago", "2mo ago")
+// so people can judge at a glance whether a match/swap partner is
+// likely to actually respond, without singling anyone out too bluntly.
+function formatLastActive(lastLoginAt) {
+  if (!lastLoginAt) return { label: 'Never active', color: '#9CA3AF' };
+  const diffMs = Date.now() - new Date(lastLoginAt).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(diffMs / 3_600_000);
+  const days = Math.floor(diffMs / 86_400_000);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+  const years = Math.floor(days / 365);
+
+  let label;
+  if (mins < 1) label = 'Active just now';
+  else if (mins < 60) label = `Active ${mins}m ago`;
+  else if (hours < 24) label = `Active ${hours}h ago`;
+  else if (days < 7) label = `Active ${days}d ago`;
+  else if (weeks < 5) label = `Active ${weeks}w ago`;
+  else if (months < 12) label = `Active ${months}mo ago`;
+  else label = `Active ${years}y ago`;
+
+  const color = days < 1 ? '#10B981' : days < 7 ? '#F59E0B' : '#9CA3AF';
+  return { label, color };
+}
+
+function ActivityIndicator({ lastLoginAt, size = 11, showText = true }) {
+  const { label, color } = formatLastActive(lastLoginAt);
+  if (!showText) {
+    return <span title={label} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />;
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: size, color: 'var(--text-muted)' }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      {label}
+    </span>
+  );
+}
+
 // Shows a plain time for messages sent today, "Yesterday, HH:MM" for
 // yesterday, and a full date otherwise — so a conversation spanning
 // more than a day always makes it clear which day something was sent.
@@ -1666,6 +1705,9 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   {stats.city ? `${stats.city} · ` : ''}Member since {stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '—'}
                 </div>
+                <div style={{ marginTop: 3 }}>
+                  <ActivityIndicator lastLoginAt={stats.lastLoginAt} size={12} />
+                </div>
                 {stats.isFounder && stats.founderSince && (
                   <div style={{ fontSize: 11, color: '#92400E', fontWeight: 700, marginTop: 2 }}>
                     🏆 Founder since {new Date(stats.founderSince).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
@@ -2261,6 +2303,9 @@ function MatchesScreen({ onOpenSwap }) {
                       <StarRating value={m.rating_avg} size={11} />
                       <span style={{ fontSize: 10, color: '#bbb', fontFamily: 'monospace' }}>({m.rating_count})</span>
                     </div>
+                    <div style={{ marginTop: 2 }}>
+                      <ActivityIndicator lastLoginAt={m.last_login_at} />
+                    </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 22, fontWeight: 900, color: '#1AAB8A', lineHeight: 1, fontFamily: 'monospace' }}>{swapCount}</div>
@@ -2388,6 +2433,9 @@ function MySwapsScreen({ onOpenSwap }) {
               {(s.display_give_count > 0 || s.display_get_count > 0) && (
                 <><span>·</span><span style={{ color: '#0B1120', fontWeight: 700 }}>{s.display_give_count}↔{s.display_get_count}</span></>
               )}
+            </div>
+            <div style={{ marginTop: 2 }}>
+              <ActivityIndicator lastLoginAt={s.last_login_at} />
             </div>
           </div>
         </button>
@@ -2873,6 +2921,9 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           <button onClick={() => openProfile(otherUserId)} className="text-xs font-semibold underline" style={{ color: 'var(--primary-dark)' }}>
             View their profile
           </button>
+          <div style={{ marginTop: 4 }}>
+            <ActivityIndicator lastLoginAt={otherUser?.last_login_at} size={12} />
+          </div>
         </div>
       </div>
 
@@ -3511,6 +3562,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
         name: match.other_user_name,
         ambassador_badge: match.other_user_ambassador_badge,
         founder_member: match.other_user_founder_member,
+        last_login_at: match.other_user_last_login_at,
       });
     }
     onPendingOpened?.();
@@ -3544,9 +3596,12 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
           <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
-          <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: activeConv.otherUser?.founder_member ? '#B45309' : 'var(--text-primary)' }}>
-            {activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /><FounderBadge show={activeConv.otherUser?.founder_member} />
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: activeConv.otherUser?.founder_member ? '#B45309' : 'var(--text-primary)' }}>
+              {activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /><FounderBadge show={activeConv.otherUser?.founder_member} />
+            </button>
+            <ActivityIndicator lastLoginAt={activeConv.otherUser?.last_login_at} size={11} />
+          </div>
         </div>
 
         <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>
@@ -3613,7 +3668,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
         <EmptyState text="No messages yet. Start a conversation from the Search tab or from a swap." />
       )}
       {conversations.map(c => (
-        <div key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name, ambassador_badge: c.other_user_ambassador_badge, founder_member: c.other_user_founder_member })}
+        <div key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name, ambassador_badge: c.other_user_ambassador_badge, founder_member: c.other_user_founder_member, last_login_at: c.other_user_last_login_at })}
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, position: 'relative' }}>
             {c.other_user_name?.split(' ').map(p => p[0]).join('')}
@@ -3622,7 +3677,10 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
             )}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: c.other_user_founder_member ? '#B45309' : 'var(--text-primary)' }}>{c.other_user_name}<AmbassadorMark show={c.other_user_ambassador_badge} /><FounderBadge show={c.other_user_founder_member} /></div>
+            <div style={{ fontWeight: c.unread_count > 0 ? 700 : 600, fontSize: 14, color: c.other_user_founder_member ? '#B45309' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              {c.other_user_name}<AmbassadorMark show={c.other_user_ambassador_badge} /><FounderBadge show={c.other_user_founder_member} />
+              <ActivityIndicator lastLoginAt={c.other_user_last_login_at} showText={false} />
+            </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {c.last_sender_id === user.id ? 'You: ' : ''}{c.last_message || 'No messages yet'}
             </div>
@@ -3753,6 +3811,9 @@ function SwapHistoryScreen() {
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         {new Date(s.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {isCompleted && s.you_gave_count > 0 && ` · gave ${s.you_gave_count}, got ${s.you_got_count}`}
+                      </div>
+                      <div style={{ marginTop: 2 }}>
+                        <ActivityIndicator lastLoginAt={s.last_login_at} />
                       </div>
                     </div>
                   </button>
@@ -3902,6 +3963,9 @@ function UserSearchScreen() {
                 {u.completed_swaps > 0 && <span>· {u.completed_swaps} swaps</span>}
                 {u.response_rate && <span>· {u.response_rate}% response rate</span>}
                 {u.swap_streak >= 3 && <span>· 🔥 {u.swap_streak} streak</span>}
+              </div>
+              <div style={{ marginTop: 2 }}>
+                <ActivityIndicator lastLoginAt={u.last_login_at} />
               </div>
             </div>
           </div>
