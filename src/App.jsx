@@ -2840,10 +2840,12 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
               const reason = swap.decline_reason;
               const friendlyReason = reason === 'Withdrawn by proposer'
                 ? `${otherName} withdrew the swap proposal before it was accepted.`
-                : reason.startsWith('Automatically declined')
-                  ? 'This swap was automatically cancelled by the system because sticker availability changed. A fresh match will appear in your Matches tab shortly.'
-                  : `"${reason}"`;
-              const isInternal = reason === 'Withdrawn by proposer' || reason.startsWith('Automatically declined');
+                : reason === 'Withdrawn after acceptance'
+                  ? `${otherName} withdrew from this swap after accepting, before either of you posted. Your stickers are available for new matches.`
+                  : reason.startsWith('Automatically declined')
+                    ? 'This swap was automatically cancelled by the system because sticker availability changed. A fresh match will appear in your Matches tab shortly.'
+                    : `"${reason}"`;
+              const isInternal = reason === 'Withdrawn by proposer' || reason === 'Withdrawn after acceptance' || reason.startsWith('Automatically declined');
               return (
                 <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(153,27,27,0.08)', borderRadius: 6, fontSize: 13, color: '#7F1D1D', fontStyle: isInternal ? 'normal' : 'italic' }}>
                   {friendlyReason}
@@ -3216,6 +3218,20 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto || undefined), '✓ Marked as posted — the other person has been notified!')} disabled={busy} className="mt-1 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Package size={15} />} Mark as posted
           </button>
+
+          {!swap.user_a_posted && !swap.user_b_posted && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Withdraw from this accepted swap? ${otherName} will be notified and your stickers will become available for new matches again.`)) {
+                  act(() => api.withdrawSwap(token, swap.id));
+                }
+              }}
+              disabled={busy}
+              style={{ marginTop: 8, width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', background: 'none', border: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}
+            >
+              Withdraw from swap
+            </button>
+          )}
         </div>
       )}
 
