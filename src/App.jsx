@@ -2327,6 +2327,11 @@ function MatchesScreen({ onOpenSwap }) {
                     style={{ padding: '7px 14px', background: '#0B1120', color: 'white', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.2px', flexShrink: 0 }}
                   >Preview →</button>
                 </div>
+                {m.has_conflict && (
+                  <div style={{ padding: '6px 14px', fontSize: 11, fontWeight: 600, color: '#92400E', background: '#FEF3C7', borderTop: '1px solid #FDE68A' }}>
+                    ⚠️ Some of this may already be committed to another swap — check the preview before proposing.
+                  </div>
+                )}
               </div>
             );
           })}
@@ -3022,6 +3027,12 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           </>
         )}
       </div>
+
+      {items.length > 0 && (
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+          ℹ️ This list was fixed when the swap was proposed, so it won't change even if your needs or duplicates change afterward.
+        </p>
+      )}
 
       {swap.status === 'proposed' && (() => {
         const myAccepted = isUserA ? swap.user_a_accepted : swap.user_b_accepted;
