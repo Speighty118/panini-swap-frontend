@@ -108,6 +108,8 @@ const api = {
   getFounderStatus: (token) => request('/founder/status', { token }),
   getFounderCount: () => request('/founder/count'),
   createFounderCheckout: (token) => request('/founder/checkout', { method: 'POST', token }),
+  getPL2026Status: (token) => request('/pl2026/status', { token }),
+  notifyPL2026: (token) => request('/pl2026/notify', { method: 'POST', token }),
 
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
@@ -1487,6 +1489,108 @@ function FounderBanner({ onOpen }) {
 }
 
 // =================================================================
+// TOPPS PREMIER LEAGUE 2026 — COMING SOON TEASER
+// Dismissing the banner (localStorage, like the others) is entirely
+// separate from registering interest (server-side, so a launch
+// announcement can reach people regardless of device).
+// =================================================================
+function PL2026Banner({ onOpen }) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem('pl2026_banner_dismissed') === 'true';
+    if (!dismissed) setShow(true);
+  }, []);
+
+  const dismiss = () => {
+    setShow(false);
+    localStorage.setItem('pl2026_banner_dismissed', 'true');
+  };
+
+  if (!show) return null;
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 20, flexShrink: 0 }}>👕</span>
+      <div style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>
+        <strong>Topps Premier League 2026</strong> — coming soon.
+      </div>
+      <button onClick={onOpen} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: 'var(--primary)', color: 'white', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+        View
+      </button>
+      <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
+
+function PL2026Modal({ onClose }) {
+  const { token } = useAuth();
+  const [notified, setNotified] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    api.getPL2026Status(token)
+      .then((d) => setNotified(Boolean(d.notified)))
+      .catch(() => {})
+      .finally(() => setChecking(false));
+  }, [token]);
+
+  const registerInterest = async () => {
+    setLoading(true);
+    try {
+      await api.notifyPL2026(token);
+      setNotified(true);
+    } catch {
+      // fails quietly — nothing critical is lost if this one click doesn't register
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div className="w-full max-w-sm rounded-lg overflow-hidden" style={{ background: 'var(--surface)' }}>
+        <div style={{ background: 'var(--primary-dark)', padding: '24px 24px 20px', position: 'relative' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={15} color="white" />
+          </button>
+          <div style={{ fontSize: 32, marginBottom: 6 }}>👕</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'white', marginBottom: 4 }}>Topps Premier League 2026</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>Coming soon</div>
+        </div>
+
+        <div style={{ padding: 22 }}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
+            A brand new sticker collection for the Premier League 2026 season is on the way. Once it launches, you'll be able to list spares and needs just like you do now, and get matched with other collectors.
+          </p>
+
+          {checking ? (
+            <Spinner />
+          ) : notified ? (
+            <div style={{ background: 'var(--success-light)', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={18} color="#065F46" />
+              <span style={{ fontSize: 13, color: '#065F46', fontWeight: 600 }}>We'll notify you when it's live</span>
+            </div>
+          ) : (
+            <button
+              onClick={registerInterest}
+              disabled={loading}
+              style={{ width: '100%', padding: '13px', borderRadius: 8, background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: loading ? 0.7 : 1 }}
+            >
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              <Bell size={15} /> Notify me when it launches
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
 // USER PROFILE MODAL
 // Reachable by tapping any name anywhere in the app. Shows ratings,
 // reliability stats, badges, and a message/edit action.
@@ -1786,6 +1890,7 @@ function DashboardScreen() {
   const [duplicatesOpen, setDuplicatesOpen] = useState(true);
   const [needsOpen, setNeedsOpen] = useState(true);
   const [showFounderModal, setShowFounderModal] = useState(false);
+  const [showPL2026Modal, setShowPL2026Modal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1859,6 +1964,7 @@ function DashboardScreen() {
       )}
 
       {!user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
+      <PL2026Banner onOpen={() => setShowPL2026Modal(true)} />
 
       {/* ── Stats ticker — one line, left-anchored, not a card ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid var(--text-primary)', paddingBottom: 10 }}>
@@ -1970,6 +2076,7 @@ function DashboardScreen() {
       })()}
 
       {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
+      {showPL2026Modal && <PL2026Modal onClose={() => setShowPL2026Modal(false)} />}
 
       {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
         Promise.all([api.getMyDuplicates(token), api.getMyNeeds(token)])
