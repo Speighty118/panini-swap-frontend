@@ -552,6 +552,19 @@ function formatMessageTimestamp(dateStr) {
   return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
+// Compact "how long ago" text for swap proposal timestamps, e.g.
+// "3 days ago" — lets people judge how long they've been waiting.
+function formatSwapAge(dateStr) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(diffMs / 3_600_000);
+  const days = Math.floor(diffMs / 86_400_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  return `${days} day${days !== 1 ? 's' : ''} ago`;
+}
+
 // Reusable stats grid — used on your own profile (full detail) and
 // when viewing someone else's reliability profile (same data, same
 // component). Add more entries to STAT_DEFS to extend later.
@@ -2438,6 +2451,9 @@ function MySwapsScreen({ onOpenSwap }) {
               {(s.display_give_count > 0 || s.display_get_count > 0) && (
                 <><span>·</span><span style={{ color: '#0B1120', fontWeight: 700 }}>{s.display_give_count}↔{s.display_get_count}</span></>
               )}
+              {s.status === 'proposed' && (
+                <><span>·</span><span>proposed {formatSwapAge(s.created_at)}</span></>
+              )}
             </div>
             <div style={{ marginTop: 2 }}>
               <ActivityIndicator lastLoginAt={s.last_login_at} />
@@ -3033,6 +3049,12 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
       {items.length > 0 && (
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
           ℹ️ This list was fixed when the swap was proposed, so it won't change even if your needs or duplicates change afterward.
+        </p>
+      )}
+
+      {swap.status === 'proposed' && (
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+          Proposed {formatSwapAge(swap.created_at)}
         </p>
       )}
 
