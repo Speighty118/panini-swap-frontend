@@ -2568,7 +2568,7 @@ function AmbassadorCard({ token, swapId }) {
         <span style={{ fontSize: 18 }}>🏅</span>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Become a Got One Spare ambassador</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Help collectors find us and earn your badge</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Share on Facebook to earn your badge</div>
         </div>
       </div>
       <div style={{ padding: '14px 16px' }}>
@@ -2626,7 +2626,7 @@ function AmbassadorCard({ token, swapId }) {
           }}
           style={{ width: '100%', padding: '11px', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', border: 'none', fontSize: 13, fontWeight: 700, cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.6 : 1 }}
         >
-          ✓ I've posted it — submit for review
+          ✓ I've shared it on Facebook
         </button>
       </div>
     </div>
@@ -3208,8 +3208,15 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         </div>
       )}
 
-      {(swap.status === 'accepted' || swap.status === 'posted') && swap.user_a_accepted && swap.user_b_accepted && (
-        <AmbassadorCard token={token} swapId={swap.id} />
+      {(swap.status === 'accepted' || swap.status === 'posted') && swap.user_a_accepted && swap.user_b_accepted && (isUserA ? swap.user_a_posted : swap.user_b_posted) && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 4px' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎁 Bonus — optional</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+          <AmbassadorCard token={token} swapId={swap.id} />
+        </>
       )}
 
       {swap.status === 'accepted' && !(otherUserAddress?.address_line1 && otherUserAddress?.city) && (
