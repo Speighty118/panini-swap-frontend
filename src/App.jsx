@@ -1838,6 +1838,9 @@ function FutureCollectionsWidget() {
   const [submitted, setSubmitted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasOpened, setHasOpened] = useState(() => {
+    try { return localStorage.getItem('appSurveyOpened') === '1'; } catch { return false; }
+  });
 
   useEffect(() => {
     api.getAppSurvey(token).then(data => {
@@ -1930,8 +1933,15 @@ function FutureCollectionsWidget() {
       )}
 
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => {
+          setOpen(o => !o);
+          if (!hasOpened) {
+            setHasOpened(true);
+            try { localStorage.setItem('appSurveyOpened', '1'); } catch {}
+          }
+        }}
         style={{
+          position: 'relative',
           width: 40, height: 40, borderRadius: '50%',
           background: open ? 'var(--navy)' : '#1AAB8A',
           color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1940,7 +1950,19 @@ function FutureCollectionsWidget() {
         }}
         title="Shape our future"
       >
-        🚀
+        📱
+        {!submitted && !hasOpened && (
+          <span style={{
+            position: 'absolute', top: -2, right: -2,
+            background: 'var(--danger)', color: 'white',
+            fontSize: 10, fontWeight: 700,
+            width: 16, height: 16, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1, border: '2px solid var(--surface)',
+          }}>
+            1
+          </span>
+        )}
       </button>
     </div>
   );
