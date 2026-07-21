@@ -42,6 +42,7 @@ async function request(path, { method = 'GET', body, token } = {}) {
     const err = new Error(data?.error || `Request failed (${res.status})`);
     err.stale = data?.stale || false;
     err.autoDeclined = data?.autoDeclined || false;
+    err.swapId = data?.swapId || null;
     throw err;
   }
   return data;
@@ -631,11 +632,21 @@ function SectionHeader({ eyebrow, title, action }) {
   );
 }
 
-function ErrorBanner({ message, onDismiss }) {
+function ErrorBanner({ message, onDismiss, action }) {
   if (!message) return null;
   return (
     <div style={{ background: 'var(--danger-light)', border: '1px solid #FCA5A5', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-      <span style={{ fontSize: 13, color: '#991B1B' }}>{message}</span>
+      <span style={{ fontSize: 13, color: '#991B1B' }}>
+        {message}
+        {action && (
+          <>
+            {' '}
+            <button onClick={action.onClick} style={{ color: '#991B1B', fontWeight: 700, textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}>
+              {action.label}
+            </button>
+          </>
+        )}
+      </span>
       <button onClick={onDismiss} style={{ color: '#991B1B', flexShrink: 0 }}><X size={16} /></button>
     </div>
   );
@@ -1968,12 +1979,13 @@ function FutureCollectionsWidget() {
   );
 }
 
-function DashboardScreen() {
+function DashboardScreen({ onOpenSwap }) {
   const { token, user } = useAuth();
   const [duplicates, setDuplicates] = useState([]);
   const [needs, setNeeds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorSwapId, setErrorSwapId] = useState(null);
   const [picker, setPicker] = useState(null); // 'duplicate' | 'need' | null
   const [duplicatesOpen, setDuplicatesOpen] = useState(true);
   const [needsOpen, setNeedsOpen] = useState(true);
@@ -2012,8 +2024,10 @@ function DashboardScreen() {
     setDuplicates((d) => d.filter((x) => x.sticker_id !== stickerId));
     try {
       await api.removeDuplicate(token, stickerId);
+      setErrorSwapId(null);
     } catch (err) {
       setError(err.message);
+      setErrorSwapId(err.swapId || null);
       load();
     }
   };
@@ -2043,7 +2057,11 @@ function DashboardScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      <ErrorBanner message={error} onDismiss={() => setError(null)} />
+      <ErrorBanner
+        message={error}
+        onDismiss={() => { setError(null); setErrorSwapId(null); }}
+        action={errorSwapId && onOpenSwap ? { label: `View swap #${errorSwapId} →`, onClick: () => onOpenSwap(errorSwapId) } : null}
+      />
 
       {user?.matching_paused && (
         <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#92400E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5095,7 +5113,14 @@ export default function PaniniSwapApp() {
         {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
         <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 90px' }}>
-          {tab === 'dashboard' && <DashboardScreen />}
+          {tab === 'dashboard' && (
+            <DashboardScreen
+              onOpenSwap={(swapId) => {
+                setActiveSwapId(swapId);
+                setTab('swap');
+              }}
+            />
+          )}
           {tab === 'matches' && (
             <MatchesScreen
               onOpenSwap={(swapId) => {
