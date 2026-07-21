@@ -2370,6 +2370,12 @@ function MatchesScreen({ onOpenSwap }) {
                     <div style={{ marginTop: 2 }}>
                       <ActivityIndicator lastLoginAt={m.last_login_at} />
                     </div>
+                    {m.distance_miles != null && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <MapPin size={10} />
+                        ~{m.distance_miles} mi away
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 22, fontWeight: 900, color: '#1AAB8A', lineHeight: 1, fontFamily: 'monospace' }}>{swapCount}</div>
