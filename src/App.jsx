@@ -2546,9 +2546,9 @@ function MySwapsScreen({ onOpenSwap }) {
       filter: (s) => s.status === 'completed',
     },
     {
-      key: 'declined',
-      title: '❌ Declined',
-      filter: (s) => s.status === 'declined' || s.status === 'disputed',
+      key: 'disputed',
+      title: '⚠️ Disputed',
+      filter: (s) => s.status === 'disputed',
     },
   ];
 
