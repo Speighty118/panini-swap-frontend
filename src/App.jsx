@@ -141,8 +141,6 @@ const api = {
   getSwapHistory: (token) => request('/swaps/history', { token }),
   getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
   searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
-  reportNoShow: (token, swapId, notes) =>
-    request('/reports', { method: 'POST', body: { swapId, notes }, token }),
   getMyReports: (token) => request('/reports/mine', { token }),
   withdrawReport: (token, reportId) => request(`/reports/${reportId}`, { method: 'DELETE', token }),
 };
@@ -3900,7 +3898,6 @@ function SwapHistoryScreen() {
   const { token, user, openProfile } = useAuth();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showNoShowModal, setShowNoShowModal] = useState(null);
 
   useEffect(() => {
     api.getSwapHistory(token)
@@ -3948,84 +3945,11 @@ function SwapHistoryScreen() {
                     {s.your_rating && <StarRating value={s.your_rating} size={12} />}
                   </div>
                 </div>
-                {isCompleted && (
-                  <button
-                    onClick={() => setShowNoShowModal(s)}
-                    style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
-                  >
-                    Report a problem with this swap
-                  </button>
-                )}
               </div>
             );
           })}
         </div>
       )}
-      {showNoShowModal && (
-        <NoShowReportModal
-          swap={showNoShowModal}
-          onClose={() => setShowNoShowModal(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// =================================================================
-// NO-SHOW REPORT MODAL
-// =================================================================
-function NoShowReportModal({ swap, onClose }) {
-  const { token } = useAuth();
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState(null);
-
-  const submit = async () => {
-    setSaving(true);
-    try {
-      await api.reportNoShow(token, swap.id, notes);
-      setDone(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg" style={{ background: 'var(--surface)', padding: 24 }}>
-        {done ? (
-          <>
-            <div style={{ fontSize: 32, textAlign: 'center', marginBottom: 12 }}>✅</div>
-            <h3 style={{ textAlign: 'center', fontWeight: 700, marginBottom: 8 }}>Report submitted</h3>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 16 }}>Thanks for letting us know. The admin team will look into it.</p>
-            <button onClick={onClose} style={{ width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14 }}>Close</button>
-          </>
-        ) : (
-          <>
-            <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Report a problem</h3>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
-              Was there an issue with your swap with {swap.other_user_name}? Let us know what happened.
-            </p>
-            <ErrorBanner message={error} onDismiss={() => setError(null)} />
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="e.g. They marked as posted but stickers never arrived…"
-              rows={3}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', resize: 'none', marginBottom: 14, boxSizing: 'border-box' }}
-            />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={submit} disabled={saving} style={{ flex: 1, padding: 11, borderRadius: 'var(--radius-sm)', background: '#EF4444', border: 'none', color: 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-                {saving ? 'Sending…' : 'Submit report'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
     </div>
   );
 }
