@@ -3129,7 +3129,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                   <div style={{ fontSize: 13, color: '#065F46', marginTop: 2 }}>
                     {theirAccepted
                       ? "You've both accepted — stickers are being confirmed now..."
-                      : `Waiting for ${otherName} to accept. You don't need to do anything else right now.`}
+                      : `Waiting for ${otherName} to also accept — everyone has to confirm before it's locked in, even the person who proposed it. You don't need to do anything else right now.`}
                   </div>
                 </div>
               </div>
