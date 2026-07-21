@@ -143,6 +143,8 @@ const api = {
   searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
   reportNoShow: (token, swapId, notes) =>
     request('/reports', { method: 'POST', body: { swapId, notes }, token }),
+  getMyReports: (token) => request('/reports/mine', { token }),
+  withdrawReport: (token, reportId) => request(`/reports/${reportId}`, { method: 'DELETE', token }),
 };
 
 // =================================================================
@@ -4278,6 +4280,8 @@ function ProfileScreen({ onClose, onSaved }) {
   const { dark, toggle } = useTheme();
   const [badges, setBadges] = useState([]);
   const [stats, setStats] = useState(null);
+  const [myReports, setMyReports] = useState([]);
+  const [withdrawingReportId, setWithdrawingReportId] = useState(null);
   const [matchingPaused, setMatchingPaused] = useState(Boolean(user.matching_paused));
   const [pausingBusy, setPausingBusy] = useState(false);
   const [showFounderModal, setShowFounderModal] = useState(false);
@@ -4294,7 +4298,20 @@ function ProfileScreen({ onClose, onSaved }) {
   useEffect(() => {
     if (user?.id) api.getBadges(token, user.id).then(setBadges).catch(() => {});
     if (user?.id) api.getUserStats(token, user.id).then(setStats).catch(() => {});
+    api.getMyReports(token).then(setMyReports).catch(() => {});
   }, [token, user?.id]);
+
+  const withdrawReport = async (reportId) => {
+    setWithdrawingReportId(reportId);
+    try {
+      await api.withdrawReport(token, reportId);
+      setMyReports((r) => r.filter((x) => x.id !== reportId));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWithdrawingReportId(null);
+    }
+  };
 
   const toggleMatchingPaused = async () => {
     const next = !matchingPaused;
@@ -4529,6 +4546,30 @@ function ProfileScreen({ onClose, onSaved }) {
                 <span key={b.badge_type} title={b.description} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', color: 'var(--primary-dark)', fontWeight: 600 }}>
                   {b.label}
                 </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reports you've filed */}
+        {myReports.length > 0 && (
+          <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Reports you've filed</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+              If a problem's been sorted out, you can withdraw a report yourself — no need to contact an admin.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {myReports.map((r) => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', background: 'var(--bg)', borderRadius: 6, fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-primary)' }}>You reported <strong>{r.reported_name}</strong> on swap #{r.swap_id}</span>
+                  <button
+                    onClick={() => withdrawReport(r.id)}
+                    disabled={withdrawingReportId === r.id}
+                    style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 8px', cursor: withdrawingReportId === r.id ? 'default' : 'pointer' }}
+                  >
+                    {withdrawingReportId === r.id ? 'Withdrawing…' : 'Withdraw'}
+                  </button>
+                </div>
               ))}
             </div>
           </div>
