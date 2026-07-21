@@ -3361,7 +3361,16 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
             await api.markReceived(token, swap.id);
             const fresh = await api.getSwap(token, swapId);
             setData(fresh);
-            setShowRating(true);
+            // Only open the rating modal once the swap is actually
+            // completed (both sides confirmed) — rating is blocked
+            // server-side until then, so opening it early just leads
+            // to a confusing failed submission.
+            if (fresh.swap.status === 'completed') {
+              setShowRating(true);
+            } else {
+              setActionConfirm(`✓ Marked as received! Waiting for ${otherName} to confirm too — you'll be able to rate them once they do.`);
+              setTimeout(() => setActionConfirm(null), 5000);
+            }
           } catch (err) {
             setError(err.message);
           } finally {
