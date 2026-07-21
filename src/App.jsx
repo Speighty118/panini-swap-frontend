@@ -57,8 +57,8 @@ const api = {
   getStats: () => request('/stats'),
   getActivity: () => request('/activity'),
   getUnreadMessageCount: (token) => request('/messages', { token }).then(convos => convos.reduce((sum, c) => sum + (parseInt(c.unread_count) || 0), 0)).catch(() => 0),
-  getFutureCollections: (token) => request('/future-collections/me', { token }),
-  voteFutureCollection: (token, key, selected) => request('/future-collections/vote', { method: 'POST', body: { key, selected }, token }),
+  getAppSurvey: (token) => request('/app-survey/me', { token }),
+  submitAppSurvey: (token, wantsApp, phoneOs) => request('/app-survey/submit', { method: 'POST', body: { wantsApp, phoneOs }, token }),
   getVapidKey: () => request('/push/vapid-public-key'),
   subscribePush: (token, subscription, isStandalone) => request('/push/subscribe', { method: 'POST', body: { subscription, isStandalone }, token }),
   trackInstall: (token) => request('/push/track-install', { method: 'POST', token }),
@@ -1833,46 +1833,41 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 function FutureCollectionsWidget() {
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
-  const [collections, setCollections] = useState([]);
-  const [voted, setVoted] = useState(new Set());
-  const [pending, setPending] = useState(new Set());
+  const [wantsApp, setWantsApp] = useState(null);
+  const [phoneOs, setPhoneOs] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.getFutureCollections(token).then(data => {
-      setCollections(data.collections || []);
-      const existing = new Set(data.voted || []);
-      setVoted(existing);
-      setPending(new Set(existing));
-      if (existing.size > 0) setSubmitted(true);
+    api.getAppSurvey(token).then(data => {
+      if (data.answered) {
+        setWantsApp(data.wantsApp);
+        setPhoneOs(data.phoneOs);
+        setSubmitted(true);
+      }
       setLoaded(true);
     }).catch(() => { setLoaded(true); });
   }, [token]);
 
-  const toggle = (key) => {
-    setPending(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
-
   const submit = async () => {
-    const toAdd = [...pending].filter(k => !voted.has(k));
-    const toRemove = [...voted].filter(k => !pending.has(k));
-    await Promise.all([
-      ...toAdd.map(k => api.voteFutureCollection(token, k, true)),
-      ...toRemove.map(k => api.voteFutureCollection(token, k, false)),
-    ]).catch(() => {});
-    setVoted(new Set(pending));
-    setSubmitted(true);
-    setTimeout(() => setOpen(false), 800);
+    if (wantsApp === null || !phoneOs) return;
+    setSaving(true);
+    try {
+      await api.submitAppSurvey(token, wantsApp, phoneOs);
+      setSubmitted(true);
+      setTimeout(() => setOpen(false), 800);
+    } catch {
+      // leave the form open so they can try again
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!loaded) return null;
 
-  const hasChanges = [...pending].some(k => !voted.has(k)) || [...voted].some(k => !pending.has(k));
+  const canSubmit = wantsApp !== null && !!phoneOs;
+  const optionStyle = (active) => ({ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '7px 10px', borderRadius: 6, border: '1px solid ' + (active ? '#1AAB8A' : 'var(--border)'), background: active ? 'rgba(26,171,138,0.08)' : 'var(--bg)', transition: 'all 0.15s' });
 
   return (
     <div style={{ position: 'fixed', bottom: 128, right: 16, zIndex: 200 }}>
@@ -1887,29 +1882,45 @@ function FutureCollectionsWidget() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>🚀 Shape our future</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Which collections next? Select all that apply.</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Two quick questions to help us plan ahead.</div>
             </div>
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}><X size={14} /></button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-            {collections.map(c => {
-              const checked = pending.has(c.key);
-              return (
-                <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '7px 10px', borderRadius: 6, border: '1px solid ' + (checked ? '#1AAB8A' : 'var(--border)'), background: checked ? 'rgba(26,171,138,0.08)' : 'var(--bg)', transition: 'all 0.15s' }}>
-                  <input type="checkbox" checked={checked} onChange={() => toggle(c.key)} style={{ width: 14, height: 14, accentColor: '#1AAB8A', flexShrink: 0, cursor: 'pointer' }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{c.emoji} {c.label}</span>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+              We're exploring building a Got One Spare app. Would that be useful to you?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[{ v: true, label: "👍 Yes, I'd use an app" }, { v: false, label: '👎 No, the website is fine' }].map(opt => (
+                <label key={String(opt.v)} style={optionStyle(wantsApp === opt.v)}>
+                  <input type="radio" name="wantsApp" checked={wantsApp === opt.v} onChange={() => setWantsApp(opt.v)} style={{ width: 14, height: 14, accentColor: '#1AAB8A', flexShrink: 0, cursor: 'pointer' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{opt.label}</span>
                 </label>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+              If we did, which would you use it on?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[{ v: 'ios', label: '🍎 iPhone (iOS)' }, { v: 'android', label: '🤖 Android' }, { v: 'neither', label: '🤷 Neither' }].map(opt => (
+                <label key={opt.v} style={optionStyle(phoneOs === opt.v)}>
+                  <input type="radio" name="phoneOs" checked={phoneOs === opt.v} onChange={() => setPhoneOs(opt.v)} style={{ width: 14, height: 14, accentColor: '#1AAB8A', flexShrink: 0, cursor: 'pointer' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{opt.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <button
             onClick={submit}
-            disabled={pending.size === 0}
-            style={{ width: '100%', padding: '9px 0', background: pending.size === 0 ? 'var(--border)' : '#1AAB8A', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: pending.size === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+            disabled={!canSubmit || saving}
+            style={{ width: '100%', padding: '9px 0', background: !canSubmit ? 'var(--border)' : '#1AAB8A', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: !canSubmit ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
           >
-            {submitted && !hasChanges ? '✓ Saved — update selections' : `Submit${pending.size > 0 ? ` (${pending.size} selected)` : ''}`}
+            {submitted ? '✓ Saved — update answers' : 'Submit'}
           </button>
 
           <button onClick={() => setOpen(false)} style={{ width: '100%', textAlign: 'center', fontSize: 11, marginTop: 8, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
