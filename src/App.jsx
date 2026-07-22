@@ -4453,6 +4453,26 @@ function ProfileScreen({ onClose, onSaved }) {
           </button>
         </div>
 
+        {/* Level & XP */}
+        <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>🎖️ Level {user.level || 1}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {user.xp || 0} XP{user.nextLevelXp != null ? ` · ${user.nextLevelXp - (user.xp || 0)} to next level` : ' · max level reached'}
+            </div>
+          </div>
+          {user.nextLevelXp != null && (
+            <div style={{ height: 8, background: 'var(--bg)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(100, Math.round((((user.xp || 0) - (user.currentLevelXp || 0)) / (user.nextLevelXp - (user.currentLevelXp || 0))) * 100))}%`,
+                background: 'var(--primary)',
+                transition: 'width 0.3s',
+              }} />
+            </div>
+          )}
+        </div>
+
         {/* Your swapping stats */}
         {stats && (
           <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
