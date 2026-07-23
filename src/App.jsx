@@ -49,7 +49,8 @@ async function request(path, { method = 'GET', body, token } = {}) {
 }
 
 const api = {
-  signup: (name, email, password, inviteCode) => request('/auth/signup', { method: 'POST', body: { name, email, password, inviteCode } }),
+  signup: (name, email, password, inviteCode, referralCode) => request('/auth/signup', { method: 'POST', body: { name, email, password, inviteCode, referralCode } }),
+  getReferral: (token) => request('/auth/me/referral', { token }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   me: (token) => request('/auth/me', { token }),
   updateMe: (token, fields) => request('/auth/me', { method: 'PUT', body: fields, token }),
@@ -706,9 +707,12 @@ function AuthScreen({ onAuthed }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
+  const [referralCode, setReferralCode] = useState('');
 
   useEffect(() => {
     api.getStats().then(setStats).catch(() => {});
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) setReferralCode(ref);
   }, []);
 
   const inputStyle = {
@@ -725,7 +729,7 @@ function AuthScreen({ onAuthed }) {
     try {
       const result = mode === 'login'
         ? await api.login(email, password)
-        : await api.signup(name, email, password, inviteCode);
+        : await api.signup(name, email, password, inviteCode, referralCode || undefined);
       onAuthed(result.token, result.user);
     } catch (err) {
       if (err.message && err.message.includes('invite')) {
@@ -4206,6 +4210,8 @@ function ProfileScreen({ onClose, onSaved }) {
   const [stats, setStats] = useState(null);
   const [myReports, setMyReports] = useState([]);
   const [withdrawingReportId, setWithdrawingReportId] = useState(null);
+  const [referralCode, setReferralCode] = useState(null);
+  const [referralCopied, setReferralCopied] = useState(false);
   const [matchingPaused, setMatchingPaused] = useState(Boolean(user.matching_paused));
   const [pausingBusy, setPausingBusy] = useState(false);
   const [showFounderModal, setShowFounderModal] = useState(false);
@@ -4223,6 +4229,7 @@ function ProfileScreen({ onClose, onSaved }) {
     if (user?.id) api.getBadges(token, user.id).then(setBadges).catch(() => {});
     if (user?.id) api.getUserStats(token, user.id).then(setStats).catch(() => {});
     api.getMyReports(token).then(setMyReports).catch(() => {});
+    api.getReferral(token).then((d) => setReferralCode(d.code)).catch(() => {});
   }, [token, user?.id]);
 
   const withdrawReport = async (reportId) => {
@@ -4472,6 +4479,31 @@ function ProfileScreen({ onClose, onSaved }) {
             </div>
           )}
         </div>
+
+        {/* Refer a friend */}
+        {referralCode && (
+          <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>🎁 Refer a friend</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Share your link — once they sign up and complete their first swap, you'll earn 30 XP.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1, padding: '8px 10px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-primary)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {window.location.origin}/?ref={referralCode}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/?ref=${referralCode}`).catch(() => {});
+                  setReferralCopied(true);
+                  setTimeout(() => setReferralCopied(false), 2000);
+                }}
+                style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 6, background: 'var(--primary)', color: 'white', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {referralCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Your swapping stats */}
         {stats && (
