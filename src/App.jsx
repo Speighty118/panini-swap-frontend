@@ -10,6 +10,7 @@ const API_BASE = 'https://panini-swap-production-69ef.up.railway.app/api';
 
 const AuthContext = createContext(null);
 const ThemeContext = createContext({ dark: false, toggle: () => {} });
+const AlbumContext = createContext({ albumId: 1, albums: [], setAlbumId: () => {} });
 
 function useAuth() {
   return useContext(AuthContext);
@@ -17,6 +18,10 @@ function useAuth() {
 
 function useTheme() {
   return useContext(ThemeContext);
+}
+
+function useAlbum() {
+  return useContext(AlbumContext);
 }
 
 async function request(path, { method = 'GET', body, token } = {}) {
@@ -65,14 +70,17 @@ const api = {
   subscribePush: (token, subscription, isStandalone) => request('/push/subscribe', { method: 'POST', body: { subscription, isStandalone }, token }),
   trackInstall: (token) => request('/push/track-install', { method: 'POST', token }),
 
-  searchStickers: (token, { search, team } = {}) => {
+  getAlbums: () => request('/albums'),
+
+  searchStickers: (token, { search, team, albumId = 1 } = {}) => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (team) params.set('team', team);
+    params.set('albumId', albumId);
     return request(`/stickers?${params.toString()}`, { token });
   },
-  getTeams: (token) => request('/stickers/teams', { token }),
-  getMyDuplicates: (token) => request('/stickers/me/duplicates', { token }),
+  getTeams: (token, albumId = 1) => request(`/stickers/teams?albumId=${albumId}`, { token }),
+  getMyDuplicates: (token, albumId = 1) => request(`/stickers/me/duplicates?albumId=${albumId}`, { token }),
   addDuplicate: (token, stickerId, quantity) =>
     request('/stickers/me/duplicates', { method: 'POST', body: { stickerId, quantity }, token }),
   updateDuplicateQty: (token, stickerId, quantity) =>
@@ -81,15 +89,15 @@ const api = {
     request('/stickers/me/duplicates/bulk', { method: 'POST', body: { stickerIds }, token }),
   removeDuplicate: (token, stickerId) =>
     request(`/stickers/me/duplicates/${stickerId}`, { method: 'DELETE', token }),
-  getMyNeeds: (token) => request('/stickers/me/needs', { token }),
+  getMyNeeds: (token, albumId = 1) => request(`/stickers/me/needs?albumId=${albumId}`, { token }),
   addNeed: (token, stickerId) => request('/stickers/me/needs', { method: 'POST', body: { stickerId }, token }),
   addNeedsBulk: (token, stickerIds) =>
     request('/stickers/me/needs/bulk', { method: 'POST', body: { stickerIds }, token }),
   removeNeed: (token, stickerId) => request(`/stickers/me/needs/${stickerId}`, { method: 'DELETE', token }),
-  clearAllStickers: (token) => request('/stickers/me/all', { method: 'DELETE', token }),
+  clearAllStickers: (token, albumId = 1) => request(`/stickers/me/all?albumId=${albumId}`, { method: 'DELETE', token }),
 
-  getMatches: (token) => request('/swaps/matches', { token }),
-  getMySwaps: (token) => request('/swaps/mine', { token }),
+  getMatches: (token, albumId = 1) => request(`/swaps/matches?albumId=${albumId}`, { token }),
+  getMySwaps: (token, albumId = 1) => request(`/swaps/mine?albumId=${albumId}`, { token }),
   getSwapPreview: (token, matchId) => request(`/swaps/preview/${matchId}`, { token }),
   createSwap: (token, matchId) => request('/swaps', { method: 'POST', body: { matchId }, token }),
   getSwap: (token, swapId) => request(`/swaps/${swapId}`, { token }),
@@ -110,8 +118,6 @@ const api = {
   getFounderStatus: (token) => request('/founder/status', { token }),
   getFounderCount: () => request('/founder/count'),
   createFounderCheckout: (token) => request('/founder/checkout', { method: 'POST', token }),
-  getPL2026Status: (token) => request('/pl2026/status', { token }),
-  notifyPL2026: (token) => request('/pl2026/notify', { method: 'POST', token }),
 
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
@@ -139,7 +145,7 @@ const api = {
   getConversationMessages: (token, conversationId) => request(`/messages/${conversationId}`, { token }),
   sendDirectMessage: (token, conversationId, body) => request(`/messages/${conversationId}/send`, { method: 'POST', body: { body }, token }),
   reportMessage: (token, messageId, reason) => request(`/messages/${messageId}/report`, { method: 'POST', body: { reason }, token }),
-  getSwapHistory: (token) => request('/swaps/history', { token }),
+  getSwapHistory: (token, albumId = 1) => request(`/swaps/history?albumId=${albumId}`, { token }),
   getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
   searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
   getMyReports: (token) => request('/reports/mine', { token }),
@@ -898,16 +904,27 @@ const TEAM_NAME_ALIASES = {
   'Cabo Verde': 'Cape Verde',
 };
 
-function normaliseTeamName(name) {
-  return TEAM_NAME_ALIASES[name] || name;
+// Per-album sort/display config. Albums with no groupOrder (e.g. Premier
+// League, whose clubs already sort alphabetically in physical album order)
+// fall back to a plain A–Z sort with no name aliasing.
+const ALBUM_CONFIG = {
+  1: { groupOrder: WC2026_GROUP_ORDER, teamAliases: TEAM_NAME_ALIASES },
+  2: { groupOrder: null, teamAliases: {} },
+};
+
+function normaliseTeamName(name, albumId = 1) {
+  const aliases = ALBUM_CONFIG[albumId]?.teamAliases || {};
+  return aliases[name] || name;
 }
 
-function sortTeamsByGroup(teams) {
+function sortTeamsByGroup(teams, albumId = 1) {
+  const groupOrder = ALBUM_CONFIG[albumId]?.groupOrder;
+  if (!groupOrder) return [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name));
   return [...teams].sort((a, b) => {
-    const an = normaliseTeamName(a.team_name);
-    const bn = normaliseTeamName(b.team_name);
-    const ai = WC2026_GROUP_ORDER.indexOf(an);
-    const bi = WC2026_GROUP_ORDER.indexOf(bn);
+    const an = normaliseTeamName(a.team_name, albumId);
+    const bn = normaliseTeamName(b.team_name, albumId);
+    const ai = groupOrder.indexOf(an);
+    const bi = groupOrder.indexOf(bn);
     if (ai === -1 && bi === -1) return a.team_name.localeCompare(b.team_name);
     if (ai === -1) return 1;
     if (bi === -1) return -1;
@@ -915,8 +932,22 @@ function sortTeamsByGroup(teams) {
   });
 }
 
+// Sorts a list of owned/needed stickers into physical-album order for a
+// given album (falls back to plain sticker-number order for albums with
+// no configured groupOrder).
+function sortStickersByAlbumOrder(items, albumId = 1) {
+  const groupOrder = ALBUM_CONFIG[albumId]?.groupOrder || [];
+  return [...items].sort((a, b) => {
+    const ai = groupOrder.indexOf(normaliseTeamName(a.team_name, albumId));
+    const bi = groupOrder.indexOf(normaliseTeamName(b.team_name, albumId));
+    if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return (a.sticker_number || '').localeCompare(b.sticker_number || '', undefined, { numeric: true });
+  });
+}
+
 function StickerPickerModal({ mode, onClose, onPicked }) {
   const { token } = useAuth();
+  const { albumId } = useAlbum();
   const [pickerTab, setPickerTab] = useState('team');
   const [teams, setTeams] = useState([]);
   const [teamSort, setTeamSort] = useState('group');
@@ -937,32 +968,32 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const [existing, setExisting] = useState({});
 
   useEffect(() => {
-    api.getTeams(token).then(setTeams).catch(() => {});
+    api.getTeams(token, albumId).then(setTeams).catch(() => {});
     const getter = mode === 'duplicate' ? api.getMyDuplicates : api.getMyNeeds;
-    getter(token).then(items => {
+    getter(token, albumId).then(items => {
       const map = {};
       items.forEach(s => { map[s.sticker_id] = s; });
       setExisting(map);
     }).catch(() => {});
-  }, [token, mode]);
+  }, [token, mode, albumId]);
 
   useEffect(() => {
     if (!selectedTeam) { setTeamStickers([]); return; }
     setTeamLoading(true);
-    api.searchStickers(token, { team: selectedTeam })
+    api.searchStickers(token, { team: selectedTeam, albumId })
       .then(setTeamStickers).catch(() => {}).finally(() => setTeamLoading(false));
-  }, [selectedTeam, token]);
+  }, [selectedTeam, token, albumId]);
 
   useEffect(() => {
     if (pickerTab !== 'search') return;
     if (!searchQuery.trim()) { setSearchResults([]); return; }
     const handle = setTimeout(() => {
       setSearchLoading(true);
-      api.searchStickers(token, { search: searchQuery })
+      api.searchStickers(token, { search: searchQuery, albumId })
         .then(setSearchResults).catch(() => {}).finally(() => setSearchLoading(false));
     }, 300);
     return () => clearTimeout(handle);
-  }, [searchQuery, token, pickerTab]);
+  }, [searchQuery, token, pickerTab, albumId]);
 
   const addFromSearch = async (sticker, qty) => {
     setError(null);
@@ -1151,7 +1182,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
           <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)}
             style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}>
             <option value="">Select a team…</option>
-            {(teamSort === 'group' ? sortTeamsByGroup(teams) : [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name))).map((t) => {
+            {(teamSort === 'group' ? sortTeamsByGroup(teams, albumId) : [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name))).map((t) => {
               const existingCount = Object.values(existing).filter(s => s.team_name === t.team_name).length;
               const codeRange = t.first_number === t.last_number ? t.first_number : `${t.first_number}–${t.last_number}`;
               return <option key={t.team_name} value={t.team_name}>{t.team_name} ({codeRange}){existingCount > 0 ? ` · ${existingCount} already added` : ''}</option>;
@@ -1556,108 +1587,6 @@ function FounderBanner({ onOpen }) {
 }
 
 // =================================================================
-// TOPPS PREMIER LEAGUE 2026 — COMING SOON TEASER
-// Dismissing the banner (localStorage, like the others) is entirely
-// separate from registering interest (server-side, so a launch
-// announcement can reach people regardless of device).
-// =================================================================
-function PL2026Banner({ onOpen }) {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem('pl2026_banner_dismissed') === 'true';
-    if (!dismissed) setShow(true);
-  }, []);
-
-  const dismiss = () => {
-    setShow(false);
-    localStorage.setItem('pl2026_banner_dismissed', 'true');
-  };
-
-  if (!show) return null;
-
-  return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 20, flexShrink: 0 }}>👕</span>
-      <div style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>
-        <strong>Topps Premier League 2026</strong> — coming soon.
-      </div>
-      <button onClick={onOpen} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: 'var(--primary)', color: 'white', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-        View
-      </button>
-      <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-        <X size={15} />
-      </button>
-    </div>
-  );
-}
-
-function PL2026Modal({ onClose }) {
-  const { token } = useAuth();
-  const [notified, setNotified] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    api.getPL2026Status(token)
-      .then((d) => setNotified(Boolean(d.notified)))
-      .catch(() => {})
-      .finally(() => setChecking(false));
-  }, [token]);
-
-  const registerInterest = async () => {
-    setLoading(true);
-    try {
-      await api.notifyPL2026(token);
-      setNotified(true);
-    } catch {
-      // fails quietly — nothing critical is lost if this one click doesn't register
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="w-full max-w-sm rounded-lg overflow-hidden" style={{ background: 'var(--surface)' }}>
-        <div style={{ background: 'var(--primary-dark)', padding: '24px 24px 20px', position: 'relative' }}>
-          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <X size={15} color="white" />
-          </button>
-          <div style={{ fontSize: 32, marginBottom: 6 }}>👕</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'white', marginBottom: 4 }}>Topps Premier League 2026</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>Coming soon</div>
-        </div>
-
-        <div style={{ padding: 22 }}>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
-            A brand new sticker collection for the Premier League 2026 season is on the way. Once it launches, you'll be able to list spares and needs just like you do now, and get matched with other collectors.
-          </p>
-
-          {checking ? (
-            <Spinner />
-          ) : notified ? (
-            <div style={{ background: 'var(--success-light)', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <CheckCircle2 size={18} color="#065F46" />
-              <span style={{ fontSize: 13, color: '#065F46', fontWeight: 600 }}>We'll notify you when it's live</span>
-            </div>
-          ) : (
-            <button
-              onClick={registerInterest}
-              disabled={loading}
-              style={{ width: '100%', padding: '13px', borderRadius: 8, background: 'var(--primary)', border: 'none', color: 'white', fontWeight: 700, fontSize: 14, cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: loading ? 0.7 : 1 }}
-            >
-              {loading && <Loader2 size={14} className="animate-spin" />}
-              <Bell size={15} /> Notify me when it launches
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =================================================================
 // USER PROFILE MODAL
 // Reachable by tapping any name anywhere in the app. Shows ratings,
 // reliability stats, badges, and a message/edit action.
@@ -1985,8 +1914,11 @@ function FutureCollectionsWidget() {
 
 function DashboardScreen({ onOpenSwap }) {
   const { token, user } = useAuth();
+  const { albumId } = useAlbum();
   const [duplicates, setDuplicates] = useState([]);
   const [needs, setNeeds] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [albumStickerCount, setAlbumStickerCount] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorSwapId, setErrorSwapId] = useState(null);
@@ -1994,33 +1926,27 @@ function DashboardScreen({ onOpenSwap }) {
   const [duplicatesOpen, setDuplicatesOpen] = useState(true);
   const [needsOpen, setNeedsOpen] = useState(true);
   const [showFounderModal, setShowFounderModal] = useState(false);
-  const [showPL2026Modal, setShowPL2026Modal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [dups, needsList] = await Promise.all([api.getMyDuplicates(token), api.getMyNeeds(token)]);
-      const byGroupOrder = (a, b) => {
-        const ai = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(a.team_name));
-        const bi = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(b.team_name));
-        if (ai !== bi) {
-          if (ai === -1) return 1;
-          if (bi === -1) return -1;
-          return ai - bi;
-        }
-        const an = parseInt(a.sticker_number.replace(/[^0-9]/g, '')) || 0;
-        const bn = parseInt(b.sticker_number.replace(/[^0-9]/g, '')) || 0;
-        return an - bn;
-      };
-      setDuplicates([...dups].sort(byGroupOrder));
-      setNeeds([...needsList].sort(byGroupOrder));
+      const [dups, needsList, teamsList, allStickers] = await Promise.all([
+        api.getMyDuplicates(token, albumId),
+        api.getMyNeeds(token, albumId),
+        api.getTeams(token, albumId),
+        api.searchStickers(token, { albumId }), // full album list — teams excludes team-less stickers, so this is the only accurate total
+      ]);
+      setTeams(teamsList);
+      setAlbumStickerCount(allStickers.length);
+      setDuplicates(sortStickersByAlbumOrder(dups, albumId));
+      setNeeds(sortStickersByAlbumOrder(needsList, albumId));
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, albumId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -2047,17 +1973,18 @@ function DashboardScreen({ onOpenSwap }) {
   };
 
   const [activeTeam, setActiveTeam] = useState('All');
+  useEffect(() => { setActiveTeam('All'); }, [albumId]);
 
   if (loading) return <Spinner />;
 
   const totalSpares = duplicates.reduce((s, d) => s + d.quantity, 0);
   const totalNeeds = needs.length;
-  const totalStickers = 980;
+  const totalStickers = albumStickerCount || 1;
   const completionPct = Math.round(((totalStickers - totalNeeds) / totalStickers) * 100);
 
-  const teamGroups = ['All', 'FWC', 'England', 'Argentina', 'France', 'Brazil', 'Germany', 'Spain', 'Portugal', 'Netherlands'];
-  const filteredDuplicates = activeTeam === 'All' ? duplicates : duplicates.filter(s => normaliseTeamName(s.team_name) === activeTeam || s.team_name === activeTeam);
-  const filteredNeeds = activeTeam === 'All' ? needs : needs.filter(s => normaliseTeamName(s.team_name) === activeTeam || s.team_name === activeTeam);
+  const teamGroups = ['All', ...sortTeamsByGroup(teams, albumId).map(t => t.team_name)];
+  const filteredDuplicates = activeTeam === 'All' ? duplicates : duplicates.filter(s => normaliseTeamName(s.team_name, albumId) === activeTeam || s.team_name === activeTeam);
+  const filteredNeeds = activeTeam === 'All' ? needs : needs.filter(s => normaliseTeamName(s.team_name, albumId) === activeTeam || s.team_name === activeTeam);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -2074,12 +2001,11 @@ function DashboardScreen({ onOpenSwap }) {
       )}
 
       {!user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
-      <PL2026Banner onOpen={() => setShowPL2026Modal(true)} />
 
       {/* ── Stats ticker — one line, left-anchored, not a card ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid var(--text-primary)', paddingBottom: 10 }}>
         {[
-          [980 - totalNeeds, 'collected'],
+          [totalStickers - totalNeeds, 'collected'],
           [totalSpares, 'spares'],
           [totalNeeds, 'needed'],
           [completionPct + '%', 'complete'],
@@ -2156,11 +2082,12 @@ function DashboardScreen({ onOpenSwap }) {
 
       {/* ── Per-team progress (collapsible) ─────────────────── */}
       {needs.length > 0 && (() => {
+        const teamTotals = Object.fromEntries(teams.map(t => [t.team_name, parseInt(t.sticker_count, 10)]));
         const teamNeeds = {};
         needs.forEach(s => { if (!teamNeeds[s.team_name]) teamNeeds[s.team_name] = 0; teamNeeds[s.team_name]++; });
         const teamsWithNeeds = Object.entries(teamNeeds)
           .map(([team, needCount]) => {
-            const total = team === 'FWC' ? 19 : team.startsWith('Coca-Cola') ? 12 : 20;
+            const total = teamTotals[team] || 20;
             const have = total - needCount;
             return { team, have, total, needCount, pct: Math.round((have / total) * 100) };
           })
@@ -2186,21 +2113,12 @@ function DashboardScreen({ onOpenSwap }) {
       })()}
 
       {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
-      {showPL2026Modal && <PL2026Modal onClose={() => setShowPL2026Modal(false)} />}
 
       {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
-        Promise.all([api.getMyDuplicates(token), api.getMyNeeds(token)])
+        Promise.all([api.getMyDuplicates(token, albumId), api.getMyNeeds(token, albumId)])
           .then(([dups, needsList]) => {
-            const byGroupOrder = (a, b) => {
-              const ai = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(a.team_name));
-              const bi = WC2026_GROUP_ORDER.indexOf(normaliseTeamName(b.team_name));
-              if (ai !== bi) { if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; }
-              const an = parseInt(a.sticker_number.replace(/[^0-9]/g, '')) || 0;
-              const bn = parseInt(b.sticker_number.replace(/[^0-9]/g, '')) || 0;
-              return an - bn;
-            };
-            setDuplicates([...dups].sort(byGroupOrder));
-            setNeeds([...needsList].sort(byGroupOrder));
+            setDuplicates(sortStickersByAlbumOrder(dups, albumId));
+            setNeeds(sortStickersByAlbumOrder(needsList, albumId));
           })
           .catch(() => {});
       }} />}
@@ -2323,6 +2241,7 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
 
 function MatchesScreen({ onOpenSwap }) {
   const { token, openProfile } = useAuth();
+  const { albumId } = useAlbum();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -2332,13 +2251,13 @@ function MatchesScreen({ onOpenSwap }) {
     setLoading(true);
     setError(null);
     try {
-      setMatches(await api.getMatches(token));
+      setMatches(await api.getMatches(token, albumId));
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, albumId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -2474,16 +2393,18 @@ const SWAP_STATUS_COLORS = {
 
 function MySwapsScreen({ onOpenSwap }) {
   const { token, user, openProfile } = useAuth();
+  const { albumId } = useAlbum();
   const [swaps, setSwaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.getMySwaps(token)
+    setLoading(true);
+    api.getMySwaps(token, albumId)
       .then(setSwaps)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, albumId]);
 
   if (loading) return <Spinner />;
 
@@ -2826,7 +2747,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
     setNoMoreMatches(false);
     setError(null);
     try {
-      const matches = await api.getMatches(token);
+      const matches = await api.getMatches(token, swap.album_id);
       if (!matches.length) {
         setNoMoreMatches(true);
       } else {
@@ -2842,17 +2763,8 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
     }
   };
 
-  const sortByAlbumOrder = (arr) => [...arr].sort((a, b) => {
-    const an = normaliseTeamName(a.team_name);
-    const bn = normaliseTeamName(b.team_name);
-    const ai = WC2026_GROUP_ORDER.indexOf(an);
-    const bi = WC2026_GROUP_ORDER.indexOf(bn);
-    if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    return (a.sticker_number || '').localeCompare(b.sticker_number || '', undefined, { numeric: true });
-  });
-
-  const youGive = sortByAlbumOrder(items.filter((i) => i.from_user_id === user.id));
-  const youReceive = sortByAlbumOrder(items.filter((i) => i.to_user_id === user.id));
+  const youGive = sortStickersByAlbumOrder(items.filter((i) => i.from_user_id === user.id), swap.album_id);
+  const youReceive = sortStickersByAlbumOrder(items.filter((i) => i.to_user_id === user.id), swap.album_id);
   const otherName = otherUser?.name || otherUserAddress?.name || (isUserA ? `User #${swap.user_b_id}` : `User #${swap.user_a_id}`);
   const otherIsAmbassador = Boolean(otherUser?.ambassador_badge);
   const otherIsFounder = Boolean(otherUser?.founder_member);
@@ -3900,15 +3812,17 @@ function NewMessageModal({ onClose, onStarted }) {
 // =================================================================
 function SwapHistoryScreen() {
   const { token, user, openProfile } = useAuth();
+  const { albumId } = useAlbum();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getSwapHistory(token)
+    setLoading(true);
+    api.getSwapHistory(token, albumId)
       .then(setHistory)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, albumId]);
 
   if (loading) return <Spinner />;
 
@@ -4206,6 +4120,7 @@ function resizeImageFile(file, maxDimension = 400, quality = 0.8) {
 function ProfileScreen({ onClose, onSaved }) {
   const { token, user } = useAuth();
   const { dark, toggle } = useTheme();
+  const { albumId, albums } = useAlbum();
   const [badges, setBadges] = useState([]);
   const [stats, setStats] = useState(null);
   const [myReports, setMyReports] = useState([]);
@@ -4313,13 +4228,14 @@ function ProfileScreen({ onClose, onSaved }) {
   };
 
   const clearEverything = async () => {
-    if (!window.confirm("This will remove ALL your spares and needs from your lists — useful if your list hasn't kept up with your actual collection and you'd rather start fresh. It won't affect any swap already in progress. This can't be undone. Continue?")) {
+    const albumName = albums.find(a => a.id === albumId)?.name || 'this album';
+    if (!window.confirm(`This will remove ALL your spares and needs for ${albumName} — useful if your list hasn't kept up with your actual collection and you'd rather start fresh. It won't affect any swap already in progress, or your lists for any other album. This can't be undone. Continue?`)) {
       return;
     }
     setClearingBusy(true);
     setClearResult(null);
     try {
-      const result = await api.clearAllStickers(token);
+      const result = await api.clearAllStickers(token, albumId);
       setClearResult(`✓ Cleared ${result.duplicatesCleared} spare${result.duplicatesCleared !== 1 ? 's' : ''} and ${result.needsCleared} need${result.needsCleared !== 1 ? 's' : ''}. Add your list back whenever you're ready.`);
     } catch (err) {
       setError(err.message);
@@ -4916,6 +4832,16 @@ export default function PaniniSwapApp() {
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [showFounderModal, setShowFounderModal] = useState(false);
   const [founderRedirectMsg, setFounderRedirectMsg] = useState(null);
+  const [albums, setAlbums] = useState([]);
+  const [albumId, setAlbumIdState] = useState(() => parseInt(localStorage.getItem('selectedAlbumId') || '1', 10));
+  const setAlbumId = (id) => {
+    localStorage.setItem('selectedAlbumId', String(id));
+    setAlbumIdState(id);
+  };
+
+  useEffect(() => {
+    api.getAlbums().then(setAlbums).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -5048,7 +4974,7 @@ export default function PaniniSwapApp() {
   }
 
   const NAV_ITEMS = [
-    { id: 'dashboard', label: 'My Album', icon: 'ti-book' },
+    { id: 'dashboard', label: 'Album', icon: 'ti-book' },
     { id: 'matches', label: 'Matches', icon: 'ti-stars' },
     { id: 'mySwaps', label: 'Swaps', icon: 'ti-arrows-exchange' },
     { id: 'history', label: 'History', icon: 'ti-clock' },
@@ -5058,6 +4984,7 @@ export default function PaniniSwapApp() {
 
   return (
     <ThemeContext.Provider value={themeCtx}>
+    <AlbumContext.Provider value={{ albumId, albums, setAlbumId }}>
     <AuthContext.Provider value={{
       token,
       user,
@@ -5107,6 +5034,28 @@ export default function PaniniSwapApp() {
             </div>
           </div>
         </header>
+
+        {albums.length > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '8px 16px' }}>
+            <div style={{ display: 'flex', gap: 6, maxWidth: 640, width: '100%' }}>
+              {albums.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => setAlbumId(a.id)}
+                  style={{
+                    flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    border: albumId === a.id ? '1px solid #1AAB8A' : '1px solid rgba(255,255,255,0.12)',
+                    background: albumId === a.id ? '#1AAB8A' : 'transparent',
+                    color: albumId === a.id ? 'white' : 'rgba(255,255,255,0.6)',
+                    transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                >
+                  {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <CommunityBanner />
         <ActivityTicker />
@@ -5237,6 +5186,7 @@ export default function PaniniSwapApp() {
         </div>
       </div>
     </AuthContext.Provider>
+    </AlbumContext.Provider>
     </ThemeContext.Provider>
   );
 }
