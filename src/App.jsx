@@ -1914,7 +1914,7 @@ function FutureCollectionsWidget() {
 
 function DashboardScreen({ onOpenSwap }) {
   const { token, user } = useAuth();
-  const { albumId } = useAlbum();
+  const { albumId, albums, setAlbumId } = useAlbum();
   const [duplicates, setDuplicates] = useState([]);
   const [needs, setNeeds] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -2001,6 +2001,26 @@ function DashboardScreen({ onOpenSwap }) {
       )}
 
       {!user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
+
+      {albums.length > 1 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          {albums.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setAlbumId(a.id)}
+              style={{
+                flex: 1, padding: '8px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                border: '1px solid var(--border)',
+                background: albumId === a.id ? 'var(--primary)' : 'var(--bg)',
+                color: albumId === a.id ? 'white' : 'var(--text-secondary)',
+                transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Stats ticker — one line, left-anchored, not a card ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid var(--text-primary)', paddingBottom: 10 }}>
@@ -5034,28 +5054,6 @@ export default function PaniniSwapApp() {
             </div>
           </div>
         </header>
-
-        {albums.length > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '8px 16px' }}>
-            <div style={{ display: 'flex', gap: 6, maxWidth: 640, width: '100%' }}>
-              {albums.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => setAlbumId(a.id)}
-                  style={{
-                    flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    border: albumId === a.id ? '1px solid #1AAB8A' : '1px solid rgba(255,255,255,0.12)',
-                    background: albumId === a.id ? '#1AAB8A' : 'transparent',
-                    color: albumId === a.id ? 'white' : 'rgba(255,255,255,0.6)',
-                    transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}
-                >
-                  {a.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <CommunityBanner />
         <ActivityTicker />
