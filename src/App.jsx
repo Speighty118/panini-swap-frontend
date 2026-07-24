@@ -60,6 +60,7 @@ const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   me: (token) => request('/auth/me', { token }),
   updateMe: (token, fields) => request('/auth/me', { method: 'PUT', body: fields, token }),
+  deleteAccount: (token) => request('/auth/me', { method: 'DELETE', token }),
   verifyEmail: (verificationToken) => request('/auth/verify-email', { method: 'POST', body: { token: verificationToken } }),
   resendVerification: (token) => request('/auth/resend-verification', { method: 'POST', token }),
   getStats: () => request('/stats'),
@@ -4001,7 +4002,7 @@ function resizeImageFile(file, maxDimension = 400, quality = 0.8) {
   });
 }
 
-function ProfileScreen({ onClose, onSaved }) {
+function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
   const { token, user } = useAuth();
   const { dark, toggle } = useTheme();
   const { albumId, albums } = useAlbum();
@@ -4063,6 +4064,7 @@ function ProfileScreen({ onClose, onSaved }) {
   const [photoProcessing, setPhotoProcessing] = useState(false);
   const [clearingBusy, setClearingBusy] = useState(false);
   const [clearResult, setClearResult] = useState(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -4125,6 +4127,23 @@ function ProfileScreen({ onClose, onSaved }) {
       setError(err.message);
     } finally {
       setClearingBusy(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!window.confirm("Delete your account? Your name, email, address, and photo will be permanently removed and you'll be logged out immediately — this can't be undone. Any swaps you've already accepted or posted will be left as-is for your swap partner's records, but proposed swaps will be declined.")) {
+      return;
+    }
+    if (!window.confirm('Are you absolutely sure? This is your last chance to back out.')) {
+      return;
+    }
+    setDeletingAccount(true);
+    try {
+      await api.deleteAccount(token);
+      onAccountDeleted();
+    } catch (err) {
+      setError(err.message);
+      setDeletingAccount(false);
     }
   };
 
@@ -4366,6 +4385,14 @@ function ProfileScreen({ onClose, onSaved }) {
             style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', background: 'var(--danger-light)', border: '1px solid #FCA5A5', color: '#991B1B', fontSize: 13, fontWeight: 600, cursor: clearingBusy ? 'default' : 'pointer', opacity: clearingBusy ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
           >
             {clearingBusy && <Loader2 size={14} className="animate-spin" />} Clear all spares & needs
+          </button>
+
+          <button
+            onClick={deleteAccount}
+            disabled={deletingAccount}
+            style={{ width: '100%', marginTop: 8, padding: '10px', borderRadius: 'var(--radius-sm)', background: 'var(--danger)', border: '1px solid var(--danger)', color: 'white', fontSize: 13, fontWeight: 600, cursor: deletingAccount ? 'default' : 'pointer', opacity: deletingAccount ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          >
+            {deletingAccount && <Loader2 size={14} className="animate-spin" />} Delete my account
           </button>
         </div>
 
@@ -4942,6 +4969,7 @@ export default function PaniniSwapApp() {
           <ProfileScreen
             onClose={() => setShowProfile(false)}
             onSaved={(updatedUser) => setUser(updatedUser)}
+            onAccountDeleted={logout}
           />
         )}
 
