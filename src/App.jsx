@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 
 // =================================================================
 // API CLIENT
@@ -1469,6 +1470,32 @@ function FounderModal({ onClose }) {
     setLoading(true);
     setError(null);
     api.logDonationClick(token, 'become_a_founder').catch(() => {});
+
+    // On the iOS app this must go through Apple's in-app purchase system
+    // (App Store guideline 3.1.1) rather than Stripe. The RevenueCat
+    // webhook updates founder_member server-side, so we just poll
+    // briefly afterward until that lands.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await purchaseFounderPackage();
+        for (let i = 0; i < 6; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const fresh = await api.getFounderStatus(token).catch(() => null);
+          if (fresh?.isFounder) {
+            setStatus(fresh);
+            setLoading(false);
+            return;
+          }
+        }
+        setLoading(false);
+        setError("Purchase complete — your Founder badge may take a moment to appear. Reopen this if it hasn't shown up shortly.");
+      } catch (err) {
+        setLoading(false);
+        if (!err.userCancelled) setError(err.message || 'Purchase failed — please try again.');
+      }
+      return;
+    }
+
     try {
       const { url } = await api.createFounderCheckout(token);
       window.location.href = url;
@@ -1536,7 +1563,7 @@ function FounderModal({ onClose }) {
                 style={{ width: '100%', padding: '13px', borderRadius: 8, background: 'linear-gradient(135deg, #D97706, #92400E)', border: 'none', color: 'white', fontWeight: 800, fontSize: 15, cursor: loading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: loading ? 0.7 : 1 }}
               >
                 {loading && <Loader2 size={15} className="animate-spin" />}
-                {loading ? 'Redirecting to checkout…' : 'Become a Founder — £14.99'}
+                {loading ? (Capacitor.isNativePlatform() ? 'Processing…' : 'Redirecting to checkout…') : 'Become a Founder — £14.99'}
               </button>
 
               <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
@@ -4816,6 +4843,7 @@ export default function PaniniSwapApp() {
     localStorage.setItem('authToken', newToken);
     setToken(newToken);
     setUser(newUser);
+    configureRevenueCat(newUser.id);
   };
 
   const logout = () => {
@@ -4831,7 +4859,10 @@ export default function PaniniSwapApp() {
       return;
     }
     api.me(token)
-      .then((freshUser) => setUser(freshUser))
+      .then((freshUser) => {
+        setUser(freshUser);
+        configureRevenueCat(freshUser.id);
+      })
       .catch(() => {
         localStorage.removeItem('authToken');
         setToken(null);
