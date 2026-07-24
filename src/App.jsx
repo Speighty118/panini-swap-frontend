@@ -4889,7 +4889,7 @@ export default function PaniniSwapApp() {
               <HamburgerMenu user={user} onProfile={() => setViewingProfileUserId(user.id)} onLogout={logout} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Logo size={36} />
+              <Logo size={50} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <NotificationPanel />
