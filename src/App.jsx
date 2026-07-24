@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
 // =================================================================
 // API CLIENT
@@ -353,6 +354,9 @@ function InstallAndNotifyBanner() {
   }, []);
 
   useEffect(() => {
+    // Already a real native app — "add to home screen" doesn't apply.
+    if (Capacitor.isNativePlatform()) return;
+
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isAndroid = /android/i.test(navigator.userAgent);
     const isStandalone = window.navigator.standalone === true
