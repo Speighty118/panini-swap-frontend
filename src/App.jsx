@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send } from 'lucide-react';
+import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
 // =================================================================
@@ -138,8 +138,6 @@ const api = {
     request('/donations/click', { method: 'POST', body: { location }, token }).catch(() => {}),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: { email } }),
   resetPassword: (token, password) => request('/auth/reset-password', { method: 'POST', body: { token, password } }),
-  getAnnouncements: (token) => request('/announcements', { token }),
-  markAnnouncementsRead: (token) => request('/announcements/read', { method: 'POST', token }),
   getConversations: (token) => request('/messages', { token }),
   startConversation: (token, recipientId, body) => request('/messages', { method: 'POST', body: { recipientId, body }, token }),
   getConversationMessages: (token, conversationId) => request(`/messages/${conversationId}`, { token }),
@@ -4488,70 +4486,42 @@ function FeedbackWidget() {
 // =================================================================
 // WHAT'S NEW PANEL
 // =================================================================
-function WhatsNewPanel() {
-  const { token } = useAuth();
+function HamburgerMenu({ user, onProfile, onLogout }) {
   const [open, setOpen] = useState(false);
-  const [announcements, setAnnouncements] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const load = useCallback(async () => {
-    if (!token) return;
-    try {
-      const { announcements: items, unreadCount: count } = await api.getAnnouncements(token);
-      setAnnouncements(items);
-      setUnreadCount(count);
-    } catch {}
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleOpen = async () => {
-    setOpen(true);
-    if (unreadCount > 0) {
-      await api.markAnnouncementsRead(token).catch(() => {});
-      setUnreadCount(0);
-    }
-  };
 
   return (
     <>
       <button
-        onClick={handleOpen}
-        style={{ position: 'relative', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-        title="What's new"
+        onClick={() => setOpen(o => !o)}
+        title="Menu"
+        style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
       >
-        <span style={{ fontSize: 15 }}>📋</span>
-        {unreadCount > 0 && (
-          <span style={{ position: 'absolute', top: 2, right: 2, width: 7, height: 7, borderRadius: '50%', background: '#1AAB8A', border: '2px solid #0B1120' }} />
-        )}
+        <Menu size={18} color="white" />
       </button>
 
       {open && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: '60px 12px 0' }} onClick={() => setOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: 340, maxHeight: '75vh', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>What's new</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Latest updates & bug fixes</div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 60, left: 12, width: 220, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 32px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+            <button
+              onClick={() => { setOpen(false); onProfile(); }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', fontFamily: 'inherit' }}
+            >
+              <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', background: user.founder_member ? 'linear-gradient(135deg, #D97706, #92400E)' : '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: user.founder_member ? '2px solid #FDE68A' : 'none' }}>
+                {user.profile_photo ? (
+                  <img src={user.profile_photo} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'white' }}>{(user.name || '?').charAt(0).toUpperCase()}</span>
+                )}
               </div>
-              <button onClick={() => setOpen(false)}><X size={16} color="var(--text-muted)" /></button>
-            </div>
-
-            {announcements.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No announcements yet.</div>
-            ) : (
-              announcements.map((a, i) => (
-                <div key={a.id} style={{ padding: '14px 16px', borderBottom: i < announcements.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{a.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
-                      {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{a.body}</div>
-                </div>
-              ))
-            )}
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{user.name || 'Your profile'}</span>
+            </button>
+            <button
+              onClick={() => { setOpen(false); onLogout(); }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: '#DC2626', fontFamily: 'inherit' }}
+            >
+              <LogOut size={16} />
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Sign out</span>
+            </button>
           </div>
         </div>
       )}
@@ -4914,33 +4884,15 @@ export default function PaniniSwapApp() {
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <header style={{ position: 'sticky', top: 0, zIndex: 10, background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingTop: 'env(safe-area-inset-top)' }}>
-          <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Logo size={40} />
+          <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px', height: 52, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <HamburgerMenu user={user} onProfile={() => setViewingProfileUserId(user.id)} onLogout={logout} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <WhatsNewPanel />
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <Logo size={36} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <NotificationPanel />
-              <button
-                onClick={() => setViewingProfileUserId(user.id)}
-                title="Your profile"
-                style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: user.founder_member ? 'linear-gradient(135deg, #D97706, #92400E)' : '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: user.founder_member ? '2px solid #FDE68A' : 'none', cursor: 'pointer' }}
-              >
-                {user.profile_photo ? (
-                  <img src={user.profile_photo} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span style={{ fontSize: 12, fontWeight: 800, color: 'white' }}>
-                    {(user.name || '?').charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={logout}
-                title="Sign out"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', opacity: 0.5 }}
-              >
-                <LogOut size={16} color="white" />
-              </button>
             </div>
           </div>
         </header>
