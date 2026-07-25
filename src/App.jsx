@@ -205,6 +205,12 @@ const DESIGN_TOKENS = `
   button { cursor: pointer; border: none; background: none; padding: 0; font: inherit; }
   input, textarea, select { font: inherit; }
   input:focus, textarea:focus, select:focus { outline: 2px solid #1AAB8A; outline-offset: 1px; }
+  /* iOS auto-zooms into any focused input with a computed font-size under
+     16px, and the native app's WKWebView doesn't reliably zoom back out —
+     forcing 16px here (rather than each inline style) prevents it globally. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select {
+    font-size: 16px !important;
+  }
 `;
 
 // =================================================================
