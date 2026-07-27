@@ -1,5 +1,13 @@
 {
   "appId": "com.gotonespare.app",
   "appName": "Got One Spare?",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#0B1120",
+      "showSpinner": false
+    }
+  }
 }
