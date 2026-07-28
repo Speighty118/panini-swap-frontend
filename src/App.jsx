@@ -4978,7 +4978,7 @@ export default function PaniniSwapApp() {
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css" />
 
-      <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: 'flex', flexDirection: 'column' }}>
+      <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <header style={{ position: 'sticky', top: 0, zIndex: 10, background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingTop: 'env(safe-area-inset-top)' }}>
@@ -5032,7 +5032,7 @@ export default function PaniniSwapApp() {
 
         {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
-        <main style={{ flex: '1 0 auto', width: '100%', maxWidth: 640, margin: '0 auto', padding: '14px 14px 14px', boxSizing: 'border-box' }}>
+        <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 140px' }}>
           {tab === 'dashboard' && (
             <DashboardScreen
               onOpenSwap={(swapId) => {
@@ -5078,50 +5078,57 @@ export default function PaniniSwapApp() {
           )}
         </main>
 
-        {/* ── Bottom nav ─────────────────────────────────────────── */}
-        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#0B1120', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', zIndex: 10, paddingBottom: 'env(safe-area-inset-bottom)' }}>
-          <div style={{ display: 'flex', width: '100%', maxWidth: 640 }}>
-            {NAV_ITEMS.map((t) => {
-              const active = tab === t.id || (tab === 'swap' && t.id === 'mySwaps');
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  style={{
-                    flex: 1, padding: '10px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    borderTop: active ? '2px solid #1AAB8A' : '2px solid transparent',
-                    transition: 'border-color 0.15s',
-                  }}
-                >
-                  <div style={{ position: 'relative', display: 'inline-flex' }}>
-                    <i className={`ti ${t.icon}`} style={{ fontSize: 18, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)' }} aria-hidden="true" />
-                    {t.id === 'messages' && unreadMessages > 0 && (
-                      <span style={{ position: 'absolute', top: -4, right: -6, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 15, height: 15, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #0B1120', lineHeight: 1 }}>
-                        {unreadMessages > 9 ? '9+' : unreadMessages}
-                      </span>
-                    )}
-                  </div>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)', letterSpacing: '0.03em' }}>
-                    {t.label}
-                  </span>
-                </button>
-              );
-            })}
+        {/* ── Bottom nav + footer link ─────────────────────────────
+            Grouped into one fixed-position block so the footer link
+            always sits right above the nav bar, regardless of how
+            tall the active tab's content is — position:fixed
+            elements are pulled out of normal document flow, so
+            neither one can be "pushed" into place by main's height. */}
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, background: '#0B1120' }}>
+          <div style={{ textAlign: 'center', padding: '6px 16px 2px' }}>
+            <button
+              onClick={() => setShowFounderModal(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#92400E' }}
+            >
+              🏆 Support Got One Spare — Become a Founder
+            </button>
           </div>
-        </nav>
+
+          <nav style={{ borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div style={{ display: 'flex', width: '100%', maxWidth: 640 }}>
+              {NAV_ITEMS.map((t) => {
+                const active = tab === t.id || (tab === 'swap' && t.id === 'mySwaps');
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    style={{
+                      flex: 1, padding: '10px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      borderTop: active ? '2px solid #1AAB8A' : '2px solid transparent',
+                      transition: 'border-color 0.15s',
+                    }}
+                  >
+                    <div style={{ position: 'relative', display: 'inline-flex' }}>
+                      <i className={`ti ${t.icon}`} style={{ fontSize: 18, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)' }} aria-hidden="true" />
+                      {t.id === 'messages' && unreadMessages > 0 && (
+                        <span style={{ position: 'absolute', top: -4, right: -6, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 15, height: 15, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #0B1120', lineHeight: 1 }}>
+                          {unreadMessages > 9 ? '9+' : unreadMessages}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)', letterSpacing: '0.03em' }}>
+                      {t.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        </div>
 
         <FeedbackWidget />
         <InstallAndNotifyBanner />
-
-        <div style={{ flexShrink: 0, textAlign: 'center', padding: '4px 16px 90px' }}>
-          <button
-            onClick={() => setShowFounderModal(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#92400E' }}
-          >
-            🏆 Support Got One Spare — Become a Founder
-          </button>
-        </div>
       </div>
     </AuthContext.Provider>
     </AlbumContext.Provider>
