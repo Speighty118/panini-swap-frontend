@@ -120,6 +120,9 @@ const api = {
   getFounderCount: () => request('/founder/count'),
   createFounderCheckout: (token) => request('/founder/checkout', { method: 'POST', token }),
 
+  getAppLaunchStatus: (token) => request('/app-launch/status', { token }),
+  registerAppLaunchInterest: (token) => request('/app-launch/notify', { method: 'POST', token }),
+
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
   getMyDisputes: (token) => request('/disputes/me', { token }),
@@ -1620,6 +1623,63 @@ function FounderBanner({ onOpen }) {
   );
 }
 
+// Web-only "coming soon" banner for the iOS/Android apps — never shown
+// inside the native apps themselves (Capacitor.isNativePlatform() guard),
+// since there's no point advertising the app to someone already using it.
+function AppLaunchBanner() {
+  const { token } = useAuth();
+  const [show, setShow] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+
+    const dismissedAt = parseInt(localStorage.getItem('app_launch_banner_dismissed_at') || '0', 10);
+    const cooledDown = Date.now() - dismissedAt > 21 * 24 * 60 * 60 * 1000; // 3 weeks
+    if (!cooledDown) return;
+
+    api.getAppLaunchStatus(token)
+      .then((res) => { if (res.notified) setRegistered(true); else setShow(true); })
+      .catch(() => {});
+  }, []);
+
+  const dismiss = () => {
+    setShow(false);
+    localStorage.setItem('app_launch_banner_dismissed_at', String(Date.now()));
+  };
+
+  const notifyMe = async () => {
+    setLoading(true);
+    try {
+      await api.registerAppLaunchInterest(token);
+      setRegistered(true);
+      setTimeout(dismiss, 2500);
+    } catch {
+      setLoading(false);
+    }
+  };
+
+  if (!show) return null;
+
+  return (
+    <div style={{ background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', border: '1px solid #6EE7B7', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 20, flexShrink: 0 }}>📱</span>
+      <div style={{ flex: 1, fontSize: 13, color: '#065F46' }}>
+        <strong>iOS and Android apps are coming soon!</strong> {registered ? "You're on the list — we'll email you the moment they launch." : "Want to know the moment they're live?"}
+      </div>
+      {!registered && (
+        <button onClick={notifyMe} disabled={loading} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: '#0B1120', color: 'white', border: 'none', fontSize: 12, fontWeight: 700, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+          {loading ? 'Saving…' : 'Notify me'}
+        </button>
+      )}
+      <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', opacity: 0.6 }}>
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
+
 // =================================================================
 // USER PROFILE MODAL
 // Reachable by tapping any name anywhere in the app. Shows ratings,
@@ -1897,6 +1957,7 @@ function DashboardScreen({ onOpenSwap }) {
       )}
 
       {!user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
+      <AppLaunchBanner />
 
       {albums.length > 1 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
