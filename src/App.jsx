@@ -4978,7 +4978,7 @@ export default function PaniniSwapApp() {
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css" />
 
-      <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: 'flex', flexDirection: 'column' }}>
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <header style={{ position: 'sticky', top: 0, zIndex: 10, background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingTop: 'env(safe-area-inset-top)' }}>
@@ -5032,7 +5032,7 @@ export default function PaniniSwapApp() {
 
         {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
-        <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 90px' }}>
+        <main style={{ flex: '1 0 auto', width: '100%', maxWidth: 640, margin: '0 auto', padding: '14px 14px 14px', boxSizing: 'border-box' }}>
           {tab === 'dashboard' && (
             <DashboardScreen
               onOpenSwap={(swapId) => {
@@ -5114,7 +5114,7 @@ export default function PaniniSwapApp() {
         <FeedbackWidget />
         <InstallAndNotifyBanner />
 
-        <div style={{ textAlign: 'center', padding: '4px 16px 4px', marginBottom: 4 }}>
+        <div style={{ flexShrink: 0, textAlign: 'center', padding: '4px 16px 90px' }}>
           <button
             onClick={() => setShowFounderModal(true)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#92400E' }}
