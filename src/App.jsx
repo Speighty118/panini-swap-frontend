@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
+import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu, Smartphone } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 
@@ -122,6 +122,9 @@ const api = {
 
   getAppLaunchStatus: (token) => request('/app-launch/status', { token }),
   registerAppLaunchInterest: (token) => request('/app-launch/notify', { method: 'POST', token }),
+
+  getAndroidTesterStatus: (token) => request('/android-testers/status', { token }),
+  signupAndroidTester: (token, googleEmail) => request('/android-testers/signup', { method: 'POST', body: { googleEmail }, token }),
 
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
@@ -4505,6 +4508,99 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
 }
 
 // =================================================================
+// ANDROID TESTER RECRUITMENT WIDGET
+// Web-only (hidden in the native apps — Capacitor.isNativePlatform()
+// guard) — Google Play requires 12 opted-in closed testers for 14
+// days before this developer account can apply for production
+// access. Collects volunteers' Google/Play Store email into the
+// admin dashboard so they can be added to the tester list manually.
+// =================================================================
+function AndroidTesterWidget() {
+  const { token } = useAuth();
+  const [status, setStatus] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState('idle');
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    api.getAndroidTesterStatus(token).then(setStatus).catch(() => {});
+  }, []);
+
+  if (Capacitor.isNativePlatform() || !status || status.full) return null;
+
+  const submit = async () => {
+    if (!email.trim()) return;
+    setState('sending');
+    try {
+      await api.signupAndroidTester(token, email.trim());
+      setState('sent');
+      setTimeout(() => setOpen(false), 2000);
+    } catch (err) {
+      setState('error');
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', bottom: 132, right: 16, zIndex: 200 }}>
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 48, right: 0,
+          width: 280, background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 16,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>Help test the Android app</span>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
+          </div>
+
+          {status.signedUp || state === 'sent' ? (
+            <p style={{ fontSize: 13, color: 'var(--success)', textAlign: 'center', margin: '8px 0' }}>You're on the list! We'll email you an invite link soon. ✓</p>
+          ) : (
+            <>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                We need {status.spotsRemaining} more volunteers to closed-test the Android app before it can launch. Enter your Google/Play Store email and we'll send you an invite link.
+              </p>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="yourname@gmail.com"
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
+              />
+              {state === 'error' && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 8px' }}>Failed to sign up — try again</p>}
+              <Btn variant="primary" onClick={submit} disabled={!email.trim() || state === 'sending'} style={{ width: '100%', justifyContent: 'center' }}>
+                {state === 'sending' ? <><Loader2 size={13} className="animate-spin" /> Signing up…</> : 'Sign me up'}
+              </Btn>
+            </>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          position: 'relative', width: 40, height: 40, borderRadius: '50%',
+          background: open ? 'var(--navy)' : 'var(--primary)',
+          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', border: 'none', cursor: 'pointer',
+          transition: 'background 0.15s',
+        }}
+        title="Help test the Android app"
+      >
+        <Smartphone size={18} />
+        {!status.signedUp && (
+          <span style={{ position: 'absolute', top: -4, right: -4, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid white', lineHeight: 1, padding: '0 3px' }}>
+            {status.spotsRemaining}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// =================================================================
 // FEEDBACK WIDGET
 // =================================================================
 function FeedbackWidget() {
@@ -5128,6 +5224,7 @@ export default function PaniniSwapApp() {
         </div>
 
         <FeedbackWidget />
+        <AndroidTesterWidget />
         <InstallAndNotifyBanner />
       </div>
     </AuthContext.Provider>
