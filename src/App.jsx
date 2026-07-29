@@ -4535,6 +4535,7 @@ function AndroidTesterWidget() {
     try {
       await api.signupAndroidTester(token, email.trim());
       setState('sent');
+      setStatus((s) => ({ ...s, signedUp: true, spotsRemaining: Math.max(0, s.spotsRemaining - 1) }));
       setTimeout(() => setOpen(false), 2000);
     } catch (err) {
       setState('error');
