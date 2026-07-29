@@ -4522,12 +4522,14 @@ function AndroidTesterWidget() {
   const [email, setEmail] = useState('');
   const [state, setState] = useState('idle');
 
+  const isAndroidDevice = /android/i.test(navigator.userAgent);
+
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
+    if (Capacitor.isNativePlatform() || !isAndroidDevice) return;
     api.getAndroidTesterStatus(token).then(setStatus).catch(() => {});
   }, []);
 
-  if (Capacitor.isNativePlatform() || !status || status.full) return null;
+  if (Capacitor.isNativePlatform() || !isAndroidDevice || !status || status.full) return null;
 
   const submit = async () => {
     if (!email.trim()) return;
