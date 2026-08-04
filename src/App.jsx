@@ -125,6 +125,8 @@ const api = {
 
   getAndroidTesterStatus: (token) => request('/android-testers/status', { token }),
   signupAndroidTester: (token, googleEmail) => request('/android-testers/signup', { method: 'POST', body: { googleEmail }, token }),
+  getAndroidTesterPublicStatus: () => request('/android-testers/public-status'),
+  signupAndroidTesterPublic: (name, googleEmail) => request('/android-testers/public-signup', { method: 'POST', body: { name, googleEmail } }),
 
   fileDispute: (token, swapId, reason, details) =>
     request('/disputes', { method: 'POST', body: { swapId, reason, details }, token }),
@@ -3925,6 +3927,84 @@ function UserSearchScreen() {
 // =================================================================
 // RESET PASSWORD SCREEN
 // =================================================================
+// Standalone, no-login-required page reached from the recruitment
+// email (gotonespare.com/android-testers) — same signup as the
+// in-app widget, but works for anyone regardless of account status.
+function AndroidTesterPublicSignupScreen() {
+  const [status, setStatus] = useState(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState('idle');
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api.getAndroidTesterPublicStatus().then(setStatus).catch(() => {});
+  }, []);
+
+  const submit = async () => {
+    if (!name.trim() || !email.trim()) { setError('Please fill in both fields'); return; }
+    setState('sending');
+    setError(null);
+    try {
+      await api.signupAndroidTesterPublic(name.trim(), email.trim());
+      setState('sent');
+    } catch (err) {
+      setError(err.message);
+      setState('idle');
+    }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <Logo size={44} />
+        </div>
+
+        {state === 'sent' ? (
+          <>
+            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>✅</div>
+            <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>You're on the list!</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>We'll email you an invite link once we've added you to the closed test.</p>
+            <a href="/" style={{ display: 'block', width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none' }}>
+              Go to Got One Spare?
+            </a>
+          </>
+        ) : status?.full ? (
+          <>
+            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>🎉</div>
+            <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>All spots are full!</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>Thanks for wanting to help — we've got enough volunteers for now.</p>
+            <a href="/" style={{ display: 'block', width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none' }}>
+              Go to Got One Spare?
+            </a>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6, textAlign: 'center' }}>Help us test the Android app</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, textAlign: 'center' }}>
+              {status ? `${status.spotsRemaining} spot${status.spotsRemaining === 1 ? '' : 's'} left. ` : ''}
+              Enter your name and Google/Play Store email — we'll send you an invite link once you're added.
+            </p>
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} autoFocus
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
+              <input type="email" placeholder="yourname@gmail.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
+              <button onClick={submit} disabled={state === 'sending'}
+                style={{ width: '100%', padding: '13px 0', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
+                {state === 'sending' && <Loader2 className="animate-spin" size={14} />}
+                Sign me up
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -5003,6 +5083,9 @@ export default function PaniniSwapApp() {
   }
   if (window.location.pathname === '/reset-password') {
     return <ResetPasswordScreen />;
+  }
+  if (window.location.pathname === '/android-testers') {
+    return <AndroidTesterPublicSignupScreen />;
   }
 
   const handleAuthed = (newToken, newUser) => {
