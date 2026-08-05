@@ -1688,6 +1688,51 @@ function AppLaunchBanner() {
   );
 }
 
+// Web-only banner recruiting Android closed testers — shown to all
+// web visitors (not just detected-Android ones, in case device
+// detection misses someone), hidden inside the native apps.
+function AndroidTesterBanner() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    const dismissedAt = parseInt(localStorage.getItem('android_tester_banner_dismissed_at') || '0', 10);
+    const cooledDown = Date.now() - dismissedAt > 7 * 24 * 60 * 60 * 1000; // 1 week
+    if (cooledDown) setShow(true);
+  }, []);
+
+  const dismiss = () => {
+    setShow(false);
+    localStorage.setItem('android_tester_banner_dismissed_at', String(Date.now()));
+  };
+
+  if (!show) return null;
+
+  return (
+    <div style={{ background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', border: '1px solid #6EE7B7', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{ fontSize: 20, flexShrink: 0 }}>📱</span>
+        <div style={{ flex: 1, fontSize: 13, color: '#065F46' }}>
+          <strong>Help us launch the Android app!</strong> We need real testers before Google will let it go live.
+        </div>
+        <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', opacity: 0.6 }}>
+          <X size={15} />
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <a href={ANDROID_TESTERS_GROUP_URL} target="_blank" rel="noopener noreferrer"
+          style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 6, background: '#0B1120', color: 'white', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+          1. Join Group →
+        </a>
+        <a href={ANDROID_TESTERS_OPT_IN_URL} target="_blank" rel="noopener noreferrer"
+          style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 6, background: 'white', color: '#0B1120', border: '1px solid #0B1120', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+          2. Become a tester →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // =================================================================
 // USER PROFILE MODAL
 // Reachable by tapping any name anywhere in the app. Shows ratings,
@@ -1989,6 +2034,7 @@ function DashboardScreen({ onOpenSwap }) {
 
       {!user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
       <AppLaunchBanner />
+      <AndroidTesterBanner />
 
       {albums.length > 1 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -3978,29 +4024,6 @@ function UserSearchScreen() {
 // email (gotonespare.com/android-testers) — same signup as the
 // in-app widget, but works for anyone regardless of account status.
 function AndroidTesterPublicSignupScreen() {
-  const [status, setStatus] = useState(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [state, setState] = useState('idle');
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    api.getAndroidTesterPublicStatus().then(setStatus).catch(() => {});
-  }, []);
-
-  const submit = async () => {
-    if (!name.trim() || !email.trim()) { setError('Please fill in both fields'); return; }
-    setState('sending');
-    setError(null);
-    try {
-      await api.signupAndroidTesterPublic(name.trim(), email.trim());
-      setState('sent');
-    } catch (err) {
-      setError(err.message);
-      setState('idle');
-    }
-  };
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
@@ -4008,45 +4031,31 @@ function AndroidTesterPublicSignupScreen() {
           <Logo size={44} />
         </div>
 
-        {state === 'sent' ? (
-          <>
-            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>✅</div>
-            <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>You're on the list!</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>We'll email you an invite link once we've added you to the closed test.</p>
-            <a href="/" style={{ display: 'block', width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none' }}>
-              Go to Got One Spare?
-            </a>
-          </>
-        ) : status?.full ? (
-          <>
-            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>🎉</div>
-            <h2 style={{ fontWeight: 700, fontSize: 20, textAlign: 'center', marginBottom: 8 }}>All spots are full!</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 20 }}>Thanks for wanting to help — we've got enough volunteers for now.</p>
-            <a href="/" style={{ display: 'block', width: '100%', padding: 11, borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none' }}>
-              Go to Got One Spare?
-            </a>
-          </>
-        ) : (
-          <>
-            <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6, textAlign: 'center' }}>Help us test the Android app</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, textAlign: 'center' }}>
-              {status ? `${status.spotsRemaining} spot${status.spotsRemaining === 1 ? '' : 's'} left. ` : ''}
-              Enter your name and Google/Play Store email — we'll send you an invite link once you're added.
-            </p>
-            <ErrorBanner message={error} onDismiss={() => setError(null)} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} autoFocus
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
-              <input type="email" placeholder="yourname@gmail.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
-              <button onClick={submit} disabled={state === 'sending'}
-                style={{ width: '100%', padding: '13px 0', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
-                {state === 'sending' && <Loader2 className="animate-spin" size={14} />}
-                Sign me up
-              </button>
-            </div>
-          </>
-        )}
+        <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6, textAlign: 'center' }}>Help us test the Android app</h2>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, textAlign: 'center' }}>
+          We're on Android but need real testers before Google will let it launch. Two quick steps:
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Step 1 — Join the testers group</div>
+          <a href={ANDROID_TESTERS_GROUP_URL} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'block', width: '100%', padding: 13, borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', fontWeight: 700, fontSize: 15, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
+            Join Google Group →
+          </a>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Step 2 — Become a tester</div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Do this after joining the group above — same Google account.</p>
+          <a href={ANDROID_TESTERS_OPT_IN_URL} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'block', width: '100%', padding: 13, borderRadius: 'var(--radius-sm)', background: 'var(--navy)', color: 'white', fontWeight: 700, fontSize: 15, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
+            Become a tester →
+          </a>
+        </div>
+
+        <a href="/" style={{ display: 'block', width: '100%', padding: 11, marginTop: 20, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
+          Go to Got One Spare?
+        </a>
       </div>
     </div>
   );
@@ -4634,49 +4643,29 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
   );
 }
 
+const ANDROID_TESTERS_GROUP_URL = 'https://groups.google.com/g/got-one-spare-android-testers';
+const ANDROID_TESTERS_OPT_IN_URL = 'https://play.google.com/apps/testing/com.gotonespare.app';
+
 // =================================================================
 // ANDROID TESTER RECRUITMENT WIDGET
 // Web-only (hidden in the native apps — Capacitor.isNativePlatform()
-// guard) — Google Play requires 12 opted-in closed testers for 14
-// days before this developer account can apply for production
-// access. Collects volunteers' Google/Play Store email into the
-// admin dashboard so they can be added to the tester list manually.
+// guard). Shown to all web visitors regardless of device, since we
+// can't be 100% sure device-detection catches every Android visitor.
+// Points people at the self-serve Google Group (joining it makes
+// them eligible) plus the separate Play Console opt-in link (which
+// actually activates them as a counted tester).
 // =================================================================
 function AndroidTesterWidget() {
-  const { token } = useAuth();
-  const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [state, setState] = useState('idle');
 
-  const isAndroidDevice = /android/i.test(navigator.userAgent);
-
-  useEffect(() => {
-    if (Capacitor.isNativePlatform() || !isAndroidDevice) return;
-    api.getAndroidTesterStatus(token).then(setStatus).catch(() => {});
-  }, []);
-
-  if (Capacitor.isNativePlatform() || !isAndroidDevice || !status || status.full) return null;
-
-  const submit = async () => {
-    if (!email.trim()) return;
-    setState('sending');
-    try {
-      await api.signupAndroidTester(token, email.trim());
-      setState('sent');
-      setStatus((s) => ({ ...s, signedUp: true, spotsRemaining: Math.max(0, s.spotsRemaining - 1) }));
-      setTimeout(() => setOpen(false), 2000);
-    } catch (err) {
-      setState('error');
-    }
-  };
+  if (Capacitor.isNativePlatform()) return null;
 
   return (
     <div style={{ position: 'fixed', bottom: 132, right: 16, zIndex: 200 }}>
       {open && (
         <div style={{
           position: 'absolute', bottom: 48, right: 0,
-          width: 280, background: 'var(--surface)',
+          width: 290, background: 'var(--surface)',
           borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
           boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 16,
         }}>
@@ -4685,26 +4674,26 @@ function AndroidTesterWidget() {
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
           </div>
 
-          {status.signedUp || state === 'sent' ? (
-            <p style={{ fontSize: 13, color: 'var(--success)', textAlign: 'center', margin: '8px 0' }}>You're on the list! We'll email you an invite link soon. ✓</p>
-          ) : (
-            <>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                We need {status.spotsRemaining} more volunteers to closed-test the Android app before it can launch. Enter your Google/Play Store email and we'll send you an invite link.
-              </p>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@gmail.com"
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: 'inherit', marginBottom: 10, boxSizing: 'border-box' }}
-              />
-              {state === 'error' && <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 8px' }}>Failed to sign up — try again</p>}
-              <Btn variant="primary" onClick={submit} disabled={!email.trim() || state === 'sending'} style={{ width: '100%', justifyContent: 'center' }}>
-                {state === 'sending' ? <><Loader2 size={13} className="animate-spin" /> Signing up…</> : 'Sign me up'}
-              </Btn>
-            </>
-          )}
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+            We're on Android but need real testers before Google will let it launch. Two quick steps:
+          </p>
+
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Step 1 — Join the testers group</div>
+            <a href={ANDROID_TESTERS_GROUP_URL} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'block', textAlign: 'center', padding: '9px 0', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+              Join Google Group →
+            </a>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Step 2 — Become a tester</div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' }}>Do this after joining the group above.</p>
+            <a href={ANDROID_TESTERS_OPT_IN_URL} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'block', textAlign: 'center', padding: '9px 0', borderRadius: 'var(--radius-sm)', background: 'var(--navy)', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+              Become a tester →
+            </a>
+          </div>
         </div>
       )}
 
@@ -4720,11 +4709,9 @@ function AndroidTesterWidget() {
         title="Help test the Android app"
       >
         <Smartphone size={18} />
-        {!status.signedUp && (
-          <span style={{ position: 'absolute', top: -4, right: -4, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid white', lineHeight: 1, padding: '0 3px' }}>
-            {status.spotsRemaining}
-          </span>
-        )}
+        <span style={{ position: 'absolute', top: -6, right: -10, background: '#EF4444', color: 'white', fontSize: 8, fontWeight: 800, padding: '2px 5px', borderRadius: 'var(--radius-full)', border: '1.5px solid white', lineHeight: 1, whiteSpace: 'nowrap' }}>
+          NEW
+        </span>
       </button>
     </div>
   );
