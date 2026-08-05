@@ -152,6 +152,9 @@ const api = {
   getConversationMessages: (token, conversationId) => request(`/messages/${conversationId}`, { token }),
   sendDirectMessage: (token, conversationId, body) => request(`/messages/${conversationId}/send`, { method: 'POST', body: { body }, token }),
   reportMessage: (token, messageId, reason) => request(`/messages/${messageId}/report`, { method: 'POST', body: { reason }, token }),
+  getBlockedUsers: (token) => request('/messages/blocked', { token }),
+  blockUser: (token, userId) => request(`/messages/block/${userId}`, { method: 'POST', token }),
+  unblockUser: (token, userId) => request(`/messages/block/${userId}`, { method: 'DELETE', token }),
   getSwapHistory: (token, albumId = 1) => request(`/swaps/history?albumId=${albumId}`, { token }),
   getBadges: (token, userId) => request(`/badges/${userId}`, { token }),
   searchUsers: (token, q) => request(`/auth/search?q=${encodeURIComponent(q)}`, { token }),
@@ -1703,6 +1706,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1712,8 +1716,22 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
       .catch((err) => { if (!cancelled) setError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     api.getUserStats(token, userId).then((res) => { if (!cancelled) setStats(res); }).catch(() => {});
+    if (!isSelf) {
+      api.getBlockedUsers(token).then((list) => {
+        if (!cancelled) setIsBlocked(list.some((b) => b.id === userId));
+      }).catch(() => {});
+    }
     return () => { cancelled = true; };
   }, [token, userId]);
+
+  const toggleBlock = async () => {
+    if (!isBlocked && !confirm(`Block ${stats?.name || 'this user'}? They won't be able to message you, and you won't be able to message them.`)) return;
+    try {
+      if (isBlocked) await api.unblockUser(token, userId);
+      else await api.blockUser(token, userId);
+      setIsBlocked(!isBlocked);
+    } catch (err) { setError(err.message); }
+  };
 
   const sendFirstMessage = async () => {
     if (!messageText.trim()) return;
@@ -1837,6 +1855,14 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
                 </button>
               )}
             </div>
+
+            {!isSelf && (
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <button onClick={toggleBlock} style={{ fontSize: 12, fontWeight: 600, color: isBlocked ? 'var(--primary)' : 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                  {isBlocked ? 'Unblock this user' : '🚫 Block this user'}
+                </button>
+              </div>
+            )}
 
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Reliability</div>
@@ -3566,10 +3592,21 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
     setActiveConv({ conversationId: convId, otherUser });
     setError(null);
     try {
-      const { messages: msgs, otherUser: freshOtherUser } = await api.getConversationMessages(token, convId);
+      const { messages: msgs, otherUser: freshOtherUser, isBlocked } = await api.getConversationMessages(token, convId);
       setMessages(msgs);
-      if (freshOtherUser) setActiveConv({ conversationId: convId, otherUser: freshOtherUser });
+      if (freshOtherUser) setActiveConv({ conversationId: convId, otherUser: freshOtherUser, isBlocked });
       loadConversations();
+    } catch (err) { setError(err.message); }
+  };
+
+  const toggleBlock = async () => {
+    if (!activeConv?.otherUser?.id) return;
+    const wasBlocked = activeConv.isBlocked;
+    if (!wasBlocked && !confirm(`Block ${activeConv.otherUser.name}? They won't be able to message you, and you won't be able to message them.`)) return;
+    try {
+      if (wasBlocked) await api.unblockUser(token, activeConv.otherUser.id);
+      else await api.blockUser(token, activeConv.otherUser.id);
+      setActiveConv(prev => ({ ...prev, isBlocked: !wasBlocked }));
     } catch (err) { setError(err.message); }
   };
 
@@ -3616,13 +3653,22 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
           <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: activeConv.otherUser?.founder_member ? '#B45309' : 'var(--text-primary)' }}>
               {activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /><FounderBadge show={activeConv.otherUser?.founder_member} />
             </button>
             <ActivityIndicator lastLoginAt={activeConv.otherUser?.last_login_at} size={11} />
           </div>
+          <button onClick={toggleBlock} style={{ fontSize: 11, fontWeight: 600, color: activeConv.isBlocked ? 'var(--primary)' : 'var(--danger)', background: 'none', border: `1px solid ${activeConv.isBlocked ? 'var(--primary)' : 'var(--danger)'}`, borderRadius: 'var(--radius-full)', padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {activeConv.isBlocked ? 'Unblock' : 'Block'}
+          </button>
         </div>
+
+        {activeConv.isBlocked && (
+          <div style={{ background: 'var(--danger-light)', border: '1px solid #FCA5A5', borderRadius: 'var(--radius-sm)', padding: '8px 12px', marginBottom: 8, fontSize: 12, color: '#991B1B', textAlign: 'center' }}>
+            You've blocked this user — they can't message you and you can't message them.
+          </div>
+        )}
 
         <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8 }}>
           Messages may be reviewed by the admin team for safety. Be kind and respectful.
@@ -3665,10 +3711,11 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-            placeholder="Type a message…"
+            placeholder={activeConv.isBlocked ? "You've blocked this user" : "Type a message…"}
+            disabled={activeConv.isBlocked}
             style={{ flex: 1, padding: '10px 14px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14 }}
           />
-          <button onClick={sendMessage} disabled={sending || !newMessage.trim()} style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button onClick={sendMessage} disabled={sending || !newMessage.trim() || activeConv.isBlocked} style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: activeConv.isBlocked ? 0.5 : 1 }}>
             <span style={{ color: 'white', fontSize: 18 }}>↑</span>
           </button>
         </div>
