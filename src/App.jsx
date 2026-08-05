@@ -1943,9 +1943,9 @@ function DashboardScreen({ onOpenSwap }) {
       await api.removeDuplicate(token, stickerId);
       setErrorSwapId(null);
     } catch (err) {
+      await load();
       setError(err.message);
       setErrorSwapId(err.swapId || null);
-      load();
     }
   };
 
@@ -1954,8 +1954,8 @@ function DashboardScreen({ onOpenSwap }) {
     try {
       await api.removeNeed(token, stickerId);
     } catch (err) {
+      await load();
       setError(err.message);
-      load();
     }
   };
 
