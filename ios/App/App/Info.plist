@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Got One Spare uses your camera so you can take a photo of your stickers or a proof-of-postage photo when sending a swap.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Got One Spare needs access to your photos so you can choose an existing photo for your profile, a sticker, or proof of postage.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
