@@ -1942,6 +1942,117 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 }
 
 // =================================================================
+// HOME HUB — landing screen shown right after login, before any
+// specific collection's dashboard. A grid of large tiles so it's
+// obvious where everything lives, and a natural place to add more
+// collection types (e.g. trading cards) later without cramming the
+// album tab row.
+// =================================================================
+function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
+  const { token, user } = useAuth();
+  const { albumId } = useAlbum();
+  const [matchCount, setMatchCount] = useState(null);
+  const [activeSwapCount, setActiveSwapCount] = useState(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  useEffect(() => {
+    api.getMatches(token, albumId).then((m) => setMatchCount(m.length)).catch(() => {});
+    api.getMySwaps(token, albumId)
+      .then((swaps) => setActiveSwapCount(swaps.filter((s) => !['completed', 'declined', 'cancelled'].includes(s.status)).length))
+      .catch(() => {});
+  }, [token, albumId]);
+
+  const Tile = ({ icon, title, subtitle, onClick, disabled, accent }) => (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      style={{
+        textAlign: 'left',
+        background: 'var(--surface)',
+        border: accent ? '2px solid var(--primary)' : '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '16px 14px',
+        minHeight: 110,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        opacity: disabled ? 0.55 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+      }}
+    >
+      <i className={`ti ${icon}`} aria-hidden="true" style={{ fontSize: 22, color: 'var(--primary)' }} />
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{subtitle}</div>
+      </div>
+    </button>
+  );
+
+  return (
+    <div>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Hi {user?.name?.split(' ')[0] || 'there'}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>What do you want to do today?</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+        <Tile
+          icon="ti-ball-football"
+          title="World Cup 2026"
+          subtitle={matchCount == null ? 'Loading…' : `${matchCount} match${matchCount === 1 ? '' : 'es'} waiting`}
+          accent
+          onClick={() => onNavigate('dashboard')}
+        />
+        <Tile
+          icon="ti-cards"
+          title="Match Attax cards"
+          subtitle="Coming soon"
+          disabled
+        />
+        <Tile
+          icon="ti-arrows-exchange"
+          title="My swaps"
+          subtitle={activeSwapCount == null ? 'Loading…' : `${activeSwapCount} in progress`}
+          onClick={() => onNavigate('mySwaps')}
+        />
+        <Tile
+          icon="ti-message-circle"
+          title="Messages"
+          subtitle={unreadMessages > 0 ? `${unreadMessages} unread` : 'No unread'}
+          onClick={() => onNavigate('messages')}
+        />
+        <Tile
+          icon="ti-user"
+          title="Profile"
+          subtitle="Stats, badges, settings"
+          onClick={onOpenProfile}
+        />
+        <Tile
+          icon="ti-help-circle"
+          title="How it works"
+          subtitle="Quick start guide"
+          onClick={() => setShowHowItWorks(true)}
+        />
+      </div>
+
+      {showHowItWorks && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 420, width: '100%' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10 }}>How swapping works</div>
+            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              <li>Add your spare stickers and the ones you need in the Album tab.</li>
+              <li>We automatically match you with someone whose spares and needs complement yours.</li>
+              <li>Accept a match, both post your stickers, then mark it received.</li>
+              <li>Rate the swap — done!</li>
+            </ol>
+            <Btn onClick={() => setShowHowItWorks(false)} style={{ marginTop: 16, width: '100%' }}>Got it</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =================================================================
 // DASHBOARD (duplicates + needs), now backed by real API state
 // =================================================================
 function DashboardScreen({ onOpenSwap }) {
@@ -5020,7 +5131,7 @@ function VerificationBanner() {
 export default function PaniniSwapApp() {
   const [token, setToken] = useState(() => localStorage.getItem('authToken') || null);
   const [user, setUser] = useState(null);
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState('home');
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [viewingProfileUserId, setViewingProfileUserId] = useState(null);
@@ -5143,7 +5254,7 @@ export default function PaniniSwapApp() {
     localStorage.removeItem('authToken');
     setToken(null);
     setUser(null);
-    setTab('dashboard');
+    setTab('home');
   };
 
   useEffect(() => {
@@ -5179,6 +5290,7 @@ export default function PaniniSwapApp() {
   }
 
   const NAV_ITEMS = [
+    { id: 'home', label: 'Home', icon: 'ti-home' },
     { id: 'dashboard', label: 'Album', icon: 'ti-book' },
     { id: 'matches', label: 'Matches', icon: 'ti-stars' },
     { id: 'mySwaps', label: 'Swaps', icon: 'ti-arrows-exchange' },
@@ -5259,6 +5371,13 @@ export default function PaniniSwapApp() {
         {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
         <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 140px' }}>
+          {tab === 'home' && (
+            <HomeHubScreen
+              onNavigate={setTab}
+              onOpenProfile={() => setShowProfile(true)}
+              unreadMessages={unreadMessages}
+            />
+          )}
           {tab === 'dashboard' && (
             <DashboardScreen
               onOpenSwap={(swapId) => {
