@@ -1950,17 +1950,35 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 // =================================================================
 function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
   const { token, user } = useAuth();
-  const { albumId } = useAlbum();
-  const [matchCount, setMatchCount] = useState(null);
-  const [activeSwapCount, setActiveSwapCount] = useState(null);
+  const { albums, setAlbumId } = useAlbum();
+  const [counts, setCounts] = useState({}); // { [albumId]: { matches, activeSwaps } }
   const [showHowItWorks, setShowHowItWorks] = useState(false);
 
+  const stickerAlbum = albums.find((a) => a.name === 'World Cup 2026');
+  const cardAlbum = albums.find((a) => a.name === 'Premier League Trading Cards 2026/27');
+
   useEffect(() => {
-    api.getMatches(token, albumId).then((m) => setMatchCount(m.length)).catch(() => {});
-    api.getMySwaps(token, albumId)
-      .then((swaps) => setActiveSwapCount(swaps.filter((s) => !['completed', 'declined', 'cancelled'].includes(s.status)).length))
-      .catch(() => {});
-  }, [token, albumId]);
+    [stickerAlbum, cardAlbum].filter(Boolean).forEach((album) => {
+      api.getMatches(token, album.id).then((m) => {
+        setCounts((prev) => ({ ...prev, [album.id]: { ...prev[album.id], matches: m.length } }));
+      }).catch(() => {});
+      api.getMySwaps(token, album.id).then((swaps) => {
+        const active = swaps.filter((s) => !['completed', 'declined', 'cancelled'].includes(s.status)).length;
+        setCounts((prev) => ({ ...prev, [album.id]: { ...prev[album.id], activeSwaps: active } }));
+      }).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, stickerAlbum?.id, cardAlbum?.id]);
+
+  const goToAlbum = (album) => {
+    if (!album) return;
+    setAlbumId(album.id);
+    onNavigate('dashboard');
+  };
+
+  const matchCount = stickerAlbum ? counts[stickerAlbum.id]?.matches : null;
+  const cardMatchCount = cardAlbum ? counts[cardAlbum.id]?.matches : null;
+  const activeSwapCount = Object.values(counts).reduce((sum, c) => sum + (c?.activeSwaps || 0), 0);
 
   const Tile = ({ icon, title, subtitle, onClick, disabled, accent }) => (
     <button
@@ -2000,13 +2018,13 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
           title="World Cup 2026"
           subtitle={matchCount == null ? 'Loading…' : `${matchCount} match${matchCount === 1 ? '' : 'es'} waiting`}
           accent
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => goToAlbum(stickerAlbum)}
         />
         <Tile
           icon="ti-cards"
-          title="Match Attax cards"
-          subtitle="Coming soon"
-          disabled
+          title="Premier League cards"
+          subtitle={cardMatchCount == null ? 'Loading…' : `${cardMatchCount} match${cardMatchCount === 1 ? '' : 'es'} waiting`}
+          onClick={() => goToAlbum(cardAlbum)}
         />
         <Tile
           icon="ti-arrows-exchange"
