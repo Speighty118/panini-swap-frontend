@@ -10,6 +10,15 @@ import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 // =================================================================
 const API_BASE = 'https://panini-swap-production-69ef.up.railway.app/api';
 
+// Temporarily disabled while the Founder Membership In-App Purchase
+// works through Apple review as its own submission (see Apple's
+// 2.1(b) rejection re: an app referencing a purchase that hasn't
+// been submitted). Hides every "Become a Founder" entry point and
+// skips RevenueCat setup entirely, without touching the underlying
+// integration - flip back to true once the IAP is approved and
+// properly attached to a submission.
+const FOUNDER_ENABLED = false;
+
 const AuthContext = createContext(null);
 const ThemeContext = createContext({ dark: false, toggle: () => {} });
 const AlbumContext = createContext({ albumId: 1, albums: [], setAlbumId: () => {} });
@@ -2161,7 +2170,7 @@ function DashboardScreen({ onOpenSwap }) {
         </div>
       )}
 
-      {!user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
+      {FOUNDER_ENABLED && !user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
       <AppLaunchBanner />
       <AndroidTesterBanner />
 
@@ -2295,7 +2304,7 @@ function DashboardScreen({ onOpenSwap }) {
         );
       })()}
 
-      {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
+      {FOUNDER_ENABLED && showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
       {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
         Promise.all([api.getMyDuplicates(token, albumId), api.getMyNeeds(token, albumId)])
@@ -4604,14 +4613,14 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: '#92400E' }}>
               🏆 Founder Member — thank you for supporting Got One Spare
             </div>
-          ) : (
+          ) : FOUNDER_ENABLED ? (
             <button
               onClick={() => setShowFounderModal(true)}
               style={{ width: '100%', padding: '11px', borderRadius: 'var(--radius-sm)', background: 'linear-gradient(135deg, #D97706, #92400E)', border: 'none', color: 'white', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
             >
               🏆 Become a Founder — support Got One Spare
             </button>
-          )}
+          ) : null}
         </div>
 
         {/* Availability — pause matching */}
@@ -4766,7 +4775,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
           </button>
         </div>
 
-        {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
+        {FOUNDER_ENABLED && showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
@@ -5265,7 +5274,7 @@ export default function PaniniSwapApp() {
     localStorage.setItem('authToken', newToken);
     setToken(newToken);
     setUser(newUser);
-    configureRevenueCat(newUser.id);
+    if (FOUNDER_ENABLED) configureRevenueCat(newUser.id);
   };
 
   const logout = () => {
@@ -5283,7 +5292,7 @@ export default function PaniniSwapApp() {
     api.me(token)
       .then((freshUser) => {
         setUser(freshUser);
-        configureRevenueCat(freshUser.id);
+        if (FOUNDER_ENABLED) configureRevenueCat(freshUser.id);
       })
       .catch(() => {
         localStorage.removeItem('authToken');
@@ -5386,7 +5395,7 @@ export default function PaniniSwapApp() {
           />
         )}
 
-        {showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
+        {FOUNDER_ENABLED && showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
         <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 140px' }}>
           {tab === 'home' && (
@@ -5448,14 +5457,16 @@ export default function PaniniSwapApp() {
             elements are pulled out of normal document flow, so
             neither one can be "pushed" into place by main's height. */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, background: '#0B1120' }}>
-          <div style={{ textAlign: 'center', padding: '6px 16px 2px' }}>
-            <button
-              onClick={() => setShowFounderModal(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#92400E' }}
-            >
-              🏆 Support Got One Spare — Become a Founder
-            </button>
-          </div>
+          {FOUNDER_ENABLED && (
+            <div style={{ textAlign: 'center', padding: '6px 16px 2px' }}>
+              <button
+                onClick={() => setShowFounderModal(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#92400E' }}
+              >
+                🏆 Support Got One Spare — Become a Founder
+              </button>
+            </div>
+          )}
 
           <nav style={{ borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', paddingBottom: 'env(safe-area-inset-bottom)' }}>
             <div style={{ display: 'flex', width: '100%', maxWidth: 640 }}>
