@@ -1963,7 +1963,7 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
   const [counts, setCounts] = useState({}); // { [albumId]: { matches, activeSwaps } }
   const [showHowItWorks, setShowHowItWorks] = useState(false);
 
-  const stickerAlbum = albums.find((a) => a.name === 'World Cup 2026');
+  const stickerAlbum = albums.find((a) => a.name === 'International Football Stickers 2026');
   const cardAlbum = albums.find((a) => a.name === 'Premier League Trading Cards 2026/27');
 
   useEffect(() => {
@@ -2024,7 +2024,7 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
         <Tile
           icon="ti-ball-football"
-          title="World Cup 2026"
+          title="International Football"
           subtitle={matchCount == null ? 'Loading…' : `${matchCount} match${matchCount === 1 ? '' : 'es'} waiting`}
           accent
           onClick={() => goToAlbum(stickerAlbum)}
