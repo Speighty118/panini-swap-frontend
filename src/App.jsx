@@ -2024,14 +2024,14 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
         <Tile
           icon="ti-ball-football"
-          title="International Football"
+          title="International Football Stickers 2026"
           subtitle={matchCount == null ? 'Loading…' : `${matchCount} match${matchCount === 1 ? '' : 'es'} waiting`}
           accent
           onClick={() => goToAlbum(stickerAlbum)}
         />
         <Tile
           icon="ti-cards"
-          title="Premier League cards"
+          title="Premier League Trading Cards 2026/27"
           subtitle={cardMatchCount == null ? 'Loading…' : `${cardMatchCount} match${cardMatchCount === 1 ? '' : 'es'} waiting`}
           onClick={() => goToAlbum(cardAlbum)}
         />
