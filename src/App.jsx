@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu, Smartphone } from 'lucide-react';
+import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 
@@ -1643,53 +1643,34 @@ function FounderBanner({ onOpen }) {
 // Web-only "coming soon" banner for the iOS/Android apps — never shown
 // inside the native apps themselves (Capacitor.isNativePlatform() guard),
 // since there's no point advertising the app to someone already using it.
+// The iOS app is live — banner announcing it with an App Store link.
+// (Was the "coming soon — notify me" banner before the launch.)
 function AppLaunchBanner() {
-  const { token } = useAuth();
   const [show, setShow] = useState(false);
-  const [registered, setRegistered] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
-
-    const dismissedAt = parseInt(localStorage.getItem('app_launch_banner_dismissed_at') || '0', 10);
+    const dismissedAt = parseInt(localStorage.getItem('ios_live_banner_dismissed_at') || '0', 10);
     const cooledDown = Date.now() - dismissedAt > 21 * 24 * 60 * 60 * 1000; // 3 weeks
-    if (!cooledDown) return;
-
-    api.getAppLaunchStatus(token)
-      .then((res) => { if (res.notified) setRegistered(true); else setShow(true); })
-      .catch(() => {});
+    if (cooledDown) setShow(true);
   }, []);
 
   const dismiss = () => {
     setShow(false);
-    localStorage.setItem('app_launch_banner_dismissed_at', String(Date.now()));
-  };
-
-  const notifyMe = async () => {
-    setLoading(true);
-    try {
-      await api.registerAppLaunchInterest(token);
-      setRegistered(true);
-      setTimeout(dismiss, 2500);
-    } catch {
-      setLoading(false);
-    }
+    localStorage.setItem('ios_live_banner_dismissed_at', String(Date.now()));
   };
 
   if (!show) return null;
 
   return (
     <div style={{ background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', border: '1px solid #6EE7B7', borderRadius: 8, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 20, flexShrink: 0 }}>📱</span>
+      <span style={{ fontSize: 20, flexShrink: 0 }}>🎉</span>
       <div style={{ flex: 1, fontSize: 13, color: '#065F46' }}>
-        <strong>iOS and Android apps are coming soon!</strong> {registered ? "You're on the list — we'll email you the moment they launch." : "Want to know the moment they're live?"}
+        <strong>The iOS app is now live!</strong> Get Got One Spare on the App Store for a faster experience on iPhone and iPad.
       </div>
-      {!registered && (
-        <button onClick={notifyMe} disabled={loading} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: '#0B1120', color: 'white', border: 'none', fontSize: 12, fontWeight: 700, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-          {loading ? 'Saving…' : 'Notify me'}
-        </button>
-      )}
+      <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: '#0B1120', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
+        Download
+      </a>
       <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', opacity: 0.6 }}>
         <X size={15} />
       </button>
@@ -1697,50 +1678,6 @@ function AppLaunchBanner() {
   );
 }
 
-// Web-only banner recruiting Android closed testers — shown to all
-// web visitors (not just detected-Android ones, in case device
-// detection misses someone), hidden inside the native apps.
-function AndroidTesterBanner() {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
-    const dismissedAt = parseInt(localStorage.getItem('android_tester_banner_dismissed_at') || '0', 10);
-    const cooledDown = Date.now() - dismissedAt > 7 * 24 * 60 * 60 * 1000; // 1 week
-    if (cooledDown) setShow(true);
-  }, []);
-
-  const dismiss = () => {
-    setShow(false);
-    localStorage.setItem('android_tester_banner_dismissed_at', String(Date.now()));
-  };
-
-  if (!show) return null;
-
-  return (
-    <div style={{ background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', border: '1px solid #6EE7B7', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <span style={{ fontSize: 20, flexShrink: 0 }}>📱</span>
-        <div style={{ flex: 1, fontSize: 13, color: '#065F46' }}>
-          <strong>Help us launch the Android app!</strong> We need real testers before Google will let it go live.
-        </div>
-        <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', opacity: 0.6 }}>
-          <X size={15} />
-        </button>
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <a href={ANDROID_TESTERS_GROUP_URL} target="_blank" rel="noopener noreferrer"
-          style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 6, background: '#0B1120', color: 'white', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
-          1. Join Group →
-        </a>
-        <a href={ANDROID_TESTERS_OPT_IN_URL} target="_blank" rel="noopener noreferrer"
-          style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 6, background: 'white', color: '#0B1120', border: '1px solid #0B1120', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
-          2. Become a tester →
-        </a>
-      </div>
-    </div>
-  );
-}
 
 // =================================================================
 // USER PROFILE MODAL
@@ -2172,7 +2109,6 @@ function DashboardScreen({ onOpenSwap }) {
 
       {FOUNDER_ENABLED && !user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
       <AppLaunchBanner />
-      <AndroidTesterBanner />
 
       {albums.length > 1 && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -4158,50 +4094,6 @@ function UserSearchScreen() {
 // =================================================================
 // RESET PASSWORD SCREEN
 // =================================================================
-// Standalone, no-login-required page reached from the recruitment
-// email (gotonespare.com/android-testers) — same signup as the
-// in-app widget, but works for anyone regardless of account status.
-function AndroidTesterPublicSignupScreen() {
-  return (
-    <>
-      <style>{DESIGN_TOKENS}</style>
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-          <Logo size={44} />
-        </div>
-
-        <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 6, textAlign: 'center' }}>Help us test the Android app</h2>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, textAlign: 'center' }}>
-          We're on Android but need real testers before Google will let it launch. Two quick steps:
-        </p>
-
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Step 1 — Join the testers group</div>
-          <a href={ANDROID_TESTERS_GROUP_URL} target="_blank" rel="noopener noreferrer"
-            style={{ display: 'block', width: '100%', padding: 13, borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', fontWeight: 700, fontSize: 15, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
-            Join Google Group →
-          </a>
-        </div>
-
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Step 2 — Become a tester</div>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Do this after joining the group above — same Google account.</p>
-          <a href={ANDROID_TESTERS_OPT_IN_URL} target="_blank" rel="noopener noreferrer"
-            style={{ display: 'block', width: '100%', padding: 13, borderRadius: 'var(--radius-sm)', background: 'var(--navy)', color: 'white', fontWeight: 700, fontSize: 15, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
-            Become a tester →
-          </a>
-        </div>
-
-        <a href="/" style={{ display: 'block', width: '100%', padding: 11, marginTop: 20, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontWeight: 600, fontSize: 14, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
-          Go to Got One Spare?
-        </a>
-      </div>
-    </div>
-    </>
-  );
-}
-
 function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -4791,19 +4683,24 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
   );
 }
 
-const ANDROID_TESTERS_GROUP_URL = 'https://groups.google.com/g/got-one-spare-android-testers';
-const ANDROID_TESTERS_OPT_IN_URL = 'https://play.google.com/apps/testing/com.gotonespare.app';
+const IOS_APP_URL = 'https://apps.apple.com/app/got-one-spare/id6794436890';
+
+// Simple Apple logo mark, since lucide-react dropped brand icons.
+function AppleLogo({ size = 18 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+    </svg>
+  );
+}
 
 // =================================================================
-// ANDROID TESTER RECRUITMENT WIDGET
-// Web-only (hidden in the native apps — Capacitor.isNativePlatform()
-// guard). Shown to all web visitors regardless of device, since we
-// can't be 100% sure device-detection catches every Android visitor.
-// Points people at the self-serve Google Group (joining it makes
-// them eligible) plus the separate Play Console opt-in link (which
-// actually activates them as a counted tester).
+// iOS APP LIVE WIDGET
+// Web-only floating button (hidden in the native apps). Announces
+// that the iOS app is now on the App Store, with a download link.
+// Replaced the old Android tester recruitment widget.
 // =================================================================
-function AndroidTesterWidget() {
+function IOSLiveWidget() {
   const [open, setOpen] = useState(false);
 
   if (Capacitor.isNativePlatform()) return null;
@@ -4818,30 +4715,18 @@ function AndroidTesterWidget() {
           boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 16,
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>Help test the Android app</span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>The iOS app is now live! 🎉</span>
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
           </div>
 
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
-            We're on Android but need real testers before Google will let it launch. Two quick steps:
+            Got One Spare is now on the App Store. Download it on your iPhone or iPad for a faster, app-like experience.
           </p>
 
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Step 1 — Join the testers group</div>
-            <a href={ANDROID_TESTERS_GROUP_URL} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'block', textAlign: 'center', padding: '9px 0', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-              Join Google Group →
-            </a>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Step 2 — Become a tester</div>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' }}>Do this after joining the group above.</p>
-            <a href={ANDROID_TESTERS_OPT_IN_URL} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'block', textAlign: 'center', padding: '9px 0', borderRadius: 'var(--radius-sm)', background: 'var(--navy)', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-              Become a tester →
-            </a>
-          </div>
+          <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', borderRadius: 'var(--radius-sm)', background: 'var(--navy)', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+            <AppleLogo size={15} /> Download on the App Store
+          </a>
         </div>
       )}
 
@@ -4854,11 +4739,11 @@ function AndroidTesterWidget() {
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)', border: 'none', cursor: 'pointer',
           transition: 'background 0.15s',
         }}
-        title="Help test the Android app"
+        title="The iOS app is now live"
       >
-        <Smartphone size={18} />
-        <span style={{ position: 'absolute', top: -6, right: -10, background: '#EF4444', color: 'white', fontSize: 8, fontWeight: 800, padding: '2px 5px', borderRadius: 'var(--radius-full)', border: '1.5px solid white', lineHeight: 1, whiteSpace: 'nowrap' }}>
-          NEW
+        <AppleLogo size={18} />
+        <span style={{ position: 'absolute', top: -6, right: -8, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 15, height: 15, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid white', lineHeight: 1 }}>
+          1
         </span>
       </button>
     </div>
@@ -5266,9 +5151,6 @@ export default function PaniniSwapApp() {
   if (window.location.pathname === '/reset-password') {
     return <ResetPasswordScreen />;
   }
-  if (window.location.pathname === '/android-testers') {
-    return <AndroidTesterPublicSignupScreen />;
-  }
 
   const handleAuthed = (newToken, newUser) => {
     localStorage.setItem('authToken', newToken);
@@ -5502,7 +5384,7 @@ export default function PaniniSwapApp() {
         </div>
 
         <FeedbackWidget />
-        <AndroidTesterWidget />
+        <IOSLiveWidget />
         <InstallAndNotifyBanner />
       </div>
     </AuthContext.Provider>
