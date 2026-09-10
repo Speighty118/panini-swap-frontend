@@ -131,6 +131,7 @@ const api = {
 
   getAppLaunchStatus: (token) => request('/app-launch/status', { token }),
   registerAppLaunchInterest: (token) => request('/app-launch/notify', { method: 'POST', token }),
+  trackAppStoreClick: (token, source) => request('/app-launch/track-click', { method: 'POST', body: { source }, token }),
 
   getAndroidTesterStatus: (token) => request('/android-testers/status', { token }),
   signupAndroidTester: (token, googleEmail) => request('/android-testers/signup', { method: 'POST', body: { googleEmail }, token }),
@@ -1646,6 +1647,7 @@ function FounderBanner({ onOpen }) {
 // The iOS app is live — banner announcing it with an App Store link.
 // (Was the "coming soon — notify me" banner before the launch.)
 function AppLaunchBanner() {
+  const { token } = useAuth();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -1668,7 +1670,9 @@ function AppLaunchBanner() {
       <div style={{ flex: 1, fontSize: 13, color: '#065F46' }}>
         <strong>The iOS app is now live!</strong> Get Got One Spare on the App Store for a faster experience on iPhone and iPad.
       </div>
-      <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: '#0B1120', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
+      <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer"
+        onClick={() => { api.trackAppStoreClick(token, 'banner').catch(() => {}); }}
+        style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: '#0B1120', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
         Download
       </a>
       <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', opacity: 0.6 }}>
@@ -4701,6 +4705,7 @@ function AppleLogo({ size = 18 }) {
 // Replaced the old Android tester recruitment widget.
 // =================================================================
 function IOSLiveWidget() {
+  const { token } = useAuth();
   const [open, setOpen] = useState(false);
 
   if (Capacitor.isNativePlatform()) return null;
@@ -4724,6 +4729,7 @@ function IOSLiveWidget() {
           </p>
 
           <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer"
+            onClick={() => { api.trackAppStoreClick(token, 'widget').catch(() => {}); }}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', borderRadius: 'var(--radius-sm)', background: 'var(--navy)', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
             <AppleLogo size={15} /> Download on the App Store
           </a>
