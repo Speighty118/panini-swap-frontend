@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 
 // =================================================================
@@ -79,6 +80,7 @@ const api = {
   getVapidKey: () => request('/push/vapid-public-key'),
   subscribePush: (token, subscription, isStandalone) => request('/push/subscribe', { method: 'POST', body: { subscription, isStandalone }, token }),
   trackInstall: (token) => request('/push/track-install', { method: 'POST', token }),
+  registerDeviceToken: (token, deviceToken) => request('/push/register-device', { method: 'POST', body: { deviceToken }, token }),
 
   getAlbums: () => request('/albums'),
 
@@ -5138,6 +5140,46 @@ export default function PaniniSwapApp() {
     };
 
     tryPush();
+  }, [token]);
+
+  // Native push (APNs via Capacitor) — separate from the web-push
+  // effect above, which never actually works inside the native app's
+  // WKWebView (it silently no-ops on its own serviceWorker/PushManager
+  // checks). This is the real notification path for the iOS app.
+  useEffect(() => {
+    if (!token || !Capacitor.isNativePlatform()) return;
+
+    let permGranted = false;
+    PushNotifications.checkPermissions()
+      .then((res) => {
+        if (res.receive === 'granted') return { receive: 'granted' };
+        return PushNotifications.requestPermissions();
+      })
+      .then((res) => {
+        permGranted = res.receive === 'granted';
+        if (permGranted) return PushNotifications.register();
+      })
+      .catch((err) => console.log('[Push] permission/register error:', err.message));
+
+    const regListener = PushNotifications.addListener('registration', (tokenResult) => {
+      api.registerDeviceToken(token, tokenResult.value).catch((err) => {
+        console.log('[Push] failed to save device token:', err.message);
+      });
+    });
+    const regErrListener = PushNotifications.addListener('registrationError', (err) => {
+      console.log('[Push] registration error:', JSON.stringify(err));
+    });
+    // Notification arrived while the app was open — nothing extra to
+    // do, iOS already shows the banner; a tap is handled below.
+    const receivedListener = PushNotifications.addListener('pushNotificationReceived', () => {});
+    const actionListener = PushNotifications.addListener('pushNotificationActionPerformed', () => {});
+
+    return () => {
+      regListener.remove();
+      regErrListener.remove();
+      receivedListener.remove();
+      actionListener.remove();
+    };
   }, [token]);
 
   useEffect(() => {
