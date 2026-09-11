@@ -80,6 +80,7 @@ const api = {
   getVapidKey: () => request('/push/vapid-public-key'),
   subscribePush: (token, subscription, isStandalone) => request('/push/subscribe', { method: 'POST', body: { subscription, isStandalone }, token }),
   trackInstall: (token) => request('/push/track-install', { method: 'POST', token }),
+  trackNativeAppOpen: (token) => request('/push/track-native-open', { method: 'POST', token }),
   registerDeviceToken: (token, deviceToken) => request('/push/register-device', { method: 'POST', body: { deviceToken }, token }),
 
   getAlbums: () => request('/albums'),
@@ -5140,6 +5141,15 @@ export default function PaniniSwapApp() {
     };
 
     tryPush();
+  }, [token]);
+
+  // Records that this user has actually opened the native app at
+  // least once — independent of the push permission flow below, so
+  // it still counts someone who declines notifications. The one
+  // reliable "installed and opened the native app" signal.
+  useEffect(() => {
+    if (!token || !Capacitor.isNativePlatform()) return;
+    api.trackNativeAppOpen(token).catch(() => {});
   }, [token]);
 
   // Native push (APNs via Capacitor) — separate from the web-push
