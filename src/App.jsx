@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useRef, createContext, useCont
 import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { IS_PREVIEW, IS_INTEGRATION, API_BASE, storage } from './runtime';
+import { previewRequest } from './preview/api';
+import { Home, Layers, Users, MoreHorizontal, ChevronRight, ArrowRight, ArrowLeft, Settings, Trophy, Moon, Sun, HelpCircle, Camera, Truck, ShieldCheck, Sparkles, History, UserRound } from 'lucide-react';
 import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 
 // =================================================================
@@ -9,7 +12,7 @@ import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 // Point API_BASE at your deployed backend. Every call goes through
 // `request()`, which attaches the auth token and normalizes errors.
 // =================================================================
-const API_BASE = 'https://panini-swap-production-69ef.up.railway.app/api';
+// API_BASE is explicit release configuration; previews use in-memory fixtures.
 
 // Temporarily disabled while the Founder Membership In-App Purchase
 // works through Apple review as its own submission (see Apple's
@@ -37,6 +40,7 @@ function useAlbum() {
 }
 
 async function request(path, { method = 'GET', body, token } = {}) {
+  if (IS_PREVIEW && !IS_INTEGRATION) return previewRequest(path, { method, body, token });
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
@@ -182,157 +186,91 @@ const api = {
 // without prop-drilling colors through every element.
 // =================================================================
 const DESIGN_TOKENS = `
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
-  :root {
-    --primary: #1AAB8A;
-    --primary-light: #C8F0E5;
-    --primary-dark: #0E7A63;
-    --blue: #5B9BD5;
-    --blue-light: #D6E8F7;
-    --navy: #0B1120;
-    --bg: #f4f4f2;
-    --surface: #FFFFFF;
-    --border: #e8e8e4;
-    --text-primary: #0B1120;
-    --text-secondary: #555550;
-    --text-muted: #9CA3AF;
-    --danger: #EF4444;
-    --danger-light: #FEE2E2;
-    --warning: #F59E0B;
-    --warning-light: #FEF3C7;
-    --success: #10B981;
-    --success-light: #D1FAE5;
-    --gold: #B8860B;
-    --gold-light: #FFF8E1;
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 10px;
-    --radius-full: 9999px;
-  }
-  [data-theme="dark"] {
-    --bg: #0F1117;
-    --surface: #1A1F2E;
-    --border: rgba(255,255,255,0.08);
-    --text-primary: #F3F4F6;
-    --text-secondary: #9CA3AF;
-    --text-muted: #6B7280;
-    --navy: #1A1F36;
-    --blue-light: #1E3A5F;
-    --primary-light: #0A3D2E;
-    --danger-light: #3B1010;
-    --warning-light: #3B2A00;
-    --success-light: #0A2E1E;
-    --gold-light: #2B2408;
-  }
-  body { background: var(--bg); color: var(--text-primary); font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
-  * { box-sizing: border-box; }
-  button { cursor: pointer; border: none; background: none; padding: 0; font: inherit; }
-  input, textarea, select { font: inherit; }
-  input:focus, textarea:focus, select:focus { outline: 2px solid #1AAB8A; outline-offset: 1px; }
-  /* iOS auto-zooms into any focused input with a computed font-size under
-     16px, and the native app's WKWebView doesn't reliably zoom back out —
-     forcing 16px here (rather than each inline style) prevents it globally. */
-  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select {
-    font-size: 16px !important;
-  }
+:root { --primary:#174a7b; --primary-light:#eaf3ff; --primary-dark:#082d58; --blue:#287ce4; --blue-light:#eaf3ff; --navy:#082d58; --bg:#f3f7fc; --surface:#fff; --border:#dfe9f4; --text-primary:#092852; --text-secondary:#4e6380; --text-muted:#61748e; --danger:#c93443; --danger-light:#fff0f1; --warning:#ffcf25; --warning-light:#fff8db; --success:#00835b; --success-light:#dcf8eb; --gold:#a46e04; --gold-light:#fff3ca; --radius-sm:12px; --radius-md:18px; --radius-lg:24px; --radius-full:999px; }
+[data-theme="dark"] { --bg:#04192e; --surface:#0c2c4b; --border:#23435f; --text-primary:#f3f8ff; --text-secondary:#c0d1e5; --text-muted:#9eb7d1; --primary:#a9cfff; --primary-light:#163d63; --primary-dark:#24609a; --blue-light:#11385b; --danger-light:#442332; --warning-light:#3b3522; --success-light:#123e32; --gold-light:#3f341d; }
+body { background:var(--bg); color:var(--text-primary); font-family:'Nunito',ui-rounded,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; -webkit-font-smoothing:antialiased; }
+* { box-sizing:border-box; } button { cursor:pointer; border:none; background:none; padding:0; font:inherit; } input,textarea,select { font:inherit; } button:focus-visible,a:focus-visible,summary:focus-visible { outline:3px solid #287ce4; outline-offset:3px; } input:focus,textarea:focus,select:focus { outline:2px solid #287ce4; outline-offset:2px; } input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),textarea,select { font-size:16px!important; }
 `;
 
 // =================================================================
 // LOGO — square rounded mark with two overlapping stickers
 // =================================================================
-function Logo({ size = 32 }) {
-  return (
-    <img
-      src="/logo.png"
-      alt="Got One Spare?"
-      style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }}
-    />
-  );
+// Native dialog supplies focus containment and Escape handling; actions remain explicit.
+function confirmAction(message) {
+  return new Promise(resolve => {
+    const previousFocus = document.activeElement;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'action-confirmation';
+    const title = document.createElement('h2');
+    title.id = 'action-confirmation-title';
+    title.textContent = 'Please confirm';
+    dialog.setAttribute('aria-labelledby', title.id);
+    const body = document.createElement('p');
+    body.textContent = message;
+    const actions = document.createElement('div');
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    cancel.autofocus = true;
+    const proceed = document.createElement('button');
+    proceed.textContent = 'Confirm';
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      dialog.close();
+      dialog.remove();
+      previousFocus?.focus();
+      resolve(value);
+    };
+    cancel.onclick = () => finish(false);
+    proceed.onclick = () => finish(true);
+    dialog.addEventListener('cancel', event => { event.preventDefault(); finish(false); });
+    actions.append(cancel, proceed);
+    dialog.append(title, body, actions);
+    document.body.append(dialog);
+    dialog.showModal();
+  });
 }
 
+function Logo({ size = 60 }) {
+  return <img src="/design/wordmark.png" alt="Got One Spare?" className="gos-logo" style={{ width: size * 1.65, height: size }} />;
+}
+function StickerArt() {
+  return <div aria-hidden="true" className="sticker-back"><Layers size={28} /><span>GOT ONE SPARE?</span></div>;
+}
+function CollectorAvatar({ person, size = 42 }) {
+  return <span className="collector-avatar" style={{ width: size, height: size }}>
+    {person?.profile_photo ? <img src={person.profile_photo} alt="" /> : <span>{(person?.name || '?').split(' ').map(n => n[0]).slice(0, 2).join('')}</span>}
+  </span>;
+}
+function AlbumCover({ album, small = false }) {
+  const league = album?.id === 2;
+  return <div aria-hidden="true" className={`album-cover ${league ? 'league' : ''} ${small ? 'small' : ''}`}>
+    <span className="cover-kicker">COLLECTOR EDITION</span>
+    <div className="cover-emblem">{league ? <ShieldCheck /> : <Trophy />}</div>
+    <strong className="cover-title"><span className="cover-category">{league ? "MEN'S" : " "}</span>{league ? <>PREMIER<br />LEAGUE</> : <>WORLD CUP</>}<span>{league ? 'TRADING CARDS' : 'STICKERS'}</span></strong>
+    <span className="cover-season">{league ? '2026/27' : '2026'}</span>
+    <div className="cover-ribbon" />
+  </div>;
+}
 // =================================================================
 // Shared UI pieces
 // =================================================================
 function StickerCard({ sticker, onAdd, onRemove, onUpdateQty, qtyOverride, mode = 'duplicate' }) {
   const qty = qtyOverride ?? sticker.quantity;
-  const isDuplicate = mode === 'duplicate' || sticker.quantity !== undefined;
-  const accentColor = isDuplicate ? '#1AAB8A' : '#0B1120';
   const isNeed = mode === 'need';
-
-  return (
-    <div
-      className="relative group"
-      style={{
-        background: isNeed ? '#fafaf8' : 'white',
-        border: '1px solid #e8e8e4',
-        borderLeft: '3px solid ' + accentColor,
-        borderRadius: 4,
-        overflow: 'hidden',
-        cursor: onAdd ? 'pointer' : 'default',
-        transition: 'border-color 0.15s',
-      }}
-    >
-      {/* Sticker number — monospaced, top left */}
-      <div style={{ padding: '8px 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{
-          fontFamily: 'monospace', fontSize: 10, fontWeight: 800,
-          color: accentColor, letterSpacing: '0.05em',
-        }}>
-          {sticker.sticker_number}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {!onUpdateQty && qty > 1 && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#0B1120', borderRadius: 3, padding: '1px 5px' }}>×{qty}</span>
-          )}
-          {onRemove && (
-            <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#ccc', display: 'flex', alignItems: 'center' }}>
-              <X size={11} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Team name */}
-      <div style={{ padding: '4px 10px 2px' }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          {sticker.team_name}
-        </div>
-      </div>
-
-      {/* Description */}
-      <div style={{ padding: '0 10px 10px' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#0B1120', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={sticker.description}>
-          {sticker.description?.split(' - ')[0] || sticker.description}
-        </div>
-      </div>
-
-      {/* Quantity controls */}
-      {onUpdateQty && qty !== undefined && (
-        <div style={{ borderTop: '1px solid #f0f0ec', padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, background: '#fafaf8' }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); if (qty <= 1) onRemove?.(); else onUpdateQty(qty - 1); }}
-            style={{ width: 18, height: 18, borderRadius: 3, background: qty <= 1 ? '#fee2e2' : '#f0f0ec', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: qty <= 1 ? '#dc2626' : '#666', fontWeight: 700, lineHeight: 1 }}
-          >
-            {qty <= 1 ? <X size={9} /> : '−'}
-          </button>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#0B1120', minWidth: 14, textAlign: 'center', fontFamily: 'monospace' }}>{qty}</span>
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpdateQty(qty + 1); }}
-            style={{ width: 18, height: 18, borderRadius: 3, background: '#1AAB8A', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, lineHeight: 1 }}
-          >+</button>
-        </div>
-      )}
-
-      {/* Add overlay */}
-      {onAdd && (
-        <button onClick={onAdd} style={{ position: 'absolute', inset: 0, background: 'rgba(26,171,138,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>
-          <div style={{ width: 28, height: 28, borderRadius: 4, background: '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Plus size={14} color="white" />
-          </div>
-        </button>
-      )}
+  const teamAccent = ({ England: '#df4054', France: '#3974dc', Spain: '#e3a817', Germany: '#718096', Brazil: '#13a779', Argentina: '#56b5df' })[sticker.team_name] || '#438bc2';
+  return <article className={`sticker-card ${isNeed ? 'needed' : ''}`} style={{ '--team-accent': teamAccent }}>
+    <div className="sticker-picture album-pocket">
+      <span className="pocket-label">{isNeed ? 'WANTED' : 'SPARE'}</span>
+      <span className="pocket-number">{sticker.sticker_number}</span>
+      <span className="pocket-emblem" aria-hidden="true"><ShieldCheck size={23} /></span>
+      <span className="pocket-team">{sticker.team_name}</span>
     </div>
-  );
+    <div className="sticker-caption"><strong>{sticker.description || `Sticker ${sticker.sticker_number}`}</strong></div>
+    {onUpdateQty && qty !== undefined ? <div className="quantity-controls"><button aria-label={`Remove one spare of ${sticker.sticker_number}`} onClick={e => { e.stopPropagation(); if (qty <= 1) onRemove?.(); else onUpdateQty(qty - 1); }}>−</button><span>{qty} spare{qty === 1 ? '' : 's'}</span><button aria-label={`Add one spare of ${sticker.sticker_number}`} onClick={e => { e.stopPropagation(); onUpdateQty(qty + 1); }}>+</button></div> : onRemove && <button className="sticker-remove" aria-label={`Remove ${sticker.sticker_number} from ${isNeed ? 'needs' : 'spares'}`} onClick={onRemove}><X size={14} /> Remove</button>}
+    {onAdd && <button className="sticker-add" aria-label={`Add sticker ${sticker.sticker_number}`} onClick={onAdd}><Plus size={22} /></button>}
+  </article>;
 }
 
 function ActivityTicker() {
@@ -360,7 +298,7 @@ function ActivityTicker() {
   const emoji = event.type === 'swap_completed' ? '✅' : event.type === 'swap_agreed' ? '🤝' : '🎉';
 
   return (
-    <div style={{ background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '6px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 32 }}>
+    <div style={{ background: 'var(--navy)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '6px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 32 }}>
       <span style={{ fontSize: 13 }}>{emoji}</span>
       <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600, transition: 'opacity 0.3s' }}>{event.label}</span>
     </div>
@@ -390,7 +328,7 @@ function InstallAndNotifyBanner() {
     const isStandalone = window.navigator.standalone === true
       || window.matchMedia('(display-mode: standalone)').matches;
 
-    const dismissedAt = parseInt(localStorage.getItem('install_banner_dismissed_at') || '0', 10);
+    const dismissedAt = parseInt(storage.getItem('install_banner_dismissed_at') || '0', 10);
     const cooledDown = Date.now() - dismissedAt > 7 * 24 * 60 * 60 * 1000;
 
     if (!cooledDown) return;
@@ -413,7 +351,7 @@ function InstallAndNotifyBanner() {
 
   const dismiss = () => {
     setShow(false);
-    localStorage.setItem('install_banner_dismissed_at', String(Date.now()));
+    storage.setItem('install_banner_dismissed_at', String(Date.now()));
   };
 
   const installAndroid = async () => {
@@ -428,7 +366,7 @@ function InstallAndNotifyBanner() {
   if (!show) return null;
 
   const BENEFITS = "Get notified the instant someone matches with you or accepts a swap — so you don't lose out to a faster swapper.";
-  const wrapStyle = { position: 'fixed', bottom: 90, left: 12, right: 70, zIndex: 300, background: '#0B1120', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 };
+  const wrapStyle = { position: 'fixed', bottom: 90, left: 12, right: 70, zIndex: 300, background: 'var(--navy)', borderRadius: 12, padding: '14px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'flex-start', gap: 12 };
   const iconStyle = { width: 44, height: 44, borderRadius: 10, flexShrink: 0 };
   const titleStyle = { fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 3 };
   const bodyStyle = { fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 };
@@ -497,7 +435,7 @@ function CommunityBanner() {
   }, []);
   if (!stats) return null;
   return (
-    <div style={{ background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '7px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ background: 'var(--navy)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '7px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
       {[
         ['👥', stats.collectors, 'collectors'],
         ['📦', stats.stickersExchanged, 'stickers exchanged'],
@@ -507,7 +445,7 @@ function CommunityBanner() {
         <span key={label} style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
           {i > 0 && <span style={{ color: 'rgba(255,255,255,0.15)', margin: '0 2px' }}>·</span>}
           <span>{emoji}</span>
-          <span style={{ fontWeight: 800, color: '#1AAB8A', fontFamily: 'monospace' }}>{val?.toLocaleString()}</span>
+          <span style={{ fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>{val?.toLocaleString()}</span>
           <span>{label}</span>
         </span>
       ))}
@@ -620,7 +558,7 @@ function StatsGrid({ stats, compact = false }) {
     { key: 'avgDispatchDays', label: 'Average dispatch', format: (v) => (v == null ? '—' : `${v}d`) },
     { key: 'fastestCompletedDays', label: 'Fastest swap', format: (v) => (v == null ? '—' : `${v}d`) },
     { key: 'longestCompletedDays', label: 'Longest swap', format: (v) => (v == null ? '—' : `${v}d`) },
-    { key: 'currentStreak', label: 'Current streak', format: (v) => (v ? `🔥 ${v}` : '0') },
+    { key: 'currentStreak', label: 'Current streak', format: (v) => (v ? `${v}` : '0') },
     {
       key: 'memberSince',
       label: 'Member since',
@@ -631,7 +569,7 @@ function StatsGrid({ stats, compact = false }) {
   const visible = compact ? STAT_DEFS.slice(0, 4) : STAT_DEFS;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+    <div className="collector-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
       {visible.map(({ key, label, format }) => (
         <div key={key} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{format(stats[key])}</div>
@@ -659,17 +597,7 @@ function StarRating({ value, size = 14, onChange }) {
   );
 }
 
-function SectionHeader({ eyebrow, title, action }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '2px solid #0B1120' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 900, color: '#0B1120', margin: 0, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{title}</h2>
-        {eyebrow && <span style={{ fontSize: 10, fontWeight: 700, color: '#1AAB8A', fontFamily: 'monospace' }}>{eyebrow}</span>}
-      </div>
-      {action}
-    </div>
-  );
-}
+function SectionHeader({ eyebrow, title, action }) { return <div className="section-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2>{title}</h2></div>{action}</div>; }
 
 function ErrorBanner({ message, onDismiss, action }) {
   if (!message) return null;
@@ -686,7 +614,7 @@ function ErrorBanner({ message, onDismiss, action }) {
           </>
         )}
       </span>
-      <button onClick={onDismiss} style={{ color: '#991B1B', flexShrink: 0 }}><X size={16} /></button>
+      <button aria-label="Dismiss error" onClick={onDismiss} style={{ color: '#991B1B', flexShrink: 0 }}><X size={16} /></button>
     </div>
   );
 }
@@ -699,13 +627,7 @@ function Spinner() {
   );
 }
 
-function EmptyState({ text }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)', fontSize: 14, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
-      {text}
-    </div>
-  );
-}
+function EmptyState({ text }) { return <div className="empty-state"><span><Layers size={30} /></span><p>{text}</p></div>; }
 
 function Btn({ onClick, disabled, children, variant = 'primary', size = 'md', style: extraStyle }) {
   const base = {
@@ -726,7 +648,7 @@ function Btn({ onClick, disabled, children, variant = 'primary', size = 'md', st
     ghost: { background: 'transparent', color: 'var(--text-secondary)' },
   };
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extraStyle }}>
+    <button className={`gos-button ${variant}`} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...extraStyle }}>
       {children}
     </button>
   );
@@ -787,31 +709,32 @@ function AuthScreen({ onAuthed }) {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', width: '100%', background: '#0B1120', display: 'flex', flexDirection: 'column', fontFamily: "'Nunito', sans-serif" }}>
+    <div className="auth-screen" style={{ minHeight: '100vh', width: '100%', background: 'var(--navy)', display: 'flex', flexDirection: 'column', fontFamily: "'Nunito', sans-serif" }}>
       <style>{DESIGN_TOKENS}</style>
+      {IS_PREVIEW && <div className="preview-ribbon">{IS_INTEGRATION ? "Integration test · real catalogue, test accounts" : "Isolated preview · fictional data"} {!IS_INTEGRATION && <button onClick={async () => onAuthed('preview-alex', await api.me('preview-alex'))}>Return to demo</button>}</div>}
 
       {/* Forgot / reset modes */}
       {(mode === 'forgot' || mode === 'forgot_sent') && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ width: '100%', maxWidth: 360, background: 'white', borderRadius: 12, padding: 32 }}>
+          <div style={{ width: '100%', maxWidth: 360, background: 'var(--surface)', borderRadius: 12, padding: 32 }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
               <Logo size={48} />
             </div>
             {mode === 'forgot_sent' ? (
               <>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0B1120', textAlign: 'center', marginBottom: 8 }}>Check your inbox</div>
-                <p style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 24 }}>If an account exists for {email}, we've sent a reset link.</p>
-                <button onClick={() => setMode('login')} style={{ width: '100%', padding: 12, background: '#0B1120', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back to login</button>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', textAlign: 'center', marginBottom: 8 }}>Check your inbox</div>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 24 }}>If an account exists for {email}, we've sent a reset link.</p>
+                <button onClick={() => setMode('login')} style={{ width: '100%', padding: 12, background: 'var(--navy)', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>← Back to login</button>
               </>
             ) : (
               <>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0B1120', textAlign: 'center', marginBottom: 20 }}>Reset your password</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', textAlign: 'center', marginBottom: 20 }}>Reset your password</div>
                 <ErrorBanner message={error} onDismiss={() => setError(null)} />
                 <input type="email" placeholder="Your email address" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', marginBottom: 12, boxSizing: 'border-box' }} autoFocus />
-                <button onClick={async () => { if (!email.trim()) { setError('Please enter your email'); return; } setLoading(true); setError(null); try { await api.forgotPassword(email.trim()); setMode('forgot_sent'); } catch(err) { setError(err.message); } finally { setLoading(false); } }} disabled={loading} style={{ width: '100%', padding: 12, background: '#1AAB8A', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={async () => { if (!email.trim()) { setError('Please enter your email'); return; } setLoading(true); setError(null); try { await api.forgotPassword(email.trim()); setMode('forgot_sent'); } catch(err) { setError(err.message); } finally { setLoading(false); } }} disabled={loading} style={{ width: '100%', padding: 12, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {loading ? 'Sending…' : 'Send reset link'}
                 </button>
-                <button onClick={() => setMode('login')} style={{ width: '100%', textAlign: 'center', fontSize: 13, marginTop: 12, color: '#999', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>← Back to login</button>
+                <button onClick={() => setMode('login')} style={{ width: '100%', textAlign: 'center', fontSize: 13, marginTop: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>← Back to login</button>
               </>
             )}
           </div>
@@ -827,18 +750,19 @@ function AuthScreen({ onAuthed }) {
             <Logo size={120} />
           </div>
 
+          <div className="auth-heading"><h1>Your next great swap<br /><em>starts here.</em></h1><p>List your spares. Find your missing pieces.</p></div>
           {/* Form card */}
-          <div style={{ width: '100%', maxWidth: 380, background: 'white', borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+          <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
 
             {/* Tab strip */}
             <div style={{ display: 'flex', borderBottom: '1px solid #f0f0f0' }}>
               <button
                 onClick={() => { setMode('login'); setError(null); setInviteRequired(false); }}
-                style={{ flex: 1, padding: '14px 0', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', borderBottom: mode === 'login' ? '2px solid #1AAB8A' : '2px solid transparent', color: mode === 'login' ? '#1AAB8A' : '#aaa', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}
+                style={{ flex: 1, padding: '14px 0', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', borderBottom: mode === 'login' ? '2px solid #1AAB8A' : '2px solid transparent', color: mode === 'login' ? 'var(--primary)' : '#aaa', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}
               >Log in</button>
               <button
                 onClick={() => { setMode('signup'); setError(null); setInviteRequired(false); }}
-                style={{ flex: 1, padding: '14px 0', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', borderBottom: mode === 'signup' ? '2px solid #1AAB8A' : '2px solid transparent', color: mode === 'signup' ? '#1AAB8A' : '#aaa', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}
+                style={{ flex: 1, padding: '14px 0', fontSize: 14, fontWeight: 700, background: 'none', border: 'none', borderBottom: mode === 'signup' ? '2px solid #1AAB8A' : '2px solid transparent', color: mode === 'signup' ? 'var(--primary)' : '#aaa', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}
               >Sign up</button>
             </div>
 
@@ -848,40 +772,40 @@ function AuthScreen({ onAuthed }) {
               <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {mode === 'signup' && (
                   <>
-                    <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required style={inputStyle} />
+                    <input aria-label="Your name" autoComplete="name" type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required style={inputStyle} />
                     {inviteRequired && (
                       <input type="text" placeholder="Invite code" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '0.1em' }} />
                     )}
                   </>
                 )}
-                <input type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
-                <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={inputStyle} />
-                <button type="submit" disabled={loading} style={{ width: '100%', padding: 13, background: '#1AAB8A', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 2 }}>
+                <input aria-label="Email address" autoComplete="email" type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
+                <input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={inputStyle} />
+                <button type="submit" disabled={loading} style={{ width: '100%', padding: 13, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'inherit', marginTop: 2 }}>
                   {loading && <Loader2 className="animate-spin" size={15} />}
                   {mode === 'login' ? 'Log in' : 'Create account'}
                 </button>
               </form>
 
               {mode === 'login' && (
-                <button onClick={() => setMode('forgot')} style={{ width: '100%', textAlign: 'center', fontSize: 12, marginTop: 14, color: '#bbb', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => setMode('forgot')} style={{ width: '100%', textAlign: 'center', fontSize: 12, marginTop: 14, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                   Forgot your password?
                 </button>
               )}
             </div>
 
             {/* Bottom stats strip */}
-            <div style={{ background: '#fafaf8', borderTop: '1px solid #f0f0f0', padding: '10px 24px', display: 'flex', justifyContent: 'space-around' }}>
+            <div style={{ background: 'var(--bg)', borderTop: '1px solid #f0f0f0', padding: '10px 24px', display: 'flex', justifyContent: 'space-around' }}>
               {stats ? [
                 [stats.collectors, 'collectors'],
                 [stats.activeThisWeek, 'active this week'],
               ].map(([val, label]) => (
                 <div key={label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: '#0B1120', fontFamily: 'monospace' }}>{val.toLocaleString()}</div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#ccc', marginTop: 1 }}>{label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{val.toLocaleString()}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginTop: 1 }}>{label}</div>
                 </div>
               )) : (
                 ['980 stickers', 'UK collectors', 'Post by post'].map(t => (
-                  <span key={t} style={{ fontSize: 11, fontWeight: 600, color: '#ccc' }}>{t}</span>
+                  <span key={t} style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>{t}</span>
                 ))
               )}
             </div>
@@ -891,7 +815,7 @@ function AuthScreen({ onAuthed }) {
           <div style={{ display: 'flex', gap: 16, marginTop: 28, maxWidth: 380, width: '100%' }}>
             {[['1','List spares'],['2','Add needs'],['3','Get matched'],['4','Swap by post']].map(([n, t]) => (
               <div key={n} style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: 'white', margin: '0 auto 5px' }}>{n}</div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: 'white', margin: '0 auto 5px' }}>{n}</div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.4)', lineHeight: 1.3 }}>{t}</div>
               </div>
             ))}
@@ -1109,21 +1033,21 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
   const totalCount = basketItems.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Add stickers" className="modern-dialog fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="team-picker-panel modern-dialog-panel w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
 
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', margin: 0 }}>
-              {mode === 'duplicate' ? 'Add duplicates' : 'Add needs'}
+              {mode === 'duplicate' ? 'Build your spare list' : 'Build your needs list'}
             </h3>
             {basketItems.length > 0 && (
               <div style={{ fontSize: 12, color: 'var(--primary)', marginTop: 2 }}>
-                {basketItems.length} new sticker{basketItems.length !== 1 ? 's' : ''} selected — tap Add to save
+                {basketItems.length} new sticker{basketItems.length !== 1 ? 's' : ''} selected across teams — save when ready
               </div>
             )}
           </div>
-          <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
+          <button onClick={async () => { if (basketItems.length && !await confirmAction("Discard your unsaved sticker selections?")) return; onClose(); }} aria-label="Close"><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
@@ -1183,9 +1107,9 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                           <>
                             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Quantity:</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <button onClick={() => setSearchQty(q => Math.max(1, q - 1))} style={{ width: 26, height: 26, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 700 }}>−</button>
+                              <button onClick={() => setSearchQty(q => Math.max(1, q - 1))} style={{ width: 26, height: 26, borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 700 }}>−</button>
                               <span style={{ fontSize: 14, fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{searchQty}</span>
-                              <button onClick={() => setSearchQty(q => q + 1)} style={{ width: 26, height: 26, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 700 }}>+</button>
+                              <button onClick={() => setSearchQty(q => q + 1)} style={{ width: 26, height: 26, borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 700 }}>+</button>
                             </div>
                           </>
                         )}
@@ -1211,17 +1135,14 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
               </button>
             ))}
           </div>
-          <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, color: selectedTeam ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-            <option value="">Select a team…</option>
-            {(teamSort === 'group' ? sortTeamsByGroup(teams, albumId) : [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name))).map((t) => {
-              const existingCount = Object.values(existing).filter(s => s.team_name === t.team_name).length;
-              const codeRange = t.first_number === t.last_number ? t.first_number : `${t.first_number}–${t.last_number}`;
-              return <option key={t.team_name} value={t.team_name}>{t.team_name} ({codeRange}){existingCount > 0 ? ` · ${existingCount} already added` : ''}</option>;
+          <div className="picker-team-sections" aria-label="Choose a team">
+            {(teamSort === 'group' ? sortTeamsByGroup(teams, albumId) : [...teams].sort((a, b) => a.team_name.localeCompare(b.team_name))).map(t => {
+              const pending = basketItems.filter(item => item.sticker.team_name === t.team_name).length;
+              return <button key={t.team_name} aria-pressed={selectedTeam === t.team_name} onClick={() => setSelectedTeam(t.team_name)}><ShieldCheck size={17} /><span>{t.team_name}</span>{pending > 0 && <strong>{pending}</strong>}</button>;
             })}
-          </select>
+          </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-            Greyed stickers are already in your list — adjust quantity or tap ✕ to remove. Tick new ones then tap Add.
+            Choose a team, select stickers, then move to another team. Your new selections stay selected until you save. Existing quantity changes save immediately.
           </p>
         </div>
 
@@ -1257,7 +1178,7 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                   return (
                     <div key={s.id} style={{ display: 'flex', alignItems: 'center', background: '#F9FAFB', borderBottom: '1px solid var(--border)', opacity: 0.7 }}>
                       <div style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, background: '#9CA3AF', border: '2px solid #9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 12, flexShrink: 0, background: '#9CA3AF', border: '2px solid #9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <span style={{ color: 'white', fontSize: 12, lineHeight: 1 }}>✓</span>
                         </div>
                         <div>
@@ -1268,16 +1189,16 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                       {mode === 'duplicate' ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
                           <button onClick={() => updateExistingQty(s.id, existingQty - 1)}
-                            style={{ width: 22, height: 22, borderRadius: 4, background: existingQty <= 1 ? '#FEE2E2' : '#E5E7EB', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: existingQty <= 1 ? '#DC2626' : '#374151' }}>
+                            style={{ width: 22, height: 22, borderRadius: 12, background: existingQty <= 1 ? '#FEE2E2' : '#E5E7EB', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: existingQty <= 1 ? '#DC2626' : '#374151' }}>
                             {existingQty <= 1 ? <X size={10} /> : '−'}
                           </button>
                           <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: '#6B7280' }}>{existingQty}</span>
                           <button onClick={() => updateExistingQty(s.id, existingQty + 1)}
-                            style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>+</button>
+                            style={{ width: 22, height: 22, borderRadius: 12, background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>+</button>
                         </div>
                       ) : (
                         <button onClick={() => updateExistingQty(s.id, 0)}
-                          style={{ marginRight: 12, width: 22, height: 22, borderRadius: 4, background: '#FEE2E2', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
+                          style={{ marginRight: 12, width: 22, height: 22, borderRadius: 12, background: '#FEE2E2', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
                           <X size={11} />
                         </button>
                       )}
@@ -1287,9 +1208,9 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
 
                 return (
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', background: isInBasket ? 'var(--primary-light)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
-                    <button onClick={() => toggleBasket(s)}
+                    <button aria-pressed={isInBasket} aria-label={`Select ${s.sticker_number} ${s.description}`} onClick={() => toggleBasket(s)}
                       style={{ flex: 1, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, background: isInBasket ? 'var(--primary)' : 'transparent', border: `2px solid ${isInBasket ? 'var(--primary)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 12, flexShrink: 0, background: isInBasket ? 'var(--primary)' : 'transparent', border: `2px solid ${isInBasket ? 'var(--primary)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {isInBasket && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
                       </div>
                       <div>
@@ -1300,10 +1221,10 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
                     {mode === 'duplicate' && isInBasket && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 12, flexShrink: 0 }}>
                         <button onClick={() => setBasketQty(s.id, (basket[s.id]?.quantity || 1) - 1)}
-                          style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                          style={{ width: 22, height: 22, borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                         <span style={{ fontSize: 13, fontWeight: 600, width: 20, textAlign: 'center', color: 'var(--text-primary)' }}>{basket[s.id]?.quantity || 1}</span>
                         <button onClick={() => setBasketQty(s.id, (basket[s.id]?.quantity || 1) + 1)}
-                          style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                          style={{ width: 22, height: 22, borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                       </div>
                     )}
                   </div>
@@ -1315,14 +1236,14 @@ function StickerPickerModal({ mode, onClose, onPicked }) {
 
         {!selectedTeam && (
           <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            Select a team above to start adding stickers
+            Choose a team above to see its sticker checklist.
           </div>
         )}
 
         {basketItems.length > 0 && (
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
             <Btn variant="primary" onClick={confirmAll} disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : `Add ${totalCount} sticker${totalCount > 1 ? 's' : ''}`}
+              {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : `Save ${totalCount} sticker${totalCount > 1 ? 's' : ''}`}
             </Btn>
           </div>
         )}
@@ -1354,8 +1275,8 @@ function RatingModal({ swapId, otherUserName, onClose, onSubmitted }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: 'var(--surface)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Rate your swap" className="modern-dialog fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="modern-dialog-panel w-full max-w-sm rounded-lg p-6" style={{ background: 'var(--surface)' }}>
         <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Rate your swap</h3>
         <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>How was trading with {otherUserName}?</p>
 
@@ -1425,8 +1346,8 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6" style={{ background: 'var(--surface)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Report a swap problem" className="modern-dialog fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="modern-dialog-panel w-full max-w-sm rounded-lg p-6" style={{ background: 'var(--surface)' }}>
         <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Report a problem</h3>
         <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
           This will flag your swap with {otherUserName} for review and let them know something's wrong.
@@ -1616,14 +1537,14 @@ function FounderBanner({ onOpen }) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const dismissedAt = parseInt(localStorage.getItem('founder_banner_dismissed_at') || '0', 10);
+    const dismissedAt = parseInt(storage.getItem('founder_banner_dismissed_at') || '0', 10);
     const cooledDown = Date.now() - dismissedAt > 21 * 24 * 60 * 60 * 1000; // 3 weeks
     if (cooledDown) setShow(true);
   }, []);
 
   const dismiss = () => {
     setShow(false);
-    localStorage.setItem('founder_banner_dismissed_at', String(Date.now()));
+    storage.setItem('founder_banner_dismissed_at', String(Date.now()));
   };
 
   if (!show) return null;
@@ -1655,14 +1576,14 @@ function AppLaunchBanner() {
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
-    const dismissedAt = parseInt(localStorage.getItem('ios_live_banner_dismissed_at') || '0', 10);
+    const dismissedAt = parseInt(storage.getItem('ios_live_banner_dismissed_at') || '0', 10);
     const cooledDown = Date.now() - dismissedAt > 21 * 24 * 60 * 60 * 1000; // 3 weeks
     if (cooledDown) setShow(true);
   }, []);
 
   const dismiss = () => {
     setShow(false);
-    localStorage.setItem('ios_live_banner_dismissed_at', String(Date.now()));
+    storage.setItem('ios_live_banner_dismissed_at', String(Date.now()));
   };
 
   if (!show) return null;
@@ -1675,7 +1596,7 @@ function AppLaunchBanner() {
       </div>
       <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer"
         onClick={() => { api.trackAppStoreClick(token, 'banner').catch(() => {}); }}
-        style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: '#0B1120', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
+        style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 6, background: 'var(--navy)', color: 'white', textDecoration: 'none', fontSize: 12, fontWeight: 700 }}>
         Download
       </a>
       <button onClick={dismiss} style={{ flexShrink: 0, background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', opacity: 0.6 }}>
@@ -1723,7 +1644,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
   }, [token, userId]);
 
   const toggleBlock = async () => {
-    if (!isBlocked && !confirm(`Block ${stats?.name || 'this user'}? They won't be able to message you, and you won't be able to message them.`)) return;
+    if (!isBlocked && !await confirmAction(`Block ${stats?.name || 'this user'}? They won't be able to message you, and you won't be able to message them.`)) return;
     try {
       if (isBlocked) await api.unblockUser(token, userId);
       else await api.blockUser(token, userId);
@@ -1749,12 +1670,12 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
   const initials = (stats?.name || data?.name || '?').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--surface)', border: stats?.isFounder ? '2px solid #D97706' : 'none' }}>
+    <div role="dialog" aria-modal="true" aria-label="Collector profile" className="collector-profile modern-dialog fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="collector-profile-panel modern-dialog-panel" style={{ background: 'var(--surface)', border: stats?.isFounder ? '2px solid #D97706' : 'none' }}>
 
-        <div className="flex items-center justify-between mb-4">
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Profile</span>
-          <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
+        <div className="collector-profile-top">
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>COLLECTOR CARD</span>
+          <button onClick={onClose} aria-label="Close"><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
         {loading && <Spinner />}
@@ -1762,7 +1683,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 
         {stats && (
           <>
-            <div className="flex items-center gap-3 mb-4">
+            <div className="collector-profile-identity">
               <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', background: stats.isFounder ? 'linear-gradient(135deg, #D97706, #92400E)' : 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: stats.isFounder ? '2px solid #FDE68A' : 'none' }}>
                 {stats.profilePhoto ? (
                   <img src={stats.profilePhoto} alt={stats.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1788,7 +1709,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mb-5 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="collector-profile-rating" style={{ borderBottom: '1px solid var(--border)' }}>
               <StarRating value={stats.ratingAvg} size={18} />
               <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
                 {stats.ratingAvg ? Number(stats.ratingAvg).toFixed(1) : 'No ratings yet'}
@@ -1805,7 +1726,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
                   className="w-full py-2.5 rounded text-sm font-semibold"
                   style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                 >
-                  ✏️ Edit your profile
+                  Profile & settings
                 </button>
               ) : sent ? (
                 <div style={{ background: 'var(--success-light)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -1863,7 +1784,7 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
             )}
 
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Reliability</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Swapping record</div>
               <StatsGrid stats={stats} compact />
             </div>
 
@@ -1903,124 +1824,32 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 // =================================================================
 function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
   const { token, user } = useAuth();
-  const { albums, setAlbumId } = useAlbum();
-  const [counts, setCounts] = useState({}); // { [albumId]: { matches, activeSwaps } }
+  const { albums, albumId, setAlbumId } = useAlbum();
+  const [counts, setCounts] = useState({});
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-
-  const stickerAlbum = albums.find((a) => a.name === 'International Football Stickers 2026');
-  const cardAlbum = albums.find((a) => a.name === 'Premier League Trading Cards 2026/27');
-
+  const [error, setError] = useState(null);
   useEffect(() => {
-    [stickerAlbum, cardAlbum].filter(Boolean).forEach((album) => {
-      api.getMatches(token, album.id).then((m) => {
-        setCounts((prev) => ({ ...prev, [album.id]: { ...prev[album.id], matches: m.length } }));
-      }).catch(() => {});
-      api.getMySwaps(token, album.id).then((swaps) => {
-        const active = swaps.filter((s) => !['completed', 'declined', 'cancelled'].includes(s.status)).length;
-        setCounts((prev) => ({ ...prev, [album.id]: { ...prev[album.id], activeSwaps: active } }));
-      }).catch(() => {});
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, stickerAlbum?.id, cardAlbum?.id]);
-
-  const goToAlbum = (album) => {
-    if (!album) return;
-    setAlbumId(album.id);
-    onNavigate('dashboard');
-  };
-
-  const matchCount = stickerAlbum ? counts[stickerAlbum.id]?.matches : null;
-  const cardMatchCount = cardAlbum ? counts[cardAlbum.id]?.matches : null;
-  const activeSwapCount = Object.values(counts).reduce((sum, c) => sum + (c?.activeSwaps || 0), 0);
-
-  const Tile = ({ icon, title, subtitle, onClick, disabled, accent }) => (
-    <button
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      style={{
-        textAlign: 'left',
-        background: 'var(--surface)',
-        border: accent ? '2px solid var(--primary)' : '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '16px 14px',
-        minHeight: 110,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        opacity: disabled ? 0.55 : 1,
-        cursor: disabled ? 'default' : 'pointer',
-      }}
-    >
-      <i className={`ti ${icon}`} aria-hidden="true" style={{ fontSize: 22, color: 'var(--primary)' }} />
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{title}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{subtitle}</div>
-      </div>
-    </button>
-  );
-
-  return (
-    <div>
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Hi {user?.name?.split(' ')[0] || 'there'}</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>What do you want to do today?</div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-        <Tile
-          icon="ti-ball-football"
-          title="International Football Stickers 2026"
-          subtitle={matchCount == null ? 'Loading…' : `${matchCount} match${matchCount === 1 ? '' : 'es'} waiting`}
-          accent
-          onClick={() => goToAlbum(stickerAlbum)}
-        />
-        <Tile
-          icon="ti-cards"
-          title="Premier League Trading Cards 2026/27"
-          subtitle={cardMatchCount == null ? 'Loading…' : `${cardMatchCount} match${cardMatchCount === 1 ? '' : 'es'} waiting`}
-          onClick={() => goToAlbum(cardAlbum)}
-        />
-        <Tile
-          icon="ti-arrows-exchange"
-          title="My swaps"
-          subtitle={activeSwapCount == null ? 'Loading…' : `${activeSwapCount} in progress`}
-          onClick={() => onNavigate('mySwaps')}
-        />
-        <Tile
-          icon="ti-message-circle"
-          title="Messages"
-          subtitle={unreadMessages > 0 ? `${unreadMessages} unread` : 'No unread'}
-          onClick={() => onNavigate('messages')}
-        />
-        <Tile
-          icon="ti-user"
-          title="Profile"
-          subtitle="Stats, badges, settings"
-          onClick={onOpenProfile}
-        />
-        <Tile
-          icon="ti-help-circle"
-          title="How it works"
-          subtitle="Quick start guide"
-          onClick={() => setShowHowItWorks(true)}
-        />
-      </div>
-
-      {showHowItWorks && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 420, width: '100%' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10 }}>How swapping works</div>
-            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-              <li>Add your spare stickers and the ones you need in the Album tab.</li>
-              <li>We automatically match you with someone whose spares and needs complement yours.</li>
-              <li>Accept a match, both post your stickers, then mark it received.</li>
-              <li>Rate the swap — done!</li>
-            </ol>
-            <Btn onClick={() => setShowHowItWorks(false)} style={{ marginTop: 16, width: '100%' }}>Got it</Btn>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    let cancelled = false;
+    Promise.all(albums.map(async album => {
+      const [matches, swaps, spares, needs] = await Promise.all([api.getMatches(token, album.id), api.getMySwaps(token, album.id), api.getMyDuplicates(token, album.id), api.getMyNeeds(token, album.id)]);
+      return [album.id, { matches: matches.length, swaps, spares: spares.reduce((n, s) => n + s.quantity, 0), needs: needs.length }];
+    })).then(entries => { if (!cancelled) setCounts(Object.fromEntries(entries)); }).catch(err => { if (!cancelled) setError(err.message); });
+    return () => { cancelled = true; };
+  }, [token, albums]);
+  const current = counts[albumId];
+  const ready = Object.values(counts).flatMap(c => c.swaps).find(s => ['You need to post', 'Ready to post'].includes(getSwapLabel(s, user.id)));
+  const openAlbum = album => { setAlbumId(album.id); onNavigate('dashboard'); };
+  return <div className="home-screen">
+    <ErrorBanner message={error} onDismiss={() => setError(null)} />
+    <div className="welcome"><div><h1>Morning, {user?.name?.split(' ')[0] || 'collector'} <span aria-hidden="true">👋</span></h1><p>Same stickers. Bigger connections.</p></div><button className="desktop-profile icon-button" onClick={onOpenProfile} aria-label="Edit your profile"><CollectorAvatar person={user} /></button></div>
+    <button className="home-search" onClick={() => onNavigate('dashboard')}><Search size={19} /><span>Find stickers in your album…</span><ChevronRight size={17} /></button>
+    <div className="home-feature"><section className="collector-hero"><div className="hero-copy"><h2>Your next<br />great swap<br /><em>starts here.</em></h2><p>List your spares.<br />Find your missing pieces.</p><button className="yellow-button" onClick={() => onNavigate('dashboard')}>Add spares <ArrowRight size={18} /></button></div></section>
+    <div className="home-stats">{[[Layers, current?.spares, 'Spares', 'dashboard'], [Package, current?.needs, 'Needed', 'dashboard'], [Users, current?.matches, 'Matches', 'matches']].map(([Icon, value, label, tab]) => <button key={label} onClick={() => onNavigate(tab)}><Icon size={24} /><strong>{value ?? '—'}</strong><span>{label}</span></button>)}</div></div>
+    <section className="your-albums"><div className="section-row"><h2>Your albums</h2><button onClick={() => onNavigate('dashboard')}>See all <ChevronRight size={15} /></button></div><div className="album-shelf">{albums.map(a => <button className="album-tile" key={a.id} onClick={() => openAlbum(a)}><AlbumCover album={a} /><span>{counts[a.id] ? `${counts[a.id].spares} spares · ${counts[a.id].needs} needed` : 'Open collection'}</span><strong>{a.name}</strong></button>)}</div></section>
+    <div className="home-next"><button className="next-action" onClick={() => { if (ready) setAlbumId(ready.album_id); onNavigate('mySwaps'); }}><span className="parcel-icon"><Package size={27} /></span><span><strong>{ready ? `Ready to post to ${ready.other_user_name}` : 'Your swaps, all in one place'}</strong><small>{ready ? 'Your next step is ready when you are' : 'Keep track from proposal to delivery'}</small></span><ChevronRight size={20} /></button>
+    <div className="home-shortcuts"><button onClick={() => onNavigate('messages')}><MessageCircle size={19} />Messages{unreadMessages > 0 && <span className="count-badge">{unreadMessages}</span>}</button><button onClick={() => setShowHowItWorks(true)}><HelpCircle size={19} />How it works</button></div></div>
+    {showHowItWorks && <div className="gos-modal-backdrop"><section role="dialog" aria-modal="true" aria-label="How swapping works" className="gos-modal"><SectionHeader title="Small swaps. Big collections." action={<button className="icon-button" onClick={() => setShowHowItWorks(false)} aria-label="Close guide"><X /></button>} /><ol className="how-steps"><li>List your spare stickers and the ones you need.</li><li>We find collectors whose spares and needs match yours.</li><li>Review a match, propose a swap and both accept.</li><li>Post, mark received, then rate your swap.</li></ol><Btn onClick={() => setShowHowItWorks(false)}>Let’s get collecting</Btn></section></div>}
+  </div>;
 }
 
 // =================================================================
@@ -2087,6 +1916,8 @@ function DashboardScreen({ onOpenSwap }) {
   };
 
   const [activeTeam, setActiveTeam] = useState('All');
+  const [pane, setPane] = useState('duplicate');
+  const [query, setQuery] = useState('');
   useEffect(() => { setActiveTeam('All'); }, [albumId]);
 
   if (loading) return <Spinner />;
@@ -2100,165 +1931,17 @@ function DashboardScreen({ onOpenSwap }) {
   const filteredDuplicates = activeTeam === 'All' ? duplicates : duplicates.filter(s => normaliseTeamName(s.team_name, albumId) === activeTeam || s.team_name === activeTeam);
   const filteredNeeds = activeTeam === 'All' ? needs : needs.filter(s => normaliseTeamName(s.team_name, albumId) === activeTeam || s.team_name === activeTeam);
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      <ErrorBanner
-        message={error}
-        onDismiss={() => { setError(null); setErrorSwapId(null); }}
-        action={errorSwapId && onOpenSwap ? { label: `View swap #${errorSwapId} →`, onClick: () => onOpenSwap(errorSwapId) } : null}
-      />
-
-      {user?.matching_paused && (
-        <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#92400E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-          🔴 Matching paused — you won't receive new matches until you turn this off in your profile.
-        </div>
-      )}
-
-      {FOUNDER_ENABLED && !user?.founder_member && <FounderBanner onOpen={() => setShowFounderModal(true)} />}
-      <AppLaunchBanner />
-
-      {albums.length > 1 && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-          {albums.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => setAlbumId(a.id)}
-              style={{
-                flex: 1, padding: '8px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                border: '1px solid var(--border)',
-                background: albumId === a.id ? 'var(--primary)' : 'var(--bg)',
-                color: albumId === a.id ? 'white' : 'var(--text-secondary)',
-                transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}
-            >
-              {a.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── Stats ticker — one line, left-anchored, not a card ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 14, borderBottom: '2px solid var(--text-primary)', paddingBottom: 10 }}>
-        {[
-          [totalStickers - totalNeeds, 'collected'],
-          [totalSpares, 'spares'],
-          [totalNeeds, 'needed'],
-          [completionPct + '%', 'complete'],
-        ].map(([v, l], i) => (
-          <div key={l} style={{ flex: 1, borderRight: i < 3 ? '1px solid var(--border)' : 'none', padding: '0 12px' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>{v}</div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>{l}</div>
-          </div>
-        ))}
-        <div style={{ flex: 1, padding: '0 0 0 12px' }}>
-          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: completionPct + '%', background: '#1AAB8A', transition: 'width 0.5s' }} />
-          </div>
-          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>Progress</div>
-        </div>
-      </div>
-
-      {/* ── Team filter chips — horizontal scroll rail ─────── */}
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 16, scrollbarWidth: 'none' }}>
-        {teamGroups.map(t => (
-          <button key={t} onClick={() => setActiveTeam(t)} style={{
-            padding: '5px 12px', borderRadius: 3, border: activeTeam === t ? '1.5px solid #0B1120' : '1.5px solid #e0e0e0',
-            background: activeTeam === t ? '#0B1120' : 'white', color: activeTeam === t ? 'white' : '#666',
-            fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
-            letterSpacing: '0.03em',
-          }}>{t}</button>
-        ))}
-      </div>
-
-      {/* ── Spares section ─────────────────────────────────── */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => setDuplicatesOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#999', fontSize: 11 }}>
-              {duplicatesOpen ? '▾' : '▸'}
-            </button>
-            <span style={{ fontSize: 13, fontWeight: 900, color: '#0B1120', letterSpacing: '-0.2px', textTransform: 'uppercase' }}>Spares</span>
-            <span style={{ fontSize: 10, fontWeight: 800, background: '#1AAB8A', color: 'white', borderRadius: 3, padding: '1px 6px' }}>{filteredDuplicates.length}</span>
-          </div>
-          <Btn variant="navy" size="sm" onClick={() => setPicker('duplicate')}><Plus size={13} /> Add spare</Btn>
-        </div>
-        {duplicatesOpen && (
-          filteredDuplicates.length === 0
-            ? <EmptyState text={activeTeam === 'All' ? 'No spares listed yet. Add duplicates to start matching.' : `No spares for ${activeTeam} yet.`} />
-            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {filteredDuplicates.map(s => <StickerCard key={s.sticker_id} sticker={s} mode="duplicate" onRemove={() => removeDuplicate(s.sticker_id)} onUpdateQty={async (newQty) => {
-                  await api.updateDuplicateQty(token, s.sticker_id, newQty);
-                  setDuplicates(d => d.map(x => x.sticker_id === s.sticker_id ? { ...x, quantity: newQty } : x));
-                }} />)}
-              </div>
-        )}
-      </div>
-
-      {/* ── Needs section ──────────────────────────────────── */}
-      <div style={{ marginBottom: 20, borderTop: '1px solid #f0f0f0', paddingTop: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => setNeedsOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#999', fontSize: 11 }}>
-              {needsOpen ? '▾' : '▸'}
-            </button>
-            <span style={{ fontSize: 13, fontWeight: 900, color: '#0B1120', letterSpacing: '-0.2px', textTransform: 'uppercase' }}>Needs</span>
-            <span style={{ fontSize: 10, fontWeight: 800, background: '#0B1120', color: 'white', borderRadius: 3, padding: '1px 6px' }}>{filteredNeeds.length}</span>
-          </div>
-          <Btn variant="outline" size="sm" onClick={() => setPicker('need')}><Plus size={13} /> Add need</Btn>
-        </div>
-        {needsOpen && (
-          filteredNeeds.length === 0
-            ? <EmptyState text={activeTeam === 'All' ? 'No needs listed. Add what you are missing to get matched.' : `No needs for ${activeTeam}.`} />
-            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {filteredNeeds.map(s => <StickerCard key={s.sticker_id} sticker={s} mode="need" onRemove={() => removeNeed(s.sticker_id)} />)}
-              </div>
-        )}
-      </div>
-
-      {/* ── Per-team progress (collapsible) ─────────────────── */}
-      {needs.length > 0 && (() => {
-        const teamTotals = Object.fromEntries(teams.map(t => [t.team_name, parseInt(t.sticker_count, 10)]));
-        const teamNeeds = {};
-        needs.forEach(s => { if (!teamNeeds[s.team_name]) teamNeeds[s.team_name] = 0; teamNeeds[s.team_name]++; });
-        const teamsWithNeeds = Object.entries(teamNeeds)
-          .map(([team, needCount]) => {
-            const total = teamTotals[team] || 20;
-            const have = total - needCount;
-            return { team, have, total, needCount, pct: Math.round((have / total) * 100) };
-          })
-          .sort((a, b) => b.pct - a.pct);
-        return (
-          <details style={{ borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
-            <summary style={{ fontSize: 11, fontWeight: 800, color: '#0B1120', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              <span>▸</span> Team progress
-            </summary>
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {teamsWithNeeds.map(({ team, have, total, pct }) => (
-                <div key={team} style={{ display: 'grid', gridTemplateColumns: '1fr 40px 80px', gap: 8, alignItems: 'center' }}>
-                  <div style={{ height: 4, background: '#e8e8e8', borderRadius: 2 }}>
-                    <div style={{ height: '100%', width: pct + '%', background: pct === 100 ? '#1AAB8A' : '#0B1120', borderRadius: 2, transition: 'width 0.4s' }} />
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#0B1120', textAlign: 'right' }}>{have}/{total}</span>
-                  <span style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>{team}</span>
-                </div>
-              ))}
-            </div>
-          </details>
-        );
-      })()}
-
-      {FOUNDER_ENABLED && showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
-
-      {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => {
-        Promise.all([api.getMyDuplicates(token, albumId), api.getMyNeeds(token, albumId)])
-          .then(([dups, needsList]) => {
-            setDuplicates(sortStickersByAlbumOrder(dups, albumId));
-            setNeeds(sortStickersByAlbumOrder(needsList, albumId));
-          })
-          .catch(() => {});
-      }} />}
-    </div>
-  );
+  const shown = (pane === 'duplicate' ? filteredDuplicates : filteredNeeds).filter(s => `${s.sticker_number} ${s.description} ${s.team_name}`.toLowerCase().includes(query.toLowerCase()));
+  const selectedAlbum = albums.find(a => a.id === albumId);
+  return <div className="album-screen">
+    <ErrorBanner message={error} onDismiss={() => { setError(null); setErrorSwapId(null); }} action={errorSwapId && onOpenSwap ? { label: `View swap #${errorSwapId}`, onClick: () => onOpenSwap(errorSwapId) } : null} />
+    <div className="album-heading"><AlbumCover album={selectedAlbum} small /><div><p className="eyebrow">MY STICKERS</p><h1>{selectedAlbum?.name || 'Your collection'}</h1><p>{totalSpares} spares · {totalNeeds} needed</p></div></div>
+    {user?.matching_paused && <p className="matching-notice">Matching paused. Turn it back on in your profile to receive new matches.</p>}
+    <div className="album-controls"><label className="album-select"><Layers size={17} /><select aria-label="Choose album" value={albumId} onChange={e => setAlbumId(Number(e.target.value))}>{albums.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="album-tabs"><button aria-pressed={pane === 'duplicate'} onClick={() => setPane('duplicate')}>Spares ({totalSpares})</button><button aria-pressed={pane === 'need'} onClick={() => setPane('need')}>Needs ({totalNeeds})</button></div><button className="yellow-button album-add" onClick={() => setPicker(pane)}>Add {pane === 'duplicate' ? 'spare' : 'missing'} stickers <Plus size={22} /></button><label className="album-search"><Search size={19} /><input aria-label="Search your stickers" placeholder="Search numbers, players or teams…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="team-filter"><label>Team<select aria-label="Filter by team" value={activeTeam} onChange={e => setActiveTeam(e.target.value)}>{teamGroups.map(t => <option key={t}>{t}</option>)}</select></label><span>{shown.length} sticker{shown.length === 1 ? '' : 's'}</span></div></div>
+    {shown.length ? <div className="album-grid">{shown.map(sticker => <StickerCard key={sticker.sticker_id} sticker={sticker} mode={pane} onRemove={() => pane === 'duplicate' ? removeDuplicate(sticker.sticker_id) : removeNeed(sticker.sticker_id)} onUpdateQty={pane === 'duplicate' ? async newQty => { try { await api.updateDuplicateQty(token, sticker.sticker_id, newQty); setDuplicates(d => d.map(x => x.sticker_id === sticker.sticker_id ? { ...x, quantity: newQty } : x)); } catch(err) { setError(err.message); } } : undefined} />)}</div> : <EmptyState text={query ? 'No stickers match your search.' : pane === 'duplicate' ? 'Add your spare stickers to start finding matches.' : 'Add the stickers you’re missing to find your next swap.'} />}
+    <details className="album-progress"><summary>Album progress</summary><p>{completionPct}% based on your listed needs · {totalStickers} stickers in this album</p><div className="progress-track"><span style={{ width: `${completionPct}%` }} /></div></details>
+    {picker && <StickerPickerModal mode={picker} onClose={() => setPicker(null)} onPicked={() => { Promise.all([api.getMyDuplicates(token, albumId), api.getMyNeeds(token, albumId)]).then(([dups, needsList]) => { setDuplicates(sortStickersByAlbumOrder(dups, albumId)); setNeeds(sortStickersByAlbumOrder(needsList, albumId)); }).catch(err => setError(err.message)); }} />}
+  </div>;
 }
 
 // =================================================================
@@ -2300,14 +1983,14 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
   const youGet = preview ? (isUserA ? preview.bGivesA : preview.aGivesB) : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Preview your swap" className="modern-dialog fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="modern-dialog-panel w-full sm:max-w-md sm:rounded-lg rounded-t-lg max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', margin: 0 }}>Swap preview</h3>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>with {match.other_user_name}<AmbassadorMark show={match.ambassador_badge} size={11} /><FounderBadge show={match.founder_member} size={11} /></div>
           </div>
-          <button onClick={onClose}><X size={18} color="var(--text-secondary)" /></button>
+          <button onClick={onClose} aria-label="Close"><X size={18} color="var(--text-secondary)" /></button>
         </div>
 
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
@@ -2347,7 +2030,7 @@ function SwapPreviewModal({ match, onClose, onPropose }) {
                         <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>⚠️ {match.other_user_name} has also committed this to another swap in progress</div>
                       )}
                       {s.already_receiving && (
-                        <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600 }}>ℹ️ You're already receiving this from swap #{s.already_receiving_swap_id}</div>
+                        <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600 }}>You're already receiving this from swap #{s.already_receiving_swap_id}</div>
                       )}
                     </div>
                   ))}
@@ -2398,86 +2081,7 @@ function MatchesScreen({ onOpenSwap }) {
 
   if (loading) return <Spinner />;
 
-  return (
-    <div>
-      <SectionHeader eyebrow="Found for you" title="Matches" />
-      <ErrorBanner message={error} onDismiss={() => setError(null)} />
-
-      {matches.length === 0 ? (
-        <EmptyState text="No matches yet — list more duplicates and needs to improve your chances." />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[...matches].sort((a, b) => Math.min(b.a_gives_b_count, b.b_gives_a_count) - Math.min(a.a_gives_b_count, a.b_gives_a_count)).map((m, idx) => {
-            const swapCount = Math.min(m.a_gives_b_count, m.b_gives_a_count);
-            const initials = m.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase();
-            return (
-              <div key={m.id} style={{ background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid #1AAB8A', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #f0f0ec' }}>
-                  <button
-                    onClick={() => openProfile(m.other_user_id)}
-                    style={{ width: 36, height: 36, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'monospace' }}
-                  >{initials}</button>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <button onClick={() => openProfile(m.other_user_id)} style={{ textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0, width: '100%' }}>
-                      <div style={{ fontWeight: 800, fontSize: 13, color: m.founder_member ? '#B45309' : '#0B1120', letterSpacing: '-0.1px' }}>{m.other_user_name}<AmbassadorMark show={m.ambassador_badge} /><FounderBadge show={m.founder_member} /></div>
-                    </button>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                      <StarRating value={m.rating_avg} size={11} />
-                      <span style={{ fontSize: 10, color: '#bbb', fontFamily: 'monospace' }}>({m.rating_count})</span>
-                    </div>
-                    <div style={{ marginTop: 2 }}>
-                      <ActivityIndicator lastLoginAt={m.last_login_at} />
-                    </div>
-                    {m.distance_miles != null && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <MapPin size={10} />
-                        ~{m.distance_miles} mi away
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: '#1AAB8A', lineHeight: 1, fontFamily: 'monospace' }}>{swapCount}</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em' }}>each way</div>
-                  </div>
-                </div>
-                <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, background: '#fafaf8' }}>
-                  <div style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: '#0B1120' }}>{swapCount} stickers</div>
-                    <div style={{ fontSize: 10, color: '#bbb', fontWeight: 600, marginTop: 2 }}>you give</div>
-                  </div>
-                  <div style={{ fontSize: 16, color: '#1AAB8A', fontWeight: 900 }}>↔</div>
-                  <div style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: '#1AAB8A' }}>{swapCount} stickers</div>
-                    <div style={{ fontSize: 10, color: '#bbb', fontWeight: 600, marginTop: 2 }}>you get</div>
-                  </div>
-                  <button
-                    onClick={() => setPreviewingMatch(m)}
-                    style={{ padding: '7px 14px', background: '#0B1120', color: 'white', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.2px', flexShrink: 0 }}
-                  >Preview →</button>
-                </div>
-                {m.has_conflict && (
-                  <div style={{ padding: '6px 14px', fontSize: 11, fontWeight: 600, color: '#92400E', background: '#FEF3C7', borderTop: '1px solid #FDE68A' }}>
-                    ⚠️ Some of this may already be committed to another swap — check the preview before proposing.
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {previewingMatch && (
-        <SwapPreviewModal
-          match={previewingMatch}
-          onClose={() => setPreviewingMatch(null)}
-          onPropose={(swapId) => {
-            setPreviewingMatch(null);
-            onOpenSwap(swapId);
-          }}
-        />
-      )}
-    </div>
-  );
+  return <div className="matches-screen"><section className="matches-hero"><div className="match-illustration" aria-hidden="true"><div><StickerArt index={0} fictional /></div><ArrowRightLeft /><div><StickerArt index={2} fictional /></div></div><h1>Your missing pieces<br />are out there.</h1><p>{matches.length} collector{matches.length === 1 ? '' : 's'} found for you</p></section><div className="matches-content"><ErrorBanner message={error} onDismiss={() => setError(null)} /><div className="section-row"><h2>Your matches ({matches.length})</h2><span>Best matches first</span></div>{matches.length === 0 ? <EmptyState text="No matches yet — list more spares and needs to improve your chances." /> : <div className="match-grid">{[...matches].sort((a,b) => Math.min(b.a_gives_b_count,b.b_gives_a_count)-Math.min(a.a_gives_b_count,a.b_gives_a_count)).map(m => { const swapCount = Math.min(m.a_gives_b_count,m.b_gives_a_count); return <article className="match-card" key={m.id}><div className="match-person"><button className="person-button" onClick={() => openProfile(m.other_user_id)}><CollectorAvatar person={{ name:m.other_user_name }} /><span><strong>{m.other_user_name}<AmbassadorMark show={m.ambassador_badge} /><FounderBadge show={m.founder_member} /></strong><span className="rating-line"><StarRating value={m.rating_avg} size={13} /><small>({m.rating_count})</small></span></span></button><span className="match-count">{swapCount}<small>each way</small></span></div><div className="match-meta"><ActivityIndicator lastLoginAt={m.last_login_at} />{m.distance_miles != null && <span><MapPin size={12} /> ~{m.distance_miles} mi away</span>}</div><div className="match-exchange"><div><strong>You give ({swapCount})</strong><div className="mini-stickers" aria-hidden="true">{Array.from({length:Math.min(swapCount,6)},(_,i) => <StickerArt key={i} index={i} fictional={IS_PREVIEW} />)}</div></div><div><strong>You get ({swapCount})</strong><div className="mini-stickers" aria-hidden="true">{Array.from({length:Math.min(swapCount,6)},(_,i) => <StickerArt key={i} index={5-i} fictional={IS_PREVIEW} />)}</div></div></div><button className="green-button" onClick={() => setPreviewingMatch(m)}>View swap <ArrowRight size={18} /></button>{m.has_conflict && <p className="matching-notice">Some stickers may already be committed. Check the preview before proposing.</p>}</article>; })}</div>}</div>{previewingMatch && <SwapPreviewModal match={previewingMatch} onClose={() => setPreviewingMatch(null)} onPropose={swapId => { setPreviewingMatch(null); onOpenSwap(swapId); }} />}</div>;
 }
 
 // =================================================================
@@ -2545,49 +2149,27 @@ function MySwapsScreen({ onOpenSwap }) {
 
   const SwapCard = ({ s }) => {
     const label = getSwapLabel(s, user?.id);
-    const colors = SWAP_STATUS_COLORS[label] || SWAP_STATUS_COLORS[s.status] || SWAP_STATUS_COLORS.proposed;
     const isActionNeeded = label.includes('Your turn') || label.includes('You need');
-    const borderAccent = isActionNeeded ? '#f59e0b' : ['Waiting for them', 'Waiting for them to post', 'Completed', 'completed'].some(l => label.includes(l)) ? '#1AAB8A' : '#0B1120';
-    return (
-      <div
-        key={s.id}
-        onClick={() => onOpenSwap(s.id)}
-        style={{ width: '100%', background: 'white', border: '1px solid #e8e8e4', borderLeft: '3px solid ' + borderAccent, borderRadius: 4, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer', textAlign: 'left' }}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); openProfile(s.other_user_id); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-        >
-          <div style={{ width: 34, height: 34, borderRadius: 4, background: '#0B1120', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, fontFamily: 'monospace', overflow: 'hidden' }}>
-            {s.other_user_name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: s.founder_member ? '#B45309' : '#0B1120', letterSpacing: '-0.1px' }}>{s.other_user_name}<AmbassadorMark show={s.ambassador_badge} /><FounderBadge show={s.founder_member} /></div>
-            <div style={{ fontSize: 10, color: '#bbb', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontFamily: 'monospace' }}>
-              <span>#{s.id}</span>
-              {(s.display_give_count > 0 || s.display_get_count > 0) && (
-                <><span>·</span><span style={{ color: '#0B1120', fontWeight: 700 }}>{s.display_give_count}↔{s.display_get_count}</span></>
-              )}
-              {s.status === 'proposed' && (
-                <><span>·</span><span>proposed {formatSwapAge(s.created_at)}</span></>
-              )}
-            </div>
-            <div style={{ marginTop: 2 }}>
-              <ActivityIndicator lastLoginAt={s.last_login_at} />
-            </div>
-          </div>
-        </button>
-        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 3, background: colors.bg, color: colors.text, flexShrink: 0, letterSpacing: '0.02em' }}>
-          {label}
-        </span>
+    const StatusIcon = s.status === 'completed' ? CheckCircle2 : s.status === 'posted' ? Package : Clock;
+    return <article className="swap-ticket">
+      <div className="swap-ticket-top"><span>SWAP #{s.id}</span><span className={isActionNeeded ? 'swap-ticket-status action' : 'swap-ticket-status'}><StatusIcon size={14} />{label}</span></div>
+      <button className="swap-ticket-person" onClick={() => openProfile(s.other_user_id)}>
+        <CollectorAvatar person={{ name: s.other_user_name }} size={46} />
+        <span><strong>{s.other_user_name}<AmbassadorMark show={s.ambassador_badge} /><FounderBadge show={s.founder_member} /></strong><small>Your swap partner</small></span><ChevronRight size={18} />
+      </button>
+      <div className="swap-ticket-exchange">
+        <div><span className="swap-mini-card"><Layers size={20} /></span><strong>{s.display_give_count ?? 0}</strong><small>You send</small></div>
+        <span className="swap-ticket-arrows"><ArrowRightLeft size={23} /></span>
+        <div><span className="swap-mini-card receiving"><Layers size={20} /></span><strong>{s.display_get_count ?? 0}</strong><small>You receive</small></div>
       </div>
-    );
+      <button className="swap-ticket-open" aria-label={`View swap ${s.id}`} onClick={() => onOpenSwap(s.id)}>View swap details<ArrowRight size={18} /></button>
+    </article>;
   };
 
   const groups = [
     {
       key: 'action',
-      title: '👋 Action needed',
+      title: 'Action needed',
       filter: (s) => {
         const label = getSwapLabel(s, user?.id);
         return label === 'Your turn to accept' || label === 'You need to post';
@@ -2595,7 +2177,7 @@ function MySwapsScreen({ onOpenSwap }) {
     },
     {
       key: 'waiting',
-      title: '⏳ Waiting for them',
+      title: 'Waiting for them',
       filter: (s) => {
         const label = getSwapLabel(s, user?.id);
         return label === 'Waiting for them' || label === 'Awaiting acceptance' || label === 'Waiting for them to post' || label === 'Ready to post';
@@ -2603,17 +2185,17 @@ function MySwapsScreen({ onOpenSwap }) {
     },
     {
       key: 'posted',
-      title: '📬 In the post',
+      title: 'In the post',
       filter: (s) => s.status === 'posted',
     },
     {
       key: 'completed',
-      title: '✅ Completed',
+      title: 'Completed',
       filter: (s) => s.status === 'completed',
     },
     {
       key: 'disputed',
-      title: '⚠️ Disputed',
+      title: 'Disputed',
       filter: (s) => s.status === 'disputed',
     },
   ];
@@ -2622,7 +2204,7 @@ function MySwapsScreen({ onOpenSwap }) {
 
   return (
     <div>
-      <SectionHeader eyebrow="History" title="My swaps" />
+      <SectionHeader eyebrow="FROM HELLO TO HAPPY POST" title="Your swaps" /><p className="screen-intro">Know what’s next, every step of the way.</p>
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
       {!hasAny ? (
@@ -2638,7 +2220,7 @@ function MySwapsScreen({ onOpenSwap }) {
                   {group.title}
                   <span style={{ background: 'var(--bg)', color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, border: '1px solid var(--border)' }}>{items.length}</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="swap-ticket-grid">
                   {items.map(s => <SwapCard key={s.id} s={s} />)}
                 </div>
               </div>
@@ -2701,8 +2283,8 @@ function AmbassadorCard({ token, swapId }) {
   }
 
   return (
-    <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-      <div style={{ background: '#0B1120', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--navy)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 18 }}>🏅</span>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>Become a Got One Spare ambassador</div>
@@ -2712,7 +2294,7 @@ function AmbassadorCard({ token, swapId }) {
       <div style={{ padding: '14px 16px' }}>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: copied ? '#1AAB8A' : '#0B1120', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>1</div>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: copied ? 'var(--primary)' : 'var(--text-primary)', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>1</div>
           <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             Copy the post text below.
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, margin: '6px 0', fontStyle: 'italic', whiteSpace: 'pre-line' }}>{AMBASSADOR_POST}</div>
@@ -2726,7 +2308,7 @@ function AmbassadorCard({ token, swapId }) {
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0B1120', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>2</div>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--navy)', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>2</div>
           <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             Open the Facebook group, paste the post and share it.
             <div style={{ marginTop: 8 }}>
@@ -2744,7 +2326,7 @@ function AmbassadorCard({ token, swapId }) {
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#0B1120', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>3</div>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--navy)', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>3</div>
           <div style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             We'll check within 24 hours and award your badge.
           </div>
@@ -2762,7 +2344,7 @@ function AmbassadorCard({ token, swapId }) {
               setSubmitting(false);
             }
           }}
-          style={{ width: '100%', padding: '11px', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', border: 'none', fontSize: 13, fontWeight: 700, cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+          style={{ width: '100%', padding: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', border: 'none', fontSize: 13, fontWeight: 700, cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.6 : 1 }}
         >
           ✓ I've shared it on Facebook
         </button>
@@ -2933,11 +2515,11 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 swap-detail">
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
       {actionConfirm && (
-        <div style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#065F46' }}>
+        <div style={{ background: 'var(--blue-light)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>
           <span style={{ fontSize: 18 }}>✓</span>
           {actionConfirm}
         </div>
@@ -3037,28 +2619,17 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[11px] font-bold tracking-[0.15em] uppercase mb-1" style={{ color: 'var(--primary-dark)', fontFamily: 'monospace' }}>
-            Swap #{swap.id}
-          </div>
-          <h2 className="text-2xl font-black" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-            with{' '}
-            <button onClick={() => openProfile(otherUserId)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: otherIsFounder ? '#B45309' : 'inherit', textDecoration: 'underline' }}>
-              {otherName}
-            </button>
-            <AmbassadorMark show={otherIsAmbassador} size={16} /><FounderBadge show={otherIsFounder} size={16} />
-          </h2>
-          <button onClick={() => openProfile(otherUserId)} className="text-xs font-semibold underline" style={{ color: 'var(--primary-dark)' }}>
-            View their profile
-          </button>
-          <div style={{ marginTop: 4 }}>
-            <ActivityIndicator lastLoginAt={otherUser?.last_login_at} size={12} />
-          </div>
-        </div>
-      </div>
+      <section className="swap-partner-card">
+        <div className="swap-partner-reference"><ArrowRightLeft size={15} /><span>SWAP #{swap.id}</span></div>
+        <button className="swap-partner-profile" onClick={() => openProfile(otherUserId)} aria-label={`View ${otherName}'s profile`}>
+          <CollectorAvatar person={{ name: otherName, profile_photo: otherUser?.profile_photo }} size={58} />
+          <span className="swap-partner-info"><small>YOUR SWAP PARTNER</small><strong>{otherName}<AmbassadorMark show={otherIsAmbassador} size={16} /><FounderBadge show={otherIsFounder} size={16} /></strong><span className="swap-partner-activity">{otherUser?.last_login_at ? <ActivityIndicator lastLoginAt={otherUser.last_login_at} size={12} /> : 'Activity unavailable'}</span></span>
+          <span className="swap-partner-link"><UserRound size={18} /><span>Profile</span><ChevronRight size={15} /></span>
+        </button>
+      </section>
 
-      {swap.status !== 'declined' && (() => {
+      <div className="swap-status-banner"><Truck size={28} /><div><h2>{getSwapLabel(swap, user.id)}</h2><p>Swap with {otherName} · {youGive.length} stickers each way</p></div></div>
+      {swap.status !== 'declined'  && (() => {
         const myPosted = isUserA ? swap.user_a_posted : swap.user_b_posted;
         const myReceived = isUserA ? swap.user_a_received : swap.user_b_received;
         const bothAccepted = swap.user_a_accepted && swap.user_b_accepted;
@@ -3074,8 +2645,8 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         const STEP_LABELS = ['Proposal sent', 'Accepted', 'You posted', 'Both posted', 'You received', 'Completed'];
 
         return (
-          <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-            <div className="flex items-center" style={{ minWidth: 460 }}>
+          <div className="swap-timeline">
+            <div className="timeline-inner">
               {STEP_LABELS.map((label, i) => {
                 const isPast = i < currentStepIdx;
                 const isCurrent = i === currentStepIdx;
@@ -3089,7 +2660,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                       }}>
                         {isPast ? <CheckCircle2 size={13} /> : isCurrent ? <Clock size={12} /> : i + 1}
                       </div>
-                      <span className="text-[9px] font-medium" style={{ color: isPast ? 'var(--primary-dark)' : isCurrent ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      <span className="text-[9px] font-medium" style={{ color: isPast ? 'var(--primary-dark)' : isCurrent ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'normal' }}>
                         {label}
                       </span>
                     </div>
@@ -3104,7 +2675,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         );
       })()}
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-4 items-start">
+      <div className="swap-item-trays">
         {items.length === 0 && swap.status === 'proposed' ? (
           <div style={{ gridColumn: '1 / -1', padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
@@ -3118,7 +2689,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           <>
             <div>
               <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--danger)' }}>You send</div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="swap-sticker-grid">
                 {youGive.map((s) => (
                   <div key={s.sticker_id}>
                     <StickerCard sticker={s} qtyOverride={1} />
@@ -3136,7 +2707,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
             </div>
             <div>
               <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--primary-dark)' }}>You receive</div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="swap-sticker-grid">
                 {youReceive.map((s) => (
                   <div key={s.sticker_id}>
                     <StickerCard sticker={s} qtyOverride={1} />
@@ -3144,7 +2715,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                       <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>⚠️ {otherName} has also committed this to swap #{s.other_swap_id}</div>
                     )}
                     {s.already_receiving && (
-                      <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>ℹ️ You're already receiving this from swap #{s.already_receiving_swap_id}</div>
+                      <div style={{ fontSize: 11, color: '#3B6FA6', fontWeight: 600, marginTop: 2, padding: '0 2px' }}>You're already receiving this from swap #{s.already_receiving_swap_id}</div>
                     )}
                   </div>
                 ))}
@@ -3156,7 +2727,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
 
       {items.length > 0 && (
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-          ℹ️ This list was fixed when the swap was proposed, so it won't change even if your needs or duplicates change afterward.
+          This list was fixed when the swap was proposed, so it won't change even if your needs or duplicates change afterward.
         </p>
       )}
 
@@ -3174,10 +2745,10 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ background: 'var(--success-light)', border: '1px solid #A7F3D0', borderRadius: 'var(--radius-md)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <CheckCircle2 size={20} color="#065F46" style={{ flexShrink: 0 }} />
+                <CheckCircle2 size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#065F46' }}>You've accepted ✓</div>
-                  <div style={{ fontSize: 13, color: '#065F46', marginTop: 2 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>You've accepted ✓</div>
+                  <div style={{ fontSize: 13, color: 'var(--primary)', marginTop: 2 }}>
                     {theirAccepted
                       ? "You've both accepted — stickers are being confirmed now..."
                       : `Waiting for ${otherName} to also accept — everyone has to confirm before it's locked in, even the person who proposed it. You don't need to do anything else right now.`}
@@ -3186,8 +2757,8 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
               </div>
               {!theirAccepted && (
                 <button
-                  onClick={() => {
-                    if (window.confirm(`Withdraw from this swap? ${otherName} will be notified and your stickers will become available for new matches again.`)) {
+                  onClick={async () => {
+                    if (await confirmAction(`Withdraw from this swap? ${otherName} will be notified and your stickers will become available for new matches again.`)) {
                       act(() => api.withdrawSwap(token, swap.id));
                     }
                   }}
@@ -3203,10 +2774,11 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ background: 'var(--warning-light)', border: '1px solid #FDE68A', borderRadius: 'var(--radius-md)', padding: '12px 16px', fontSize: 13, color: '#92400E', fontWeight: 600 }}>
-              {theirAccepted
-                ? `⏳ ${otherName} has accepted — it's your turn to accept or decline`
-                : '⏳ Review the stickers below and accept or decline this swap'}
+            <div className="swap-decision-prompt">
+              <span className="swap-decision-icon"><Clock size={23} /></span>
+              <div><strong>Your turn to decide</strong><p>{theirAccepted
+                ? `${otherName} has accepted. Review the swap, then accept or decline.`
+                : 'Review the stickers below, then accept or decline this swap.'}</p></div>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowDeclineModal(true)} disabled={busy} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
@@ -3224,7 +2796,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
       {(swap.status === 'accepted' || swap.status === 'posted') && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            📸 Sticker photos
+            <Camera size={18} /> Sticker photos
           </div>
 
           <div style={{ marginBottom: 10 }}>
@@ -3267,7 +2839,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                   };
                   reader.readAsDataURL(file);
                 }} />
-                <span style={{ fontSize: 18 }}>📷</span>
+                <Camera size={23} className="upload-symbol" />
                 <span>Add photo of your stickers <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>(optional)</span></span>
               </label>
             )}
@@ -3339,20 +2911,20 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                     reader.readAsDataURL(file);
                   }}
                 />
-                <span style={{ fontSize: 18 }}>📷</span>
+                <Camera size={23} className="upload-symbol" />
                 <span>Add proof of postage photo <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>(optional)</span></span>
               </label>
             )}
           </div>
 
-          <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto || undefined), '✓ Marked as posted — the other person has been notified!')} disabled={busy} className="mt-1 w-full py-2 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
+          <button onClick={() => act(() => api.markPosted(token, swap.id, postagePhoto || undefined), '✓ Marked as posted — the other person has been notified!')} disabled={busy} className="yellow-button" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {busy ? <Loader2 className="animate-spin" size={15} /> : <Package size={15} />} Mark as posted
           </button>
 
           {!swap.user_a_posted && !swap.user_b_posted && (
             <button
-              onClick={() => {
-                if (window.confirm(`Withdraw from this accepted swap? ${otherName} will be notified and your stickers will become available for new matches again.`)) {
+              onClick={async () => {
+                if (await confirmAction(`Withdraw from this accepted swap? ${otherName} will be notified and your stickers will become available for new matches again.`)) {
                   act(() => api.withdrawSwap(token, swap.id));
                 }
               }}
@@ -3363,17 +2935,6 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
             </button>
           )}
         </div>
-      )}
-
-      {(swap.status === 'accepted' || swap.status === 'posted') && swap.user_a_accepted && swap.user_b_accepted && (isUserA ? swap.user_a_posted : swap.user_b_posted) && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 4px' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🎁 Bonus — optional</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-          <AmbassadorCard token={token} swapId={swap.id} />
-        </>
       )}
 
       {swap.status === 'accepted' && !(otherUserAddress?.address_line1 && otherUserAddress?.city) && (
@@ -3393,7 +2954,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
 
         return (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>📬 Estimated delivery</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}><Truck size={18} className="inline-symbol" /> Estimated delivery</div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>2–3 working days from posting (Royal Mail 2nd class estimate)</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', minWidth: 44, fontFamily: 'monospace' }}>{dayLabel}</span>
@@ -3441,7 +3002,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
       {/* Standalone proof of postage upload — shown after posting, per-user (fixed) */}
       {(swap.status === 'accepted' || swap.status === 'posted') && (isUserA ? swap.user_a_posted : swap.user_b_posted) && !(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo) && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>📷 Add proof of postage (optional)</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}><Camera size={18} className="inline-symbol" /> Add proof of postage (optional)</div>
           {postagePhotoPreview ? (
             <div style={{ position: 'relative', marginBottom: 8 }}>
               <img src={postagePhotoPreview} alt="Postage proof" style={{ width: '100%', maxHeight: 320, objectFit: 'contain', background: '#F3F4F6', borderRadius: 8, border: '1px solid var(--border)' }} />
@@ -3473,7 +3034,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
                 };
                 reader.readAsDataURL(file);
               }} />
-              <span style={{ fontSize: 18 }}>📷</span>
+              <Camera size={23} className="upload-symbol" />
               <span>Tap to add a photo of your proof of postage</span>
             </label>
           )}
@@ -3484,7 +3045,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
       {(swap.status === 'accepted' || swap.status === 'posted' || swap.status === 'completed') && (swap.user_a_postage_photo || swap.user_b_postage_photo || swap.postage_photo) && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            📷 Proof of postage
+            <Camera size={18} className="inline-symbol" /> Proof of postage
           </div>
 
           {(isUserA ? swap.user_a_postage_photo : swap.user_b_postage_photo) && (
@@ -3729,7 +3290,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
   const toggleBlock = async () => {
     if (!activeConv?.otherUser?.id) return;
     const wasBlocked = activeConv.isBlocked;
-    if (!wasBlocked && !confirm(`Block ${activeConv.otherUser.name}? They won't be able to message you, and you won't be able to message them.`)) return;
+    if (!wasBlocked && !await confirmAction(`Block ${activeConv.otherUser.name}? They won't be able to message you, and you won't be able to message them.`)) return;
     try {
       if (wasBlocked) await api.unblockUser(token, activeConv.otherUser.id);
       else await api.blockUser(token, activeConv.otherUser.id);
@@ -3777,10 +3338,10 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
 
   if (activeConv) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+      <div className="conversation-screen" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)' }}>
+        <div className="conversation-header" style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
           <button onClick={() => { setActiveConv(null); setMessages([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, fontSize: 14 }}>← Back</button>
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <CollectorAvatar person={activeConv.otherUser} size={44} /><div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <button onClick={() => openProfile(activeConv.otherUser?.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', fontWeight: 700, fontSize: 15, color: activeConv.otherUser?.founder_member ? '#B45309' : 'var(--text-primary)' }}>
               {activeConv.otherUser?.name}<AmbassadorMark show={activeConv.otherUser?.ambassador_badge} /><FounderBadge show={activeConv.otherUser?.founder_member} />
             </button>
@@ -3801,12 +3362,12 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
           Messages may be reviewed by the admin team for safety. Be kind and respectful.
         </p>
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="conversation-messages" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messages.map(m => {
             const isMe = m.sender_id === user.id;
             return (
               <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                <div style={{
+                <div className={`chat-bubble ${isMe ? "sent" : "received"}`} style={{
                   maxWidth: '80%', padding: '8px 12px', borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   background: isMe ? 'var(--primary)' : 'var(--surface)', color: isMe ? 'white' : 'var(--text-primary)',
                   border: isMe ? 'none' : '1px solid var(--border)', fontSize: 14, lineHeight: 1.5,
@@ -3821,8 +3382,8 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
                 </div>
                 {reportingId === m.id && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                    <button onClick={() => reportMessage(m.id)} style={{ fontSize: 11, padding: '3px 8px', background: '#EF4444', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm report</button>
-                    <button onClick={() => setReportingId(null)} style={{ fontSize: 11, padding: '3px 8px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => reportMessage(m.id)} style={{ fontSize: 11, padding: '3px 8px', background: '#EF4444', color: 'white', border: 'none', borderRadius: 12, cursor: 'pointer' }}>Confirm report</button>
+                    <button onClick={() => setReportingId(null)} style={{ fontSize: 11, padding: '3px 8px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer' }}>Cancel</button>
                   </div>
                 )}
               </div>
@@ -3833,7 +3394,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
 
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-        <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 8 }}>
+        <div className="conversation-composer" style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)', marginTop: 8 }}>
           <input
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
@@ -3842,7 +3403,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
             disabled={activeConv.isBlocked}
             style={{ flex: 1, padding: '10px 14px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14 }}
           />
-          <button onClick={sendMessage} disabled={sending || !newMessage.trim() || activeConv.isBlocked} style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: activeConv.isBlocked ? 0.5 : 1 }}>
+          <button aria-label="Send message" onClick={sendMessage} disabled={sending || !newMessage.trim() || activeConv.isBlocked} style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: activeConv.isBlocked ? 0.5 : 1 }}>
             <span style={{ color: 'white', fontSize: 18 }}>↑</span>
           </button>
         </div>
@@ -3851,18 +3412,19 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
   }
 
   return (
-    <div>
+    <div className="inbox-screen">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <SectionHeader eyebrow="Stay connected" title="Messages" />
+        <SectionHeader eyebrow="GOOD SWAPS START WITH A HELLO" title="Your conversations" />
         <Btn variant="primary" size="sm" onClick={() => setShowNewMessage(true)}>+ New</Btn>
       </div>
 
+      <p className="screen-intro">Make plans, compare lists and keep in touch with your collectors.</p>
       {loading && <Spinner />}
       {!loading && conversations.length === 0 && (
         <EmptyState text="No messages yet. Start a conversation from the Search tab or from a swap." />
       )}
       {conversations.map(c => (
-        <div key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name, ambassador_badge: c.other_user_ambassador_badge, founder_member: c.other_user_founder_member, last_login_at: c.other_user_last_login_at })}
+        <button className="conversation-card" key={c.conversation_id} onClick={() => openConversation(c.conversation_id, { id: c.other_user_id, name: c.other_user_name, ambassador_badge: c.other_user_ambassador_badge, founder_member: c.other_user_founder_member, last_login_at: c.other_user_last_login_at })}
           style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, position: 'relative' }}>
             {c.other_user_name?.split(' ').map(p => p[0]).join('')}
@@ -3884,7 +3446,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
               {new Date(c.last_message_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </div>
           )}
-        </div>
+        </button>
       ))}
 
       {showNewMessage && (
@@ -3928,11 +3490,11 @@ function NewMessageModal({ onClose, onStarted }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full sm:max-w-md sm:rounded-lg rounded-t-lg" style={{ background: 'var(--surface)', padding: 20 }}>
+    <div role="dialog" aria-modal="true" aria-label="New message" className="modern-dialog fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="modern-dialog-panel w-full sm:max-w-md sm:rounded-lg rounded-t-lg" style={{ background: 'var(--surface)', padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h3 style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>New message</h3>
-          <button onClick={onClose}><X size={18} color="var(--text-muted)" /></button>
+          <button onClick={onClose} aria-label="Close"><X size={18} color="var(--text-muted)" /></button>
         </div>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
         {!selected ? (
@@ -3983,8 +3545,8 @@ function SwapHistoryScreen() {
   if (loading) return <Spinner />;
 
   return (
-    <div>
-      <SectionHeader eyebrow="Your record" title="Swap history" />
+    <div className="history-screen">
+      <SectionHeader eyebrow="Your record" title="Your swap story." /><p className="screen-intro">A record of the collections you’ve helped complete.</p>
       {history.length === 0 ? (
         <EmptyState text="No completed or declined swaps yet." />
       ) : (
@@ -3992,7 +3554,7 @@ function SwapHistoryScreen() {
           {history.map(s => {
             const isCompleted = s.status === 'completed';
             return (
-              <div key={s.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
+              <div className="history-card" key={s.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <button
                     onClick={() => openProfile(s.other_user_id)}
@@ -4050,8 +3612,8 @@ function UserSearchScreen() {
   }, [query, token]);
 
   return (
-    <div>
-      <SectionHeader eyebrow="Find collectors" title="Search users" />
+    <div className="collector-search">
+      <SectionHeader eyebrow="YOUR NEXT SWAP PARTNER" title="Find your people." /><p className="screen-intro">Look up a collector, see their swapping record and say hello.</p>
       <div style={{ position: 'relative', marginBottom: 12 }}>
         <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
         <input
@@ -4070,7 +3632,7 @@ function UserSearchScreen() {
       )}
       {results.map(u => (
         <button
-          key={u.id}
+          className="collector-result" key={u.id}
           onClick={() => openProfile(u.id)}
           style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
         >
@@ -4084,7 +3646,7 @@ function UserSearchScreen() {
                 {u.city && <span>{u.city}</span>}
                 {u.completed_swaps > 0 && <span>· {u.completed_swaps} swaps</span>}
                 {u.response_rate && <span>· {u.response_rate}% response rate</span>}
-                {u.swap_streak >= 3 && <span>· 🔥 {u.swap_streak} streak</span>}
+                {u.swap_streak >= 3 && <span>· {u.swap_streak} swap streak</span>}
               </div>
               <div style={{ marginTop: 2 }}>
                 <ActivityIndicator lastLoginAt={u.last_login_at} />
@@ -4127,8 +3689,8 @@ function ResetPasswordScreen() {
   if (!token) return (
     <>
       <style>{DESIGN_TOKENS}</style>
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <div style={{ textAlign: 'center' }}>
+      <div className="account-status-screen" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div className="account-status-card" style={{ textAlign: 'center' }}><Logo size={90} />
           <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
           <h2 style={{ fontWeight: 700, marginBottom: 8 }}>Invalid reset link</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>Please request a new password reset.</p>
@@ -4141,8 +3703,8 @@ function ResetPasswordScreen() {
   return (
     <>
       <style>{DESIGN_TOKENS}</style>
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
-        <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+      <div className="account-status-screen" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: 16 }}>
+        <div className="account-status-card" style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}><Logo size={90} />
           {status === 'done' ? (
             <>
               <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>✅</div>
@@ -4163,7 +3725,7 @@ function ResetPasswordScreen() {
                 <input type="password" placeholder="Confirm new password" value={confirm} onChange={e => setConfirm(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 14, boxSizing: 'border-box' }} />
                 <button onClick={submit} disabled={status === 'loading'}
-                  style={{ width: '100%', padding: '13px 0', borderRadius: 'var(--radius-sm)', background: '#1AAB8A', color: 'white', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
+                  style={{ width: '100%', padding: '13px 0', borderRadius: 'var(--radius-sm)', background: 'var(--primary)', color: 'white', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
                   {status === 'loading' && <Loader2 className="animate-spin" size={14} />}
                   Set new password
                 </button>
@@ -4199,11 +3761,11 @@ function VerifyEmailScreen() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center px-5" style={{ background: 'var(--surface)', fontFamily: 'inherit' }}>
+    <div className="account-status-screen min-h-screen w-full flex items-center justify-center px-5" style={{ background: 'var(--surface)', fontFamily: 'inherit' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap');`}</style>
       <style>{DESIGN_TOKENS}</style>
-      <div className="w-full max-w-sm text-center">
-        <div className="mb-5 flex justify-center"><Logo size={48} /></div>
+      <div className="account-status-card w-full max-w-sm text-center">
+        <div className="mb-5 flex justify-center"><Logo size={90} /></div>
 
         {status === 'verifying' && (
           <>
@@ -4393,7 +3955,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
 
   const clearEverything = async () => {
     const albumName = albums.find(a => a.id === albumId)?.name || 'this album';
-    if (!window.confirm(`This will remove ALL your spares and needs for ${albumName} — useful if your list hasn't kept up with your actual collection and you'd rather start fresh. It won't affect any swap already in progress, or your lists for any other album. This can't be undone. Continue?`)) {
+    if (!await confirmAction(`This will remove ALL your spares and needs for ${albumName} — useful if your list hasn't kept up with your actual collection and you'd rather start fresh. It won't affect any swap already in progress, or your lists for any other album. This can't be undone. Continue?`)) {
       return;
     }
     setClearingBusy(true);
@@ -4409,10 +3971,10 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
   };
 
   const deleteAccount = async () => {
-    if (!window.confirm("Delete your account? Your name, email, address, and photo will be permanently removed and you'll be logged out immediately — this can't be undone. Any swaps you've already accepted or posted will be left as-is for your swap partner's records, but proposed swaps will be declined.")) {
+    if (!await confirmAction("Delete your account? Your name, email, address, and photo will be permanently removed and you'll be logged out immediately — this can't be undone. Any swaps you've already accepted or posted will be left as-is for your swap partner's records, but proposed swaps will be declined.")) {
       return;
     }
-    if (!window.confirm('Are you absolutely sure? This is your last chance to back out.')) {
+    if (!await confirmAction('Are you absolutely sure? This is your last chance to back out.')) {
       return;
     }
     setDeletingAccount(true);
@@ -4426,13 +3988,10 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-sm rounded-lg p-6 max-h-[90vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
-        <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Your details</h3>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-          Your address is only shown to a swap partner after you've both accepted a swap.
-        </p>
-
+    <div role="dialog" aria-modal="true" aria-label="Profile and settings" className="settings-overlay modern-dialog fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+      <div className="settings-panel modern-dialog-panel" style={{ background: 'var(--surface)' }}>
+        <header className="settings-header"><div><span className="eyebrow">YOUR COLLECTING CORNER</span><h2>Make yourself at home.</h2><p>Your profile, your preferences, your next swap.</p></div><button className="dialog-close" aria-label="Close settings" onClick={onClose}><X size={20}/></button></header>
+        <div className="settings-content">
         {!hasAddress && (
           <div className="rounded p-3 mb-4 text-sm" style={{ background: '#FBF1D9', color: '#5C4711', border: '1px solid #E8D9A8' }}>
             Add your address now so you're ready to accept swaps — without it, swap partners won't know where to post stickers.
@@ -4442,7 +4001,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
         {saved && <div className="rounded p-3 mb-4 text-sm" style={{ background: '#E5F1EC', color: 'var(--primary-dark)' }}>Saved!</div>}
 
-        <div className="flex items-center gap-4 mb-4">
+        <section className="settings-card identity-card"><div className="settings-section-title"><span><UserRound size={20}/></span><div><h3>Your collector profile</h3><p>A familiar face for your swap partners.</p></div></div><div className="profile-photo-row">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
             style={{ background: 'var(--primary-dark)' }}
@@ -4465,47 +4024,54 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
           </label>
         </div>
 
-        <div className="space-y-3 mb-4">
-          <input
+        <div className="profile-fields">
+          <label className="profile-field"><span>Display name</span><input
+            aria-label="Display name" autoComplete="name"
             placeholder="Name"
             value={form.name}
             onChange={set('name')}
             className="w-full px-3 py-2 rounded text-sm"
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-          />
-          <input
+          /></label><div className="address-heading"><MapPin size={18}/><div><h4>Where your swaps arrive</h4><p>Your address is shared only after you both accept a swap.</p></div></div>
+          <label className="profile-field"><span>Address line 1</span><input
+            aria-label="Address line 1" autoComplete="address-line1"
             placeholder="Address line 1"
             value={form.address_line1}
             onChange={set('address_line1')}
             className="w-full px-3 py-2 rounded text-sm"
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-          />
-          <input
+          /></label>
+          <label className="profile-field"><span>Address line 2 (optional)</span><input
+            aria-label="Address line 2 (optional)" autoComplete="address-line2"
             placeholder="Address line 2 (optional)"
             value={form.address_line2}
             onChange={set('address_line2')}
             className="w-full px-3 py-2 rounded text-sm"
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-          />
-          <input
+          /></label>
+          <label className="profile-field"><span>Town or city</span><input
+            aria-label="Town or city" autoComplete="address-level2"
             placeholder="City"
             value={form.city}
             onChange={set('city')}
             className="w-full px-3 py-2 rounded text-sm"
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-          />
-          <input
+          /></label>
+          <label className="profile-field"><span>Postcode</span><input
+            aria-label="Postcode" autoComplete="postal-code"
             placeholder="Postcode (e.g. SW1A 2AA)"
             value={form.postcode}
             onChange={(e) => set('postcode')({ target: { value: e.target.value.toUpperCase() } })}
             className="w-full px-3 py-2 rounded text-sm"
             style={{ background: 'var(--bg)', border: '1px solid var(--border)', fontFamily: 'monospace', letterSpacing: '0.05em' }}
-          />
+          /></label>
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '-4px 0 0' }}>
             UK postcodes only — this platform is for UK-based collectors.
           </p>
         </div>
 
+        </section>
+        <section className="settings-card"><div className="settings-section-title"><span><Settings size={20}/></span><div><h3>Your preferences</h3><p>Collect at your own pace.</p></div></div>
         {/* Founder membership */}
         <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
           {user.founder_member ? (
@@ -4526,7 +4092,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-              {matchingPaused ? '🔴 Matching paused' : '🟢 Available for swaps'}
+              {matchingPaused ? 'Matching paused' : 'Available for swaps'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {matchingPaused
@@ -4535,11 +4101,11 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
             </div>
           </div>
           <button
-            onClick={toggleMatchingPaused}
+            aria-label="Available for swaps" role="switch" aria-checked={!matchingPaused} onClick={toggleMatchingPaused}
             disabled={pausingBusy}
             style={{ width: 48, height: 28, borderRadius: 14, background: matchingPaused ? 'var(--danger)' : 'var(--primary)', border: 'none', cursor: pausingBusy ? 'default' : 'pointer', position: 'relative', transition: 'background 0.2s', opacity: pausingBusy ? 0.6 : 1, flexShrink: 0 }}
           >
-            <span style={{ position: 'absolute', top: 3, left: matchingPaused ? 3 : 22, width: 22, height: 22, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+            <span style={{ position: 'absolute', top: 3, left: matchingPaused ? 3 : 22, width: 22, height: 22, borderRadius: '50%', background: 'var(--surface)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
           </button>
         </div>
 
@@ -4550,23 +4116,24 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Switch to a darker colour scheme</div>
           </div>
           <button
-            onClick={toggle}
+            aria-label="Dark mode" role="switch" aria-checked={dark} onClick={toggle}
             style={{ width: 48, height: 28, borderRadius: 14, background: dark ? 'var(--primary)' : 'var(--border)', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
           >
-            <span style={{ position: 'absolute', top: 3, left: dark ? 22 : 3, width: 22, height: 22, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+            <span style={{ position: 'absolute', top: 3, left: dark ? 22 : 3, width: 22, height: 22, borderRadius: '50%', background: 'var(--surface)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
           </button>
         </div>
 
+        </section><section className="settings-card"><div className="settings-section-title"><span><Trophy size={20}/></span><div><h3>Your collecting journey</h3><p>Every swap brings you closer.</p></div></div>
         {/* Level & XP */}
         <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>🎖️ Level {user.level || 1}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}><ShieldCheck size={17} className="inline-symbol" /> Level {user.level || 1}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {user.xp || 0} XP{user.nextLevelXp != null ? ` · ${user.nextLevelXp - (user.xp || 0)} to next level` : ' · max level reached'}
             </div>
           </div>
           {user.nextLevelXp != null && (
-            <div style={{ height: 8, background: 'var(--bg)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 8, background: 'var(--bg)', borderRadius: 12, overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
                 width: `${Math.min(100, Math.round((((user.xp || 0) - (user.currentLevelXp || 0)) / (user.nextLevelXp - (user.currentLevelXp || 0))) * 100))}%`,
@@ -4580,7 +4147,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
         {/* Refer a friend */}
         {referralCode && (
           <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>🎁 Refer a friend</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}><Users size={17} className="inline-symbol" /> Refer a friend</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
               Share your link — once they sign up and complete their first swap, you'll earn 30 XP.
             </div>
@@ -4624,6 +4191,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
           </div>
         )}
 
+        </section><section className="settings-card account-controls"><div className="settings-section-title"><span><ShieldCheck size={20}/></span><div><h3>Account & collection controls</h3><p>Manage reports and reset your lists.</p></div></div>
         {/* Reports you've filed */}
         {myReports.length > 0 && (
           <div style={{ padding: '12px 0', borderTop: '1px solid var(--border)' }}>
@@ -4638,7 +4206,7 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
                   <button
                     onClick={() => withdrawReport(r.id)}
                     disabled={withdrawingReportId === r.id}
-                    style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 8px', cursor: withdrawingReportId === r.id ? 'default' : 'pointer' }}
+                    style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 12, padding: '4px 8px', cursor: withdrawingReportId === r.id ? 'default' : 'pointer' }}
                   >
                     {withdrawingReportId === r.id ? 'Withdrawing…' : 'Withdraw'}
                   </button>
@@ -4674,15 +4242,16 @@ function ProfileScreen({ onClose, onSaved, onAccountDeleted }) {
           </button>
         </div>
 
+        </section></div>
         {FOUNDER_ENABLED && showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
-        <div className="flex gap-2">
+        <div className="settings-footer">
           <button onClick={onClose} className="flex-1 py-2.5 rounded text-sm font-semibold" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
             Close
           </button>
           <button onClick={submit} disabled={loading} className="flex-1 py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--primary-dark)', color: 'var(--surface)' }}>
             {loading && <Loader2 className="animate-spin" size={14} />}
-            Save
+            Save changes
           </button>
         </div>
       </div>
@@ -4723,7 +4292,7 @@ function IOSLiveWidget() {
           boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 16,
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>The iOS app is now live! 🎉</span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>The iOS app is now live!</span>
             <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
           </div>
 
@@ -4762,7 +4331,7 @@ function IOSLiveWidget() {
 // =================================================================
 // FEEDBACK WIDGET
 // =================================================================
-function FeedbackWidget() {
+function FeedbackWidget({ inline = false }) {
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -4780,6 +4349,8 @@ function FeedbackWidget() {
       setState('error');
     }
   };
+
+  if (inline) return <div className="feedback-form"><div className="feedback-intro"><MessageCircle size={25}/><p>Have an idea or need a hand?<br/>We’d love to hear from you.</p></div>{state === 'sent' ? <div className="feedback-success"><CheckCircle2 size={30}/><h3>Thanks for helping us improve.</h3><p>Your feedback has been sent.</p></div> : <><label className="profile-field"><span>Your message</span><textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Tell us what’s on your mind…" rows={5}/></label>{state === 'error' && <ErrorBanner message="Could not send your feedback. Please try again." />}<Btn onClick={submit} disabled={!message.trim() || state === 'sending'}>{state === 'sending' ? 'Sending…' : 'Send feedback'}<ArrowRight size={17}/></Btn></>}</div>;
 
   return (
     <div style={{ position: 'fixed', bottom: 80, right: 16, zIndex: 200 }}>
@@ -4855,7 +4426,7 @@ function HamburgerMenu({ user, onProfile, onLogout }) {
               onClick={() => { setOpen(false); onProfile(); }}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', fontFamily: 'inherit' }}
             >
-              <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', background: user.founder_member ? 'linear-gradient(135deg, #D97706, #92400E)' : '#1AAB8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: user.founder_member ? '2px solid #FDE68A' : 'none' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', background: user.founder_member ? 'linear-gradient(135deg, #D97706, #92400E)' : 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: user.founder_member ? '2px solid #FDE68A' : 'none' }}>
                 {user.profile_photo ? (
                   <img src={user.profile_photo} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
@@ -4919,21 +4490,22 @@ function NotificationPanel() {
   };
 
   const TYPE_ICONS = {
-    new_message: '💬',
-    swap_proposed: '🤝',
-    swap_accepted: '✅',
-    swap_posted: '📬',
-    new_match: '⚡',
-    new_rating: '⭐',
-    dispute_filed: '⚠️',
-    announcement: '📢',
-    founder_welcome: '🏆',
+    new_message: MessageCircle,
+    swap_proposed: ArrowRightLeft,
+    swap_accepted: CheckCircle2,
+    swap_posted: Package,
+    new_match: Layers,
+    new_rating: Star,
+    dispute_filed: ShieldCheck,
+    announcement: Bell,
+    founder_welcome: Trophy,
   };
 
   return (
     <div ref={panelRef} style={{ position: 'relative' }}>
       <button
         onClick={handleOpen}
+        aria-label="Notifications" aria-expanded={open}
         style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         <Bell size={20} color={open ? 'var(--primary)' : 'var(--text-secondary)'} />
@@ -4952,14 +4524,14 @@ function NotificationPanel() {
       </button>
 
       {open && (
-        <div style={{
+        <div role="region" aria-label="Notifications" className="notification-tray" style={{
           position: 'absolute', top: 'calc(100% + 8px)', right: 0,
           width: 320, background: 'var(--surface)',
           borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
           boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100,
           maxHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="notification-heading" style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>Notifications</span>
             {notifications.length > 0 && (
               <button onClick={() => api.markAllRead(token).then(() => { setUnreadCount(0); setNotifications((n) => n.map((x) => ({ ...x, is_read: true }))); })} style={{ fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -4971,13 +4543,14 @@ function NotificationPanel() {
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {notifications.length === 0 ? (
               <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                No notifications yet
+                <Bell size={30} style={{ margin: '0 auto 12px' }} /><strong>You’re all caught up</strong><p>Your swap updates will appear here.</p>
               </div>
             ) : (
               notifications.map((n) => {
                 const isExpanded = expanded === n.id;
+                const NotificationIcon = TYPE_ICONS[n.type] || Bell;
                 return (
-                  <div
+                  <button className="notification-item" aria-expanded={n.body ? isExpanded : undefined}
                     key={n.id}
                     onClick={() => setExpanded(isExpanded ? null : n.id)}
                     style={{
@@ -4987,7 +4560,7 @@ function NotificationPanel() {
                       cursor: n.body ? 'pointer' : 'default',
                     }}
                   >
-                    <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{TYPE_ICONS[n.type] || '🔔'}</span>
+                    <span className={`notification-symbol ${n.type}`}><NotificationIcon size={20} strokeWidth={1.8} /></span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>
                       {n.body && (
@@ -5006,7 +4579,7 @@ function NotificationPanel() {
                       )}
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.created_at).toLocaleDateString()}</div>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
@@ -5049,28 +4622,38 @@ function VerificationBanner() {
 // =================================================================
 // APP SHELL
 // =================================================================
+function MoreScreen({ user, onNavigate, onProfile, onLogout, onFeedback }) {
+ const { dark, toggle } = useTheme();
+ return <section className="more-screen"><SectionHeader eyebrow="YOUR COLLECTING CORNER" title="A little more you." /><button className="profile-feature" onClick={onProfile}><CollectorAvatar person={user} size={60} /><span><strong>{user.name}</strong><small>Profile, address & settings</small></span><ChevronRight /></button><div className="more-list">{[[MessageCircle,'Messages','messages'],[History,'Swap history','history'],[Search,'Find collectors','search'],[Layers,'My albums','dashboard']].map(([Icon,label,id]) => <button key={id} onClick={() => onNavigate(id)}><Icon /><span>{label}</span><ChevronRight size={17} /></button>)}<button onClick={toggle}>{dark ? <Sun /> : <Moon />}<span>{dark ? 'Switch to light mode' : 'Switch to dark mode'}</span><ChevronRight size={17} /></button><button onClick={onFeedback}><HelpCircle /><span>Feedback & support</span><ChevronRight size={17} /></button><button onClick={onLogout}><LogOut /><span>Sign out</span></button></div><div className="more-brand"><Logo size={85} /><p>Same stickers. Bigger connections.</p></div></section>;
+}
+
 export default function PaniniSwapApp() {
-  const [token, setToken] = useState(() => localStorage.getItem('authToken') || null);
+  const [token, setToken] = useState(() => storage.getItem('authToken') || null);
   const [user, setUser] = useState(null);
-  const [tab, setTab] = useState('home');
+  const [tab, setTabState] = useState('home');
+  const setTab = next => { setTabState(next); window.scrollTo({ top:0, behavior:'instant' }); };
+  const [supportOpen, setSupportOpen] = useState(false);
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [viewingProfileUserId, setViewingProfileUserId] = useState(null);
   const [pendingConversationUserId, setPendingConversationUserId] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
-  const [checkingSession, setCheckingSession] = useState(Boolean(localStorage.getItem('authToken')));
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [checkingSession, setCheckingSession] = useState(Boolean(storage.getItem('authToken')));
+  const [dark, setDark] = useState(() => storage.getItem('theme') === 'dark');
   const [showFounderModal, setShowFounderModal] = useState(false);
   const [founderRedirectMsg, setFounderRedirectMsg] = useState(null);
   const [albums, setAlbums] = useState([]);
-  const [albumId, setAlbumIdState] = useState(() => parseInt(localStorage.getItem('selectedAlbumId') || '1', 10));
+  const [albumId, setAlbumIdState] = useState(() => parseInt(storage.getItem('selectedAlbumId') || '1', 10));
   const setAlbumId = (id) => {
-    localStorage.setItem('selectedAlbumId', String(id));
+    storage.setItem('selectedAlbumId', String(id));
     setAlbumIdState(id);
   };
 
   useEffect(() => {
-    api.getAlbums().then(setAlbums).catch(() => {});
+    api.getAlbums().then(items => setAlbums(items.map(album => ({
+      ...album,
+      name: ({ 1: "World Cup Stickers 2026", 2: "Men's Premier League Trading Cards 2026/27" })[album.id] || album.name,
+    })))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -5098,6 +4681,7 @@ export default function PaniniSwapApp() {
 
   useEffect(() => {
     if (!token) return;
+    if (IS_PREVIEW) return;
     const isStandalone = window.navigator.standalone === true;
     if (isStandalone) api.trackInstall(token).catch(() => {});
 
@@ -5148,7 +4732,7 @@ export default function PaniniSwapApp() {
   // it still counts someone who declines notifications. The one
   // reliable "installed and opened the native app" signal.
   useEffect(() => {
-    if (!token || !Capacitor.isNativePlatform()) return;
+    if (IS_PREVIEW || !token || !Capacitor.isNativePlatform()) return;
     api.trackNativeAppOpen(token).catch(() => {});
   }, [token]);
 
@@ -5157,7 +4741,7 @@ export default function PaniniSwapApp() {
   // WKWebView (it silently no-ops on its own serviceWorker/PushManager
   // checks). This is the real notification path for the iOS app.
   useEffect(() => {
-    if (!token || !Capacitor.isNativePlatform()) return;
+    if (IS_PREVIEW || !token || !Capacitor.isNativePlatform()) return;
 
     let permGranted = false;
     PushNotifications.checkPermissions()
@@ -5198,7 +4782,7 @@ export default function PaniniSwapApp() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    storage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
   const themeCtx = { dark, toggle: () => setDark(d => !d) };
@@ -5211,14 +4795,14 @@ export default function PaniniSwapApp() {
   }
 
   const handleAuthed = (newToken, newUser) => {
-    localStorage.setItem('authToken', newToken);
+    storage.setItem('authToken', newToken);
     setToken(newToken);
     setUser(newUser);
     if (FOUNDER_ENABLED) configureRevenueCat(newUser.id);
   };
 
   const logout = () => {
-    localStorage.removeItem('authToken');
+    storage.removeItem('authToken');
     setToken(null);
     setUser(null);
     setTab('home');
@@ -5235,7 +4819,7 @@ export default function PaniniSwapApp() {
         if (FOUNDER_ENABLED) configureRevenueCat(freshUser.id);
       })
       .catch(() => {
-        localStorage.removeItem('authToken');
+        storage.removeItem('authToken');
         setToken(null);
         setUser(null);
       })
@@ -5257,15 +4841,8 @@ export default function PaniniSwapApp() {
   }
 
   const NAV_ITEMS = [
-    { id: 'home', label: 'Home', icon: 'ti-home' },
-    { id: 'dashboard', label: 'Album', icon: 'ti-book' },
-    { id: 'matches', label: 'Matches', icon: 'ti-stars' },
-    { id: 'mySwaps', label: 'Swaps', icon: 'ti-arrows-exchange' },
-    { id: 'history', label: 'History', icon: 'ti-clock' },
-    { id: 'messages', label: 'Messages', icon: 'ti-message-circle' },
-    { id: 'search', label: 'Search', icon: 'ti-search' },
+    { id:'home', label:'Home', Icon:Home }, { id:'dashboard', label:'My Stickers', Icon:Layers }, { id:'matches', label:'Matches', Icon:Users }, { id:'mySwaps', label:'Swaps', Icon:ArrowRightLeft }, { id:'more', label:'More', Icon:MoreHorizontal },
   ];
-
   return (
     <ThemeContext.Provider value={themeCtx}>
     <AlbumContext.Provider value={{ albumId, albums, setAlbumId }}>
@@ -5283,26 +4860,9 @@ export default function PaniniSwapApp() {
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.0/dist/tabler-icons.min.css" />
 
-      <div style={{ minHeight: '100vh', width: '100%', background: 'var(--bg)', fontFamily: "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-
-        {/* ── Header ─────────────────────────────────────────────── */}
-        <header style={{ position: 'sticky', top: 0, zIndex: 10, background: '#0B1120', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingTop: 'env(safe-area-inset-top)' }}>
-          <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px', height: 52, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <HamburgerMenu user={user} onProfile={() => setViewingProfileUserId(user.id)} onLogout={logout} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Logo size={50} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <NotificationPanel />
-            </div>
-          </div>
-        </header>
-
-        <CommunityBanner />
-        <ActivityTicker />
-
+      <div className={`gos-app ${tab === 'dashboard' ? 'album-active' : ''}`}>
+        {IS_PREVIEW && <div className="preview-ribbon">{IS_INTEGRATION ? "Integration test · real catalogue, test accounts" : "Isolated preview · fictional data"} <button onClick={() => { storage.removeItem('initialized'); window.location.reload(); }}>Reset</button></div>}
+        <header className="app-header"><div className="header-inner"><button className="brand-home" onClick={() => setTab('home')} aria-label="Got One Spare home"><Logo size={53} /></button><div className="desktop-tagline">Same stickers. Bigger connections.</div><div className="header-actions"><NotificationPanel /><button className="profile-button" aria-label="Your profile" onClick={() => setViewingProfileUserId(user.id)}><CollectorAvatar person={user} size={39} /></button></div></div></header>
         {founderRedirectMsg && (
           <div style={{ background: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)', borderBottom: '1px solid #FDE68A', padding: '10px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#92400E' }}>
             {founderRedirectMsg}
@@ -5337,7 +4897,7 @@ export default function PaniniSwapApp() {
 
         {FOUNDER_ENABLED && showFounderModal && <FounderModal onClose={() => setShowFounderModal(false)} />}
 
-        <main style={{ maxWidth: 640, margin: '0 auto', padding: '14px 14px 140px' }}>
+        <main className={`app-main screen-${tab}`} id="main-content">
           {tab === 'home' && (
             <HomeHubScreen
               onNavigate={setTab}
@@ -5370,6 +4930,7 @@ export default function PaniniSwapApp() {
             />
           )}
           {tab === 'history' && <SwapHistoryScreen />}
+          {tab === 'more' && <MoreScreen user={user} onNavigate={setTab} onProfile={() => setShowProfile(true)} onLogout={logout} onFeedback={() => setSupportOpen(true)} />}
           {tab === 'messages' && (
             <MessagesScreen
               pendingOpenUserId={pendingConversationUserId}
@@ -5390,60 +4951,9 @@ export default function PaniniSwapApp() {
           )}
         </main>
 
-        {/* ── Bottom nav + footer link ─────────────────────────────
-            Grouped into one fixed-position block so the footer link
-            always sits right above the nav bar, regardless of how
-            tall the active tab's content is — position:fixed
-            elements are pulled out of normal document flow, so
-            neither one can be "pushed" into place by main's height. */}
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10, background: '#0B1120' }}>
-          {FOUNDER_ENABLED && (
-            <div style={{ textAlign: 'center', padding: '6px 16px 2px' }}>
-              <button
-                onClick={() => setShowFounderModal(true)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#92400E' }}
-              >
-                🏆 Support Got One Spare — Become a Founder
-              </button>
-            </div>
-          )}
-
-          <nav style={{ borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-            <div style={{ display: 'flex', width: '100%', maxWidth: 640 }}>
-              {NAV_ITEMS.map((t) => {
-                const active = tab === t.id || (tab === 'swap' && t.id === 'mySwaps');
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    style={{
-                      flex: 1, padding: '10px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      borderTop: active ? '2px solid #1AAB8A' : '2px solid transparent',
-                      transition: 'border-color 0.15s',
-                    }}
-                  >
-                    <div style={{ position: 'relative', display: 'inline-flex' }}>
-                      <i className={`ti ${t.icon}`} style={{ fontSize: 18, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)' }} aria-hidden="true" />
-                      {t.id === 'messages' && unreadMessages > 0 && (
-                        <span style={{ position: 'absolute', top: -4, right: -6, background: '#EF4444', color: 'white', fontSize: 9, fontWeight: 800, minWidth: 15, height: 15, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #0B1120', lineHeight: 1 }}>
-                          {unreadMessages > 9 ? '9+' : unreadMessages}
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: active ? '#1AAB8A' : 'rgba(255,255,255,0.35)', letterSpacing: '0.03em' }}>
-                      {t.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        </div>
-
-        <FeedbackWidget />
-        <IOSLiveWidget />
-        <InstallAndNotifyBanner />
+        <nav className="app-nav" aria-label="Main navigation"><div className="nav-inner">{NAV_ITEMS.map(({ id, label, Icon }) => { const active = tab === id || (tab === 'swap' && id === 'mySwaps') || (['messages','search','history'].includes(tab) && id === 'more'); return <button key={id} onClick={() => setTab(id)} aria-current={active ? 'page' : undefined}><span className="nav-icon"><Icon size={22} />{id === 'more' && unreadMessages > 0 && <span className="nav-badge">{unreadMessages}</span>}</span><span>{label}</span></button>; })}</div></nav>
+        {supportOpen && <div className="gos-modal-backdrop"><section role="dialog" aria-modal="true" aria-label="Feedback and support" className="gos-modal"><SectionHeader title="Here to help" action={<button className="icon-button" aria-label="Close support" onClick={() => setSupportOpen(false)}><X /></button>} /><p>Send feedback using the button below, or read our support guide.</p><a href="/support.html" target="_blank" rel="noreferrer">Support guide</a><div className="support-feedback"><FeedbackWidget inline /></div></section></div>}
+        {!IS_PREVIEW && <><IOSLiveWidget /><InstallAndNotifyBanner /></>}
       </div>
     </AuthContext.Provider>
     </AlbumContext.Provider>

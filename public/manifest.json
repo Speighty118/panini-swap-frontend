@@ -1,13 +1,16 @@
 {
   "name": "Got One Spare?",
   "short_name": "GotOneSpare",
-  "description": "World Cup 2026 Panini sticker swaps with UK collectors",
+  "description": "Swap spare stickers and trading cards with UK collectors",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0B1120",
-  "theme_color": "#0B1120",
-  "categories": ["sports", "social"],
+  "background_color": "#082d58",
+  "theme_color": "#082d58",
+  "categories": [
+    "sports",
+    "social"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

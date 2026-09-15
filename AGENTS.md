@@ -1,0 +1,13 @@
+# Frontend instructions for Codex
+
+- Got One Spare? uses React 18 + Vite and Capacitor 8 for iOS/Android. `src/App.jsx` contains the UI, API client, contexts and tab navigation; `src/index.css` holds global styles. iOS is a webview wrapper, not SwiftUI. Read the parent handover/preview plan when available; inspect actual source before editing.
+- Describe intended application code changes first; proceed within the user's already authorized scope. Preserve existing work and inspect `git status --short` before/after changes.
+- Do not push, deploy, merge, publish or submit builds without explicit authorization. Vercel may deploy on push.
+- This redesign checkout defaults to isolated in-memory fixtures. Read `REDESIGN_PREVIEW.md`; preserve `src/runtime.js` guards and preview CSP. Production builds require explicit environment configuration. Never launch production mode during design review. The original checkout still has a hardcoded production URL.
+- Never use production tokens/accounts in previews. Disable preview email/push registration, native-open tracking, payments, and production external navigation. Use synthetic fixtures or a separately isolated backend.
+- For visual changes preserve `request()`, the `api` contract, effects, auth, callback signatures, `getSwapLabel`, album sorting/data, dispute reasons, and photo resizing. Keep `FOUNDER_ENABLED = false`. Do not split `App.jsx`, change business rules or modify the backend as incidental cleanup.
+- Preserve separate general and per-swap messaging, and both purchase integrations. Preserve product naming restrictions in the handover: no manufacturer/product trademarks in user-facing copy or store/SEO metadata.
+- Build: `npm run build`. Dependencies are locked in `package-lock.json`; use `npm ci` for a fresh isolated checkout, not unrequested upgrades. Installed Capacitor CLI requires Node >=22; no runtime pin exists yet.
+- iOS: build web assets, then `./node_modules/.bin/cap sync ios`, then build `ios/App/App.xcodeproj`, scheme `App`. Sync generates native assets/config and SPM wiring; review its diff. Do not hand-edit `CapApp-SPM/Package.swift`. Xcode alone can bundle stale JavaScript.
+- Prefer unsigned simulator compilation (`CODE_SIGNING_ALLOWED=NO`) and dedicated DerivedData. Do not change release bundle ID, signing, entitlements, marketing/build versions or archive/upload without a relevant request. Preview identities belong in isolated configuration.
+- Run `npm test` for preview safety/contract checks and `npm run build`. No lint script exists. Report these separately from runtime/manual checks; test affected interactions only against fixtures/test data. Use `npm run ios:preview:sync` for isolated iOS packaging.
