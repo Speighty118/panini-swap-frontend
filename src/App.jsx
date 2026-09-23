@@ -663,6 +663,7 @@ function AuthScreen({ onAuthed }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [collectionInvitation, setCollectionInvitation] = useState(collectionCode);
   const [inviteRequired, setInviteRequired] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -689,7 +690,8 @@ function AuthScreen({ onAuthed }) {
     try {
       const result = mode === 'login'
         ? await api.login(email, password)
-        : await api.signup(name, email, password, inviteCode, referralCode || undefined);
+        : COLLECTION_SHARING && collectionInvitation.trim() ? await request('/auth/signup', {method:'POST', body:{name,email,password,inviteCode,referralCode:referralCode || undefined,collectionInvitation:collectionInvitation.trim().toUpperCase()}}) : await api.signup(name, email, password, inviteCode, referralCode || undefined);
+      if(COLLECTION_SHARING && collectionInvitation.trim()) storage.setItem('collectionInvitation',collectionInvitation.trim().toUpperCase());
       onAuthed(result.token, result.user);
     } catch (err) {
       if (err.message && err.message.includes('invite')) {
@@ -770,6 +772,7 @@ function AuthScreen({ onAuthed }) {
             <div style={{ padding: '24px 24px 28px' }}>
               <ErrorBanner message={error} onDismiss={() => setError(null)} />
               <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {COLLECTION_SHARING && <details open={!!collectionInvitation}><summary>Have a collection invitation?</summary><input aria-label="Collection invitation code" style={inputStyle} maxLength={12} value={collectionInvitation} onChange={e=>setCollectionInvitation(e.target.value.toUpperCase())} placeholder="Invitation code (optional)"/></details>}
                 {mode === 'signup' && (
                   <>
                     <input aria-label="Your name" autoComplete="name" type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required style={inputStyle} />
@@ -1822,7 +1825,63 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 // collection types (e.g. trading cards) later without cramming the
 // album tab row.
 // =================================================================
+function HomeFeatureCarousel({ onNavigate }) {
+  const [slide, setSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [hidden, setHidden] = useState(document.hidden);
+  const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [guide, setGuide] = useState(false);
+  const touchX = useRef(null);
+  const count = IS_PREVIEW || COLLECTION_SHARING ? 3 : 1;
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const motion = () => setReduced(media.matches);
+    const visibility = () => setHidden(document.hidden);
+    media.addEventListener('change', motion); document.addEventListener('visibilitychange', visibility);
+    return () => { media.removeEventListener('change', motion); document.removeEventListener('visibilitychange', visibility); };
+  }, []);
+  useEffect(() => {
+    if (paused || hovered || hidden || reduced || count === 1) return;
+    const timer = setInterval(() => setSlide(s => (s + 1) % count), 8000);
+    return () => clearInterval(timer);
+  }, [paused, hovered, hidden, reduced, count]);
+  const select = n => { setPaused(true); setSlide((n + count) % count); };
+  const share = () => { storage.setItem('openCollectionSharing', 'yes'); onNavigate('dashboard'); };
+  return <>
+    <section className={`feature-carousel feature-slide-${slide}`} aria-label="Discover Got One Spare" aria-roledescription="carousel"
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={e => { if (!e.target.closest('.carousel-play')) setPaused(true); }}
+      onTouchStart={e => { touchX.current = e.touches[0].clientX; setPaused(true); }}
+      onTouchEnd={e => { if (touchX.current !== null) { const delta = e.changedTouches[0].clientX - touchX.current; if (Math.abs(delta) > 50) select(slide + (delta < 0 ? 1 : -1)); touchX.current = null; } }}>
+      <div className="carousel-stage" aria-live={paused || reduced ? 'polite' : 'off'}>
+        <div className="carousel-copy" role="group" aria-roledescription="slide" aria-label={`${slide + 1} of ${count}`} key={slide}>
+          <span className="carousel-kicker">{['SMALL SWAPS. BIG COLLECTIONS.', 'NEW · SHARE YOUR COLLECTION', 'MEET YOUR NEXT MILESTONE'][slide]}</span>
+          <h2>{slide === 0 ? <>Your next<br/>great swap<br/><em>starts here.</em></> : slide === 1 ? <>Share your list.<br/>Find your<br/><em>next swap.</em></> : <>Help our<br/>community<br/><em>grow.</em></>}</h2>
+          <p>{['List your spares. Find your missing pieces.', 'Post in your collecting group or send to a friend. We’ll compare your lists.', 'Bring a new collector along. Earn your Community Builder badge.'][slide]}</p>
+          <button className="yellow-button" onClick={() => { setPaused(true); if (slide === 0) onNavigate('dashboard'); else if (slide === 1) share(); else setGuide(true); }}>{['Add spares', 'Share your collection', 'See how it works'][slide]}<ArrowRight size={17}/></button>
+        </div>
+        <div className="carousel-art" aria-hidden="true">{slide === 2 ? <div className="carousel-medal"><Trophy size={54}/><strong>COMMUNITY<br/>BUILDER</strong><span>GOT ONE SPARE?</span></div> : slide === 1 ? <div className="carousel-share-art"><div className="carousel-message"><MessageCircle size={20}/><span>My swap list</span><div className="carousel-list-line"/><div className="carousel-list-line short"/><div className="carousel-link-chip">gotonespare.com <ArrowRight size={12}/></div></div><div className="carousel-people"><span><UserRound size={21}/></span><span><UserRound size={21}/></span><span><UserRound size={21}/></span></div><span className="carousel-send"><Send size={24}/></span></div> : <><div className="carousel-card card-back"><Layers size={35}/><strong>{slide === 0 ? 'SPARE' : 'YOUR LIST'}</strong><span>01</span></div><div className="carousel-card card-front">{slide === 0 ? <ArrowRightLeft size={35}/> : <Users size={35}/>}<strong>{slide === 0 ? 'NEEDED' : 'YOUR GROUP'}</strong><span>{slide === 0 ? '02' : 'LET’S SWAP'}</span></div><span className="carousel-art-orbit"><ArrowRightLeft size={23}/></span></>}</div>
+      </div>
+      {count > 1 && <div className="carousel-controls"><div className="carousel-dots" aria-label="Choose a banner">{['Start swapping','Share your collection','Community Builder'].map((name,i)=><button key={name} aria-label={`Show ${name}`} aria-current={slide===i?'true':undefined} onClick={()=>select(i)}><span/></button>)}</div><span className="carousel-position">0{slide+1} / 03</span><button className="carousel-arrow" aria-label="Previous banner" onClick={()=>select(slide-1)}><ArrowLeft size={17}/></button><button className="carousel-arrow" aria-label="Next banner" onClick={()=>select(slide+1)}><ArrowRight size={17}/></button>{!reduced && <button className="carousel-play" aria-label={paused?'Play banners':'Pause banners'} onClick={()=>setPaused(p=>!p)}>{paused ? '▶' : 'Ⅱ'}</button>}</div>}
+    </section>
+    {guide && <div className="gos-modal-backdrop"><section className="gos-modal" role="dialog" aria-modal="true" aria-label="Community Builder badge"><SectionHeader title="More collectors. More possibilities." action={<button autoFocus className="icon-button" aria-label="Close badge guide" onClick={()=>setGuide(false)}><X/></button>}/><div className="share-reward"><div className="builder-medal"><Trophy size={30}/><span>BUILDER</span></div><p>Earn Community Builder when someone new joins through your invitation, verifies their email and adds spares and missing items for that album.</p></div><p>Share with your collecting group or a friend. They get an easier way to compare lists; you both get more opportunities to find a swap. Existing members can compare too.</p><button className="yellow-button" onClick={share}>Share your collection <ArrowRight size={18}/></button><p className="route-note">A match isn’t guaranteed. The usual swap rules apply.</p></section></div>}
+  </>;
+}
+
 function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
+  const [localHour, setLocalHour] = useState(() => new Date().getHours());
+  useEffect(() => {
+    const refreshGreeting = () => setLocalHour(new Date().getHours());
+    const timer = window.setInterval(refreshGreeting, 60000);
+    document.addEventListener('visibilitychange', refreshGreeting);
+    window.addEventListener('focus', refreshGreeting);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshGreeting);
+      window.removeEventListener('focus', refreshGreeting);
+    };
+  }, []);
+  const greeting = localHour < 12 ? 'Good morning' : localHour < 18 ? 'Good afternoon' : 'Good evening';
   const { token, user } = useAuth();
   const { albums, albumId, setAlbumId } = useAlbum();
   const [counts, setCounts] = useState({});
@@ -1841,9 +1900,9 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
   const openAlbum = album => { setAlbumId(album.id); onNavigate('dashboard'); };
   return <div className="home-screen">
     <ErrorBanner message={error} onDismiss={() => setError(null)} />
-    <div className="welcome"><div><h1>Morning, {user?.name?.split(' ')[0] || 'collector'} <span aria-hidden="true">👋</span></h1><p>Same stickers. Bigger connections.</p></div><button className="desktop-profile icon-button" onClick={onOpenProfile} aria-label="Edit your profile"><CollectorAvatar person={user} /></button></div>
+    <div className="welcome"><div><h1>{greeting}, {user?.name?.split(' ')[0] || 'collector'} <span aria-hidden="true">👋</span></h1><p>Same stickers. Bigger connections.</p></div><button className="desktop-profile icon-button" onClick={onOpenProfile} aria-label="Edit your profile"><CollectorAvatar person={user} /></button></div>
     <button className="home-search" onClick={() => onNavigate('dashboard')}><Search size={19} /><span>Find stickers in your album…</span><ChevronRight size={17} /></button>
-    <div className="home-feature"><section className="collector-hero"><div className="hero-copy"><h2>Your next<br />great swap<br /><em>starts here.</em></h2><p>List your spares.<br />Find your missing pieces.</p><button className="yellow-button" onClick={() => onNavigate('dashboard')}>Add spares <ArrowRight size={18} /></button></div></section>
+    <div className="home-feature"><HomeFeatureCarousel onNavigate={onNavigate} />
     <div className="home-stats">{[[Layers, current?.spares, 'Spares', 'dashboard'], [Package, current?.needs, 'Needed', 'dashboard'], [Users, current?.matches, 'Matches', 'matches']].map(([Icon, value, label, tab]) => <button key={label} onClick={() => onNavigate(tab)}><Icon size={24} /><strong>{value ?? '—'}</strong><span>{label}</span></button>)}</div></div>
     <section className="your-albums"><div className="section-row"><h2>Your albums</h2><button onClick={() => onNavigate('dashboard')}>See all <ChevronRight size={15} /></button></div><div className="album-shelf">{albums.map(a => <button className="album-tile" key={a.id} onClick={() => openAlbum(a)}><AlbumCover album={a} /><span>{counts[a.id] ? `${counts[a.id].spares} spares · ${counts[a.id].needs} needed` : 'Open collection'}</span><strong>{a.name}</strong></button>)}</div></section>
     <div className="home-next"><button className="next-action" onClick={() => { if (ready) setAlbumId(ready.album_id); onNavigate('mySwaps'); }}><span className="parcel-icon"><Package size={27} /></span><span><strong>{ready ? `Ready to post to ${ready.other_user_name}` : 'Your swaps, all in one place'}</strong><small>{ready ? 'Your next step is ready when you are' : 'Keep track from proposal to delivery'}</small></span><ChevronRight size={20} /></button>
@@ -1855,6 +1914,107 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
 // =================================================================
 // DASHBOARD (duplicates + needs), now backed by real API state
 // =================================================================
+const COLLECTION_SHARING = IS_INTEGRATION || import.meta.env.VITE_COLLECTION_SHARING === 'true';
+const collectionCode = () => { const value=(new URLSearchParams(location.search).get('collection') || storage.getItem('collectionInvitation') || '').trim().toUpperCase(); return value.match(/(?:^|-)([A-F0-9]{12})$/)?.[1] || value; };
+const collectionTitle = id => Number(id) === 1 ? 'World Cup Stickers 2026' : 'Premier League Trading Cards 2026/27';
+
+function CollectionInvitationLanding({ code, onContinue }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [iphone, setIphone] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { let active = true; request(`/collection-invitations/public/${encodeURIComponent(code)}`).then(d => { if(active) setData(d); }).catch(e => { if(active) setError(e.message); }); return () => { active=false; }; }, [code]);
+  return <div className="share-preview-overlay"><style>{DESIGN_TOKENS}</style><section className="share-preview-panel"><img src="/design/wordmark.png" alt="Got One Spare?" style={{width:160}} />{error ? <><ErrorBanner message={error} /><button className="yellow-button" onClick={() => onContinue(false)}>Continue without this invitation</button></> : !data ? <Spinner /> : <>
+    <div className="invitation-hero"><AlbumCover album={{id:data.album_id,name:collectionTitle(data.album_id)}} small /><div><p className="eyebrow">YOUR NEXT SWAP STARTS HERE</p><h2>Got a spare for {data.name}?</h2><p>{collectionTitle(data.album_id)}</p></div></div>
+    <div className="share-totals"><strong>{data.spares} spare card types</strong><strong>{data.needs} missing cards</strong></div><h3>A few of {data.name}’s spares</h3>
+    {data.samples.map((s,i) => <div className="share-sample" key={i}><span>{s.sticker_number}</span><div><strong>{s.description}</strong><small>{s.team_name}</small></div></div>)}
+    <section className="share-benefits"><h3>Less comparing lists. More collecting.</h3><p>Join free or sign in, then add your spares and missing items. We’ll look for a match with {data.name} and other collectors. Your lists stay saved for next time.</p><p>Swaps need at least three items each way. Availability is checked again before a proposal, and both collectors must accept.</p></section>
+    <button className="yellow-button" onClick={() => { storage.setItem('collectionInvitation',code); onContinue(true,data.album_id); }}>Continue on the website <ArrowRight size={18}/></button>
+    <button className="share-app-button" onClick={() => setIphone(!iphone)}>Get the free iPhone app <ChevronRight size={18}/></button>
+    {iphone && <div className="invite-code"><span>KEEP THIS ALBUM INVITATION</span><strong>{code}</strong><button onClick={async()=>{try{await navigator.clipboard.writeText(code);setCopied(true);}catch{setError('Select and copy the invitation code above.');}}}>{copied?'Copied':'Copy invitation code'}</button><p>After installing, enter this code under “Have a collection invitation?” when signing up or signing in.</p>{IS_PREVIEW ? <p>App Store navigation is disabled in this isolated test.</p> : <a href="https://apps.apple.com/app/got-one-spare/id6794436890">Download on the App Store</a>}</div>}
+  </>}</section></div>;
+}
+
+async function downloadCollectionCard(album, spares, needs, code) {
+ const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=900;
+ const ctx=canvas.getContext('2d');const gradient=ctx.createLinearGradient(0,0,1200,900);gradient.addColorStop(0,'#082d58');gradient.addColorStop(1,'#06152d');ctx.fillStyle=gradient;ctx.fillRect(0,0,1200,900);
+ const logo=new Image();logo.src='/design/wordmark.png';await logo.decode();const height=180;ctx.drawImage(logo,600-logo.width/logo.height*height/2,55,logo.width/logo.height*height,height);
+ ctx.textAlign='center';ctx.fillStyle='#fff';ctx.font='bold 56px sans-serif';ctx.fillText('Can we help each other',600,325);ctx.fillText('finish our collection?',600,395);
+ ctx.font='28px sans-serif';ctx.fillText(album.name,600,475,1080);ctx.fillStyle='#ffcf24';ctx.font='bold 58px sans-serif';ctx.fillText(`${spares} spares   /   ${needs} needed`,600,585);
+ ctx.fillStyle='#fff';ctx.font='28px sans-serif';ctx.fillText('Open my collection link in the post to compare.',600,690);ctx.font='24px sans-serif';ctx.fillText(`Got One Spare? · Invitation ${code}`,600,770);
+ const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Unable to create share image.');
+ const file=new File([blob],'got-one-spare-collection.png',{type:'image/png'});
+ if(Capacitor.isNativePlatform() && navigator.canShare?.({files:[file]})){await navigator.share({files:[file]});return;}
+ const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function CollectionSharing({ album, duplicates, needs, onOpenSwap }) {
+ const {token,user}=useAuth();
+ const {setAlbumId}=useAlbum();
+ const [open,setOpen]=useState(() => storage.getItem('openCollectionSharing') === 'yes'), [status,setStatus]=useState({}), [error,setError]=useState(''), [busy,setBusy]=useState(false), [notice,setNotice]=useState(''), [code,setCode]=useState(collectionCode), [match,setMatch]=useState(null);
+ useEffect(() => { storage.removeItem('openCollectionSharing'); }, []);
+ const refresh=()=>request(`/collection-invitations/mine?albumId=${album?.id}`,{token}).then(setStatus);
+ useEffect(()=>{setStatus({});setError('');if(album?.id)refresh().catch(e=>setError(e.message));},[album?.id,token]);
+ const action=async fn=>{setBusy(true);setError('');setNotice('');try{await fn();}catch(e){setError(e.message);}finally{setBusy(false);}};
+ const shareSlug=`${(user?.name?.split(' ')[0] || 'collector').toLowerCase().replace(/[^a-z0-9]/g,'') || 'collector'}-${Number(album?.id)===1?'world-cup-stickers-2026':'premier-league-cards-2026-27'}`;
+ const link=status.code ? `${Capacitor.isNativePlatform() ? (IS_INTEGRATION ? 'http://127.0.0.1:5175' : 'https://gotonespare.com') : location.origin}/?collection=${shareSlug}-${status.code}` : '';
+ const suggestedPost=`Collecting ${album?.name || 'this album'}? I’ve added my spares and missing items to Got One Spare?\n\nOpen my link to see a few of my spares. Sign in or join free and add your lists—the app looks for what we can swap, without comparing long lists in the comments.\n\nContinue on the website—my invitation is already included:\n${link}\n\nPrefer the free iPhone app? Search Got One Spare? on the App Store, then enter invitation code ${status.code || ''} under “Have a collection invitation?” when signing up or signing in to compare your collection with mine.`;
+ const [postText,setPostText]=useState('');
+ useEffect(()=>{setPostText(suggestedPost);},[link,album?.name]);
+ const compare=()=>action(async()=>{
+  const clean=code.trim().toUpperCase();
+  const d=await request(`/collection-invitations/${encodeURIComponent(clean)}/comparison`,{token});
+  storage.setItem('collectionInvitation',clean);setAlbumId(d.album_id);
+  if(d.match_id){const matches=await api.getMatches(token,d.album_id);const found=matches.find(m=>m.id===d.match_id);if(found){setMatch(found);return;}}
+  setNotice(`Your invitation to ${d.name} is saved. Add spares and missing items for ${collectionTitle(d.album_id)}, then check again after matching runs. No eligible match is ready yet.`);
+ });
+ return <><section className="collection-share-banner"><div className="share-symbol"><AlbumCover album={album} small/><span><ArrowRightLeft size={20}/></span></div><div><p className="eyebrow">MORE COLLECTORS. MORE POSSIBILITIES.</p><h2>Find more swap partners</h2><p>Post in your collecting group or send to a friend. Let the app compare your lists.</p></div><button className="yellow-button" onClick={()=>setOpen(true)}>Share with other collectors <ArrowRight size={18}/></button></section>
+ {code && !open && <button className="share-app-button" onClick={()=>setOpen(true)}>Your saved collection invitation <ChevronRight size={18}/></button>}
+ {open && <div className="share-preview-overlay" role="dialog" aria-modal="true" aria-label="Share your collection" onKeyDown={e=>{if(e.key==='Escape')setOpen(false);if(e.key==='Tab'){const nodes=[...e.currentTarget.querySelectorAll('button:not(:disabled),input,textarea,a[href]')];const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}}><section className="share-preview-panel"><header><span className="eyebrow">YOUR COLLECTION. MORE CONNECTIONS.</span><button autoFocus aria-label="Close sharing" onClick={()=>setOpen(false)}><X/></button></header><h2>Give your collecting group a better swap list.</h2><p>Share in Facebook collecting groups, group chats or with friends. Collectors see a few of your spares, then sign in or join to find a possible swap.</p>
+ <article className="share-poster"><img src="/design/wordmark.png" alt="Got One Spare?"/><div className="share-cover-art"><AlbumCover album={album} small/></div><h3>Can we help each other<br/>finish our collection?</h3><p>{album?.name}</p><div><strong>{duplicates.length}<small>spare card types</small></strong><ArrowRightLeft/><strong>{needs.length}<small>missing items</small></strong></div></article>
+ <ErrorBanner message={error}/>{notice&&<p className="matching-notice" role="status">{notice}</p>}
+ {status.code ? <><label className="invite-code">YOUR SHARE LINK<input readOnly value={link} onFocus={e=>e.target.select()} /></label><button disabled={busy} className="yellow-button" onClick={()=>action(async()=>{await navigator.clipboard.writeText(link);setNotice('Link copied. Paste it in your collecting group or send to a friend.');})}>Copy collection link</button><label className="invite-code">SUGGESTED POST · EDIT BEFORE SHARING<textarea rows={7} value={postText} onChange={e=>setPostText(e.target.value)}/></label><button disabled={busy} className="yellow-button" onClick={()=>action(async()=>{await navigator.clipboard.writeText(postText.includes(link)?postText:`${postText}\n\n${link}`);setNotice('Post and link copied. Paste them into your group or message.');})}>Copy post &amp; link</button><button disabled={busy} className="share-app-button" onClick={()=>action(async()=>{if(navigator.share)await navigator.share({title:'Can we help each other finish our collection?',text:postText.replace(link,'').trim(),url:link});else {await navigator.clipboard.writeText(link);setNotice('Link copied for sharing.');}})}>Share invitation</button><button disabled={busy} className="share-app-button" onClick={()=>action(async()=>{await downloadCollectionCard(album,duplicates.length,needs.length,status.code);setNotice('Image prepared. Include your collection link in the post so people can open it.');})}>Save share image</button><button disabled={busy} className="share-back" onClick={()=>action(async()=>{await request(`/collection-invitations/${status.code}`,{method:'DELETE',token});await refresh();setNotice('Sharing disabled. The old link no longer works.');})}>Disable this share link</button></> : <><p className="share-privacy"><ShieldCheck size={18}/>Creating a link makes your first name, album totals and three spare items public. No address, email or private messages.</p><button disabled={busy} className="yellow-button" onClick={()=>action(async()=>{await request('/collection-invitations',{method:'POST',token,body:{albumId:album.id}});await refresh();})}>Create my share link</button></>}
+ <section className={`share-reward ${status.qualified?'is-earned':''}`}><div className="builder-medal"><Trophy size={30}/><span>BUILDER</span></div><div><strong>{status.qualified?'Community Builder unlocked':'Earn your Community Builder badge'}</strong><p>Help one new collector join through your invitation, verify their email and save spares and missing items for this album. Existing members can compare too, but don’t earn new-member credit.</p></div></section>
+ <label className="invite-code">Have a collection invitation?<input value={code} maxLength={12} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Enter invitation code"/></label><button disabled={busy||!code.trim()} className="yellow-button" onClick={compare}>Check this invitation</button>
+ {code&&<button className="share-back" onClick={()=>{storage.removeItem('collectionInvitation');setCode('');setNotice('Invitation cleared from this device.');}}>Clear saved invitation</button>}
+ </section></div>}
+ {match&&<SwapPreviewModal match={match} onClose={()=>setMatch(null)} onPropose={id=>{setMatch(null);setOpen(false);onOpenSwap(id);}}/>}</>;
+}
+
+function CollectionSharePreview({ album, duplicates = [], needs = [], user }) {
+  const [view, setView] = useState(() => storage.getItem('openCollectionSharing') === 'yes' ? 'share' : null);
+  useEffect(() => { storage.removeItem('openCollectionSharing'); }, []);
+  const [badge, setBadge] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const name = user?.name?.split(' ')[0] || 'Alex';
+  const samples = duplicates.slice(0, 3);
+  return <>
+    <section className="collection-share-banner">
+      <div className="share-symbol"><AlbumCover album={album} small /><span><ArrowRightLeft size={20} /></span></div>
+      <div><p className="eyebrow">MORE COLLECTORS. MORE POSSIBILITIES.</p><h2>Find more swap partners</h2><p>Post in your collecting group or send to a friend. Let the app compare your lists.</p></div>
+      <button className="yellow-button" onClick={() => setView('share')}>Share with other collectors <ArrowRight size={18} /></button>
+    </section>
+    {view && <div className="share-preview-overlay" role="dialog" aria-modal="true" aria-label="Collection sharing preview" onKeyDown={e => { if (e.key === 'Escape') setView(null); }}>
+      <section className="share-preview-panel"><header><span className="eyebrow">DESIGN PREVIEW · NO LIVE INVITATIONS</span><button autoFocus aria-label="Close sharing preview" onClick={() => setView(null)}><X /></button></header>
+      {view === 'share' ? <>
+        <h2>Give your collecting group a better swap list.</h2><p>Already swapping in a Facebook group? Share your collection there instead of typing out another list. It works in group chats and messages to friends too.</p>
+        <div className="share-destinations" aria-label="Where to share"><span><Users size={16} /> Facebook collecting groups</span><span><MessageCircle size={16} /> Group chats</span><span><Send size={16} /> Friends</span></div>
+        <section className="share-explainer"><strong>You share. They compare. You find a possible swap.</strong><p>Other collectors open your link to see a few of your spares. They can sign in—or join free—to compare both lists, without the back-and-forth in comments.</p><p>Keep enjoying your group. Your link helps turn “Have you got this?” into a clear comparison.</p></section>
+        <p className="eyebrow">YOUR COLLECTION PREVIEW</p>
+        <article className="share-poster"><div className="share-cover-art"><AlbumCover album={album} small /></div><img src="/design/wordmark.png" alt="Got One Spare?" /><h3>Can we help each other<br />finish our collection?</h3><p>{album?.name}</p><div><strong>{duplicates.length}<small>spare card types</small></strong><ArrowRightLeft /><strong>{needs.length}<small>missing cards</small></strong></div><p>Got something I need? Compare your list with mine.</p></article>
+        <button className="yellow-button" onClick={() => setView('visitor')}>Preview what a newcomer sees <ArrowRight size={18} /></button>
+        <p className="share-privacy"><ShieldCheck size={18} /> Only a small preview will be public. No email, address or private messages.</p>
+        <section className={`share-reward ${badge ? "is-earned" : ""}`}><div className="builder-medal"><Trophy size={30} /><span>BUILDER</span></div><div><strong>{badge ? 'Community Builder · example earned state' : 'Earn your Community Builder badge'}</strong><p>{badge ? 'One invited collector has added spares and missing items.' : 'Earn it when someone new joins through your shared link and saves both spares and missing items for this album. Existing members can compare too, but do not count as new invitations.'}</p><button onClick={() => setBadge(!badge)}>{badge ? 'Show starting state' : 'Preview earned badge'}</button></div></section>
+      </> : view === 'visitor' ? <>
+        <button className="share-back" onClick={() => setView('share')}><ArrowLeft size={16} /> Back to sharing</button><div className="invitation-hero"><AlbumCover album={album} small /><div><p className="eyebrow">YOUR NEXT SWAP STARTS HERE</p><h2>Got a spare<br />for {name}?</h2><p>{album?.name}</p></div></div>
+        <div className="share-totals"><strong>{duplicates.length} spare card types</strong><strong>{needs.length} missing cards</strong></div><h3>A few of {name}’s spares</h3>
+        {samples.length ? samples.map(s => <div className="share-sample" key={s.sticker_id}><span>{s.sticker_number}</span><div><strong>{s.description}</strong><small>{s.team_name}</small></div></div>) : <p>No spares listed yet. Come back when this collector has updated their list.</p>}
+        <section className="share-benefits"><h3>Turn a possible swap into a clear comparison.</h3><p>Seen this in your collecting group or received it from a friend? Sign in or join free and add your lists. We’ll check what you and this collector have for each other—and look for other swap partners too.</p><p>Your lists stay saved for your next swap. A match isn’t guaranteed.</p></section>
+        <div className="share-route"><span className="eyebrow">CHOOSE HOW TO GET STARTED</span><button className="yellow-button" onClick={() => setView('onboarding')}>Continue on the website <ArrowRight size={18} /></button><p className="route-note">Quickest option · {name}’s invitation stays with you</p><button className="share-app-button" onClick={() => setView('iphone')}><Package size={19} /> Get the free iPhone app <ChevronRight size={19} /></button><button className="share-back" onClick={() => setView('onboarding')}>Already registered? Sign in to compare</button></div>
+      </> : view === 'iphone' ? <><button className="share-back" onClick={() => setView('visitor')}><ArrowLeft size={16} /> Back to invitation</button><div className="invitation-hero"><img src="/design/wordmark.png" alt="Got One Spare?" /><div><p className="eyebrow">TAKE YOUR COLLECTION WITH YOU</p><h2>Your swaps.<br />In your pocket.</h2></div></div><h3>Keep {name}’s invitation handy.</h3><p>Copy this invitation code before downloading. In the app, choose “Have a collection invitation?” when signing up or signing in.</p><div className="invite-code"><span>EXAMPLE CODE · THIS ALBUM ONLY</span><strong>DEMO-{album?.id || 1}-ALEX</strong><button onClick={async () => { try { await navigator.clipboard.writeText(`DEMO-${album?.id || 1}-ALEX`); setCopied(true); } catch { setCopied(false); } }}>{copied ? 'Copied example code' : 'Copy invitation code'}</button></div><button className="yellow-button" onClick={() => setView('app-download')}>Download on the App Store <ArrowRight size={18} /></button><p className="route-note">Preview only. This example code cannot be redeemed.</p></> : view === 'app-download' ? <><h2>You’re ready to take it with you.</h2><p>In the released feature, the download button will open the Got One Spare? App Store listing. After installing, enter your invitation code to return to {name} and this album.</p><p className="matching-notice">External downloads are disabled in this isolated preview. Invitation redemption and installed-app links are not connected yet.</p><button className="yellow-button" onClick={() => setView('iphone')}>Back to invitation code</button></> : <><h2>Keep your invitation. Start your list.</h2><p>After sign-up or sign-in, we’ll bring you back to {name}’s invitation for <strong>{album?.name}</strong>.</p><ol className="share-steps"><li>Create your free account or sign in.</li><li>Add your spares and missing cards using the team checklist.</li><li>See a real comparison, then use the normal swap process if you match.</li></ol><p className="matching-notice">Preview only: no account, referral, badge or swap is created here.</p><button className="yellow-button" onClick={() => setView('visitor')}>Back to collection preview</button></>}
+      </section></div>}
+  </>;
+}
+
 function DashboardScreen({ onOpenSwap }) {
   const { token, user } = useAuth();
   const { albumId, albums, setAlbumId } = useAlbum();
@@ -1936,6 +2096,8 @@ function DashboardScreen({ onOpenSwap }) {
   return <div className="album-screen">
     <ErrorBanner message={error} onDismiss={() => { setError(null); setErrorSwapId(null); }} action={errorSwapId && onOpenSwap ? { label: `View swap #${errorSwapId}`, onClick: () => onOpenSwap(errorSwapId) } : null} />
     <div className="album-heading"><AlbumCover album={selectedAlbum} small /><div><p className="eyebrow">MY STICKERS</p><h1>{selectedAlbum?.name || 'Your collection'}</h1><p>{totalSpares} spares · {totalNeeds} needed</p></div></div>
+    {COLLECTION_SHARING && <CollectionSharing album={selectedAlbum} duplicates={duplicates} needs={needs} onOpenSwap={onOpenSwap} />}
+    {IS_PREVIEW && !IS_INTEGRATION && <CollectionSharePreview album={selectedAlbum} duplicates={duplicates} needs={needs} user={user} />}
     {user?.matching_paused && <p className="matching-notice">Matching paused. Turn it back on in your profile to receive new matches.</p>}
     <div className="album-controls"><label className="album-select"><Layers size={17} /><select aria-label="Choose album" value={albumId} onChange={e => setAlbumId(Number(e.target.value))}>{albums.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><div className="album-tabs"><button aria-pressed={pane === 'duplicate'} onClick={() => setPane('duplicate')}>Spares ({totalSpares})</button><button aria-pressed={pane === 'need'} onClick={() => setPane('need')}>Needs ({totalNeeds})</button></div><button className="yellow-button album-add" onClick={() => setPicker(pane)}>Add {pane === 'duplicate' ? 'spare' : 'missing'} stickers <Plus size={22} /></button><label className="album-search"><Search size={19} /><input aria-label="Search your stickers" placeholder="Search numbers, players or teams…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className="team-filter"><label>Team<select aria-label="Filter by team" value={activeTeam} onChange={e => setActiveTeam(e.target.value)}>{teamGroups.map(t => <option key={t}>{t}</option>)}</select></label><span>{shown.length} sticker{shown.length === 1 ? '' : 's'}</span></div></div>
     {shown.length ? <div className="album-grid">{shown.map(sticker => <StickerCard key={sticker.sticker_id} sticker={sticker} mode={pane} onRemove={() => pane === 'duplicate' ? removeDuplicate(sticker.sticker_id) : removeNeed(sticker.sticker_id)} onUpdateQty={pane === 'duplicate' ? async newQty => { try { await api.updateDuplicateQty(token, sticker.sticker_id, newQty); setDuplicates(d => d.map(x => x.sticker_id === sticker.sticker_id ? { ...x, quantity: newQty } : x)); } catch(err) { setError(err.message); } } : undefined} />)}</div> : <EmptyState text={query ? 'No stickers match your search.' : pane === 'duplicate' ? 'Add your spare stickers to start finding matches.' : 'Add the stickers you’re missing to find your next swap.'} />}
@@ -4628,6 +4790,7 @@ function MoreScreen({ user, onNavigate, onProfile, onLogout, onFeedback }) {
 }
 
 export default function PaniniSwapApp() {
+  const [showCollectionInvitation,setShowCollectionInvitation]=useState(()=>COLLECTION_SHARING && !!new URLSearchParams(location.search).get('collection'));
   const [token, setToken] = useState(() => storage.getItem('authToken') || null);
   const [user, setUser] = useState(null);
   const [tab, setTabState] = useState('home');
@@ -4798,6 +4961,7 @@ export default function PaniniSwapApp() {
     storage.setItem('authToken', newToken);
     setToken(newToken);
     setUser(newUser);
+    if (COLLECTION_SHARING && storage.getItem('collectionInvitation')) setTab('dashboard');
     if (FOUNDER_ENABLED) configureRevenueCat(newUser.id);
   };
 
@@ -4835,6 +4999,8 @@ export default function PaniniSwapApp() {
       </div>
     );
   }
+
+  if (showCollectionInvitation) return <CollectionInvitationLanding code={collectionCode()} onContinue={(keep,invitedAlbum)=>{if(invitedAlbum)setAlbumId(invitedAlbum);if(!keep) storage.removeItem('collectionInvitation');const url=new URL(location.href);url.searchParams.delete('collection');history.replaceState(null,'',url);setShowCollectionInvitation(false);if(token)setTab('dashboard');}}/>;
 
   if (!token || !user) {
     return <AuthScreen onAuthed={handleAuthed} />;
