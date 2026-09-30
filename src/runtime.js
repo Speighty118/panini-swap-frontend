@@ -1,5 +1,6 @@
 // Builds default to isolated fixtures. A release requires an explicit environment.
 export const IS_INTEGRATION = import.meta.env.VITE_APP_ENV === 'integration';
+export const IS_SUPPORT_TEST = import.meta.env.DEV && import.meta.env.VITE_APP_ENV === 'preview' && import.meta.env.VITE_SUPPORT_TEST_CHECKOUT === 'true';
 export const IS_PREVIEW = import.meta.env.VITE_APP_ENV !== 'production';
 export const API_BASE = IS_INTEGRATION ? 'http://127.0.0.1:3007/api' : IS_PREVIEW ? '/api' : import.meta.env.VITE_API_BASE_URL;
 export const storage = {
@@ -10,8 +11,12 @@ export const storage = {
 export function preparePreview() {
   if (!IS_PREVIEW) return;
   // This runs before importing/rendering App, including native plugin code.
-  const localFetch = IS_INTEGRATION ? window.fetch.bind(window) : null;
+  const localFetch = (IS_INTEGRATION || IS_SUPPORT_TEST) ? window.fetch.bind(window) : null;
   window.fetch = async (input, options) => {
+    if (IS_SUPPORT_TEST) {
+      const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+      if (url.origin === location.origin && ['/__support-test/api/support/checkout', '/__support-test/api/support/status'].includes(url.pathname)) return localFetch(input, options);
+    }
     if (IS_INTEGRATION) {
       const url = new URL(typeof input === 'string' ? input : input.url, location.href);
       if (url.origin === 'http://127.0.0.1:3007' && url.pathname.startsWith('/api/')) return localFetch(input, options);

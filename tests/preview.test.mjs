@@ -15,7 +15,7 @@ test('existing API contract and sensitive utilities are unchanged', () => {
   if(!before.has(name)) continue;
   assert.equal(after.get(name),before.get(name),name);
  }
- assert.match(src,/const FOUNDER_ENABLED = false/);
+ assert.match(src,/const FOUNDER_ENABLED = !IS_PREVIEW/);
 });
 test('preview defaults to fixtures and rejects any API configuration', async () => {
  const previous = {...process.env};
@@ -41,7 +41,7 @@ test('profile, notifications, and proposal counts satisfy UI contracts', async()
  resetFixtures();
  assert.ok(Array.isArray((await request('/ratings/user/2')).recentRatings));
  assert.equal((await request('/swaps/stats/1')).name,'Alex Morgan');
- assert.equal((await request('/notifications')).unreadCount,1);
+ assert.equal((await request('/notifications')).unreadCount,2);
  const match=(await request('/swaps/matches?albumId=1'))[2];
  const preview=await request(`/swaps/preview/${match.id}`);
  const {swap}=await request('/swaps',{method:'POST',body:{matchId:match.id}});
@@ -61,7 +61,7 @@ test('preview runtime blocks outgoing APIs before the app loads and separates st
  const {runInNewContext}=await import('node:vm');
  const values=new Map([['authToken','live-token-sentinel']]);
  const context={window:{},navigator:{sendBeacon:()=>true,serviceWorker:{}},XMLHttpRequest:function(){},document:{addEventListener(){},documentElement:{dataset:{}}},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}};
- const code=readFileSync('src/runtime.js','utf8').replaceAll('import.meta.env.VITE_APP_ENV',"'preview'").replaceAll('import.meta.env.VITE_API_BASE_URL','undefined').replaceAll('export ','');
+ const code=readFileSync('src/runtime.js','utf8').replaceAll('import.meta.env.VITE_APP_ENV',"'preview'").replaceAll('import.meta.env.VITE_API_BASE_URL','undefined').replaceAll('import.meta.env.DEV','true').replaceAll('import.meta.env.VITE_SUPPORT_TEST_CHECKOUT','undefined').replaceAll('export ','');
  runInNewContext(code+';preparePreview();',context);
  await assert.rejects(context.window.fetch('https://example.invalid'),/disabled/);
  assert.throws(()=>new context.XMLHttpRequest().open('GET','https://example.invalid'),/disabled/);
@@ -74,8 +74,19 @@ test('preview runtime blocks outgoing APIs before the app loads and separates st
 test('integration permits only the dedicated local API and never seeds demo credentials',async()=>{
  const {runInNewContext}=await import('node:vm');const values=new Map();const calls=[];
  const context={URL,location:{href:'http://127.0.0.1:5175/'},window:{fetch:async(...args)=>{calls.push(args);return 'local-response'}},navigator:{sendBeacon:()=>true,serviceWorker:{}},XMLHttpRequest:function(){},document:{addEventListener(){},documentElement:{dataset:{}}},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}};
- const code=readFileSync('src/runtime.js','utf8').replaceAll('import.meta.env.VITE_APP_ENV',"'integration'").replaceAll('import.meta.env.VITE_API_BASE_URL','undefined').replaceAll('export ','');runInNewContext(code+';preparePreview();',context);
+ const code=readFileSync('src/runtime.js','utf8').replaceAll('import.meta.env.VITE_APP_ENV',"'integration'").replaceAll('import.meta.env.VITE_API_BASE_URL','undefined').replaceAll('import.meta.env.DEV','true').replaceAll('import.meta.env.VITE_SUPPORT_TEST_CHECKOUT','undefined').replaceAll('export ','');runInNewContext(code+';preparePreview();',context);
  assert.equal(await context.window.fetch('http://127.0.0.1:3007/api/albums'),'local-response');
  for(const url of ['https://example.invalid/api','http://127.0.0.1:3000/api','http://127.0.0.1:3007/admin'])await assert.rejects(context.window.fetch(url),/disabled/);
  assert.equal(calls.length,1);assert.equal(values.size,0);
+});
+
+test('support sandbox allows only its two same-origin endpoints',async()=>{
+ const {runInNewContext}=await import('node:vm'); const values=new Map(); const calls=[];
+ const context={URL,location:{href:'http://127.0.0.1:5183/',origin:'http://127.0.0.1:5183'},window:{fetch:async(...args)=>{calls.push(args);return 'sandbox'}},navigator:{serviceWorker:{}},XMLHttpRequest:function(){},document:{addEventListener(){},documentElement:{dataset:{}}},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}};
+ const code=readFileSync('src/runtime.js','utf8').replaceAll('import.meta.env.VITE_APP_ENV',"'preview'").replaceAll('import.meta.env.DEV','true').replaceAll('import.meta.env.VITE_SUPPORT_TEST_CHECKOUT',"'true'").replaceAll('import.meta.env.VITE_API_BASE_URL','undefined').replaceAll('export ','');
+ runInNewContext(code+';preparePreview();',context);
+ assert.equal(await context.window.fetch('/__support-test/api/support/checkout'),'sandbox');
+ assert.equal(await context.window.fetch('/__support-test/api/support/status?sessionId=test'),'sandbox');
+ for(const url of ['https://example.invalid/__support-test/api/support/status','/api/users','/__support-test/api/admin','http://127.0.0.1:3008/api/support/status'])await assert.rejects(context.window.fetch(url),/disabled/);
+ assert.equal(calls.length,2);
 });

@@ -1,3 +1,4 @@
+import surveyDefinition from './survey.js';
 // Synthetic local state for visual/interaction review, not a server emulator.
 const now = '2026-09-12T09:00:00.000Z';
 const clone = value => structuredClone(value);
@@ -5,7 +6,7 @@ export const demoUser = { id: 1, name: 'Alex Morgan', email: 'alex@example.test'
 const albums = [{ id: 1, name: "World Cup Stickers 2026" }, { id: 2, name: "Men's Premier League Trading Cards 2026/27" }];
 const people = [{ id: 2, name: 'Jamie R.', rating_avg: 4.9, rating_count: 12 }, { id: 3, name: 'Sam W.', rating_avg: 4.8, rating_count: 8 }, { id: 4, name: 'Morgan L.', rating_avg: 5, rating_count: 19 }];
 const stickers = albums.flatMap(a => Array.from({ length: 36 }, (_, n) => ({ id: a.id * 1000 + n + 1, sticker_id: a.id * 1000 + n + 1, album_id: a.id, sticker_number: String(n + 1).padStart(3, '0'), team_name: ['England', 'France', 'Spain', 'Germany', 'Brazil', 'Argentina'][n % 6], description: ['Oliver Reed', 'Lucas Moreau', 'Mateo Vega', 'Felix Adler', 'Rafael Costa', 'Nico Romero'][n % 6], preview_art: n % 6 })));
-let user, duplicates, needs, matches, swaps, chats, conversations, blocked, notifications;
+let user, duplicates, needs, matches, swaps, chats, conversations, blocked, notifications, surveyAnswered;
 export function resetFixtures() {
  user = clone(demoUser);
  duplicates = stickers.filter(s => s.id % 1000 <= 12).map(s => ({ ...s, quantity: 2 }));
@@ -14,8 +15,8 @@ export function resetFixtures() {
  swaps = [makeSwap(1042, 1, 2, 'accepted'), makeSwap(1043, 1, 3, 'proposed'), makeSwap(1044, 2, 4, 'posted')];
  chats = { 1042: [{ id: 1, sender_id: 2, user_id: 2, sender_name: 'Jamie R.', body: 'Hi Alex! Your stickers are packed and ready. Looking forward to this swap.', created_at: now }] };
  conversations = [{ conversation_id: 21, other_user_id: 2, other_user_name: 'Jamie R.', unread_count: 1, last_message: 'Your stickers are packed and ready!', last_sender_id: 2, last_message_at: now, other_user_last_login_at: now }];
- blocked = [];
- notifications = [{ id: 1, title: 'Your next swap is waiting', body: 'Jamie has accepted your swap. You are ready to post.', type: 'swap_accepted', is_read: false, created_at: now }];
+ blocked = []; surveyAnswered = null;
+ notifications = [{ id: 2, title: 'What collection should we add next?', body: 'Help choose our next collection. Take the one-minute survey: https://www.gotonespare.com/?survey=1', type: 'announcement', is_read: false, created_at: now }, { id: 1, title: 'Your next swap is waiting', body: 'Jamie has accepted your swap. You are ready to post.', type: 'swap_accepted', is_read: false, created_at: now }];
 }
 function makeSwap(id, album, other, status) { const p = people.find(p => p.id === other); return { id, album_id: album, user_a_id: 1, user_b_id: other, user_a_accepted: status !== 'proposed', user_b_accepted: true, user_a_posted: status === 'posted', user_b_posted: status === 'posted', user_a_received: false, user_b_received: false, status, other_user_id: other, other_user_name: p.name, display_give_count: 6, display_get_count: 6, created_at: now, updated_at: now, last_login_at: now }; }
 function previewFor(album, count = 6) { return { userAId: 1, aGivesB: stickers.filter(s => s.album_id === album).slice(0, count), bGivesA: stickers.filter(s => s.album_id === album).slice(12, 12 + count) }; }
@@ -58,6 +59,8 @@ export async function previewRequest(path, { method = 'GET', body } = {}) {
  else if (p.includes('/messages/block/')) { const id = Number(p.split('/').pop()); if (method === 'DELETE') blocked = blocked.filter(x => x.id !== id); else blocked.push(people.find(x => x.id === id)); result = { success: true }; }
  else if (p === '/messages') { if (method === 'POST') { const other = people.find(p => p.id === body.recipientId); const c = conversations.find(c => c.other_user_id === other.id) || { conversation_id: Date.now(), other_user_id: other.id, other_user_name: other.name, unread_count: 0 }; if (!conversations.includes(c)) conversations.push(c); chats[c.conversation_id] ||= []; chats[c.conversation_id].push({ id: Date.now(), sender_id: 1, body: body.body, created_at: now }); result = { conversationId: c.conversation_id }; } else result = conversations; }
  else if (/^\/messages\/\d+/.test(p)) { const [, , id, action] = p.split('/'); chats[id] ||= [{ id: 51, sender_id: 2, sender_name: 'Jamie R.', body: 'Hi Alex! Your stickers are packed and ready.', created_at: now }]; if (action === 'send') { const msg = { id: Date.now(), sender_id: 1, body: body.body, created_at: now }; chats[id].push(msg); result = msg; } else if (action === 'report') result = { success: true }; else { const c = conversations.find(c => c.conversation_id === Number(id)); if (c) c.unread_count = 0; result = { messages: chats[id], otherUser: people.find(p => p.id === c?.other_user_id) || people[0], isBlocked: blocked.some(x => x.id === c?.other_user_id) }; } }
+ else if (p === '/surveys') result = [{...surveyDefinition,id:1,status:'published',answered_at:surveyAnswered}];
+ else if (p === '/surveys/1/responses' && method === 'POST') { surveyAnswered ||= new Date().toISOString(); result={submitted:true}; }
  else if (p === '/notifications') result = { notifications, unreadCount: notifications.filter(n => !n.is_read).length };
  else if (p.startsWith('/notifications/')) { notifications.forEach(n => { n.is_read = true; }); result = { success: true }; }
  else if (p.startsWith('/ratings/user/')) result = { recentRatings: [], ratings: [], user: people.find(x => x.id === Number(p.split('/').pop())) || user, average: 4.9, count: 12 };

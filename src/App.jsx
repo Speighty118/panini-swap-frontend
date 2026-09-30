@@ -1,11 +1,14 @@
+import { CARD_STYLES, renderCollectionCard } from './collectionCard';
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { Search, Plus, X, Star, ArrowRightLeft, Package, CheckCircle2, Clock, MapPin, LogOut, Loader2, Bell, MessageCircle, Send, Menu } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { IS_PREVIEW, IS_INTEGRATION, API_BASE, storage } from './runtime';
+import { IS_PREVIEW, IS_INTEGRATION, IS_SUPPORT_TEST, API_BASE, storage } from './runtime';
 import { previewRequest } from './preview/api';
 import { Home, Layers, Users, MoreHorizontal, ChevronRight, ArrowRight, ArrowLeft, Settings, Trophy, Moon, Sun, HelpCircle, Camera, Truck, ShieldCheck, Sparkles, History, UserRound } from 'lucide-react';
-import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
+import { splitNotificationLinks, surveyIdFromLink } from './notificationLinks';
+import { createSupportCheckout } from './supportPayments';
+import { configureRevenueCat, purchaseFounderPackage, restoreFounderMembership, clearPurchaseAccount, createAccountSupportClient, createSandboxSupportClient } from './revenuecat';
 
 // =================================================================
 // API CLIENT
@@ -21,7 +24,8 @@ import { configureRevenueCat, purchaseFounderPackage } from './revenuecat';
 // skips RevenueCat setup entirely, without touching the underlying
 // integration - flip back to true once the IAP is approved and
 // properly attached to a submission.
-const FOUNDER_ENABLED = false;
+const FOUNDER_ENABLED = !IS_PREVIEW;
+const SURVEYS_ENABLED = IS_PREVIEW;
 
 const AuthContext = createContext(null);
 const ThemeContext = createContext({ dark: false, toggle: () => {} });
@@ -40,8 +44,9 @@ function useAlbum() {
 }
 
 async function request(path, { method = 'GET', body, token } = {}) {
-  if (IS_PREVIEW && !IS_INTEGRATION) return previewRequest(path, { method, body, token });
-  const res = await fetch(`${API_BASE}${path}`, {
+  const supportTest = IS_SUPPORT_TEST && ['/support/checkout', '/support/status'].includes(path.split('?')[0]);
+  if (IS_PREVIEW && !IS_INTEGRATION && !supportTest) return previewRequest(path, { method, body, token });
+  const res = await fetch(`${supportTest ? '/__support-test/api' : API_BASE}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -1409,7 +1414,7 @@ function DisputeModal({ swapId, otherUserName, onClose, onFiled }) {
 // One-time £14.99 supporter purchase — redirects to Stripe Checkout.
 // =================================================================
 function FounderModal({ onClose }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [count, setCount] = useState(null);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1431,7 +1436,8 @@ function FounderModal({ onClose }) {
     // briefly afterward until that lands.
     if (Capacitor.isNativePlatform()) {
       try {
-        await purchaseFounderPackage();
+        await purchaseFounderPackage(user.id);
+        await request('/revenuecat/sync',{method:'POST',token});
         for (let i = 0; i < 6; i++) {
           await new Promise((r) => setTimeout(r, 1500));
           const fresh = await api.getFounderStatus(token).catch(() => null);
@@ -1459,10 +1465,22 @@ function FounderModal({ onClose }) {
     }
   };
 
+  const restore = async () => {
+    setLoading(true); setError(null);
+    try {
+      const restored = await restoreFounderMembership(user.id);
+      if (!restored) throw new Error('No Founder membership was found for this Apple account.');
+      await request('/revenuecat/sync',{method:'POST',token});
+      const fresh = await api.getFounderStatus(token);
+      setStatus(fresh);
+      if (!fresh.isFounder) setError('Apple recognised your membership, but it is not linked to this account yet. Contact support; please do not purchase again.');
+    } catch (err) { setError(err.message || 'Could not restore purchases.'); }
+    finally { setLoading(false); }
+  };
+
   const BENEFITS = [
     'Founder badge shown next to your name',
     'Gold styling on your profile',
-    'Early access to vote on new features',
     'Lifetime recognition as a founding supporter',
   ];
 
@@ -1520,6 +1538,7 @@ function FounderModal({ onClose }) {
                 {loading ? (Capacitor.isNativePlatform() ? 'Processing…' : 'Redirecting to checkout…') : 'Become a Founder — £14.99'}
               </button>
 
+              {Capacitor.isNativePlatform() && <button className="back-link" disabled={loading} onClick={restore}>Restore purchases</button>}
               <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                 One-time payment, not a subscription. Core swapping, matching and messaging will always stay completely free for everyone.
               </p>
@@ -1825,7 +1844,16 @@ function UserProfileModal({ userId, onClose, onEditOwnProfile }) {
 // collection types (e.g. trading cards) later without cramming the
 // album tab row.
 // =================================================================
+function NotificationBody({ text, onSurvey }) {
+  return splitNotificationLinks(text).map((part,i) => part.href
+    ? <a key={i} href={part.href} target="_blank" rel="noopener noreferrer" onClick={e => { e.stopPropagation(); if (surveyIdFromLink(part.href)) { e.preventDefault(); onSurvey(surveyIdFromLink(part.href)); } }} style={{color:'var(--primary)',textDecoration:'underline',overflowWrap:'anywhere'}}>{part.text}</a>
+    : <React.Fragment key={i}>{part.text}</React.Fragment>);
+}
+
 function HomeFeatureCarousel({ onNavigate }) {
+  const {token}=useAuth();
+  const [availableSurvey,setAvailableSurvey]=useState(null);
+  useEffect(()=>{if(!SURVEYS_ENABLED)return;let live=true;request('/surveys',{token}).then(list=>{if(live)setAvailableSurvey(list.find(s=>s.status==='published'&&!s.answered_at)||null);}).catch(()=>{});return()=>{live=false;};},[token]);
   const [slide, setSlide] = useState(0);
   const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -1833,7 +1861,9 @@ function HomeFeatureCarousel({ onNavigate }) {
   const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [guide, setGuide] = useState(false);
   const touchX = useRef(null);
-  const count = IS_PREVIEW || COLLECTION_SHARING ? 3 : 1;
+  const slides = [...(IS_PREVIEW || COLLECTION_SHARING ? [0,1,2] : [0]), ...(availableSurvey?[3]:[]), ...((IS_PREVIEW||FOUNDER_ENABLED)?[4]:[])];
+  const count = slides.length;
+  const kind = slides[slide % count];
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     const motion = () => setReduced(media.matches);
@@ -1849,20 +1879,20 @@ function HomeFeatureCarousel({ onNavigate }) {
   const select = n => { setPaused(true); setSlide((n + count) % count); };
   const share = () => { storage.setItem('openCollectionSharing', 'yes'); onNavigate('dashboard'); };
   return <>
-    <section className={`feature-carousel feature-slide-${slide}`} aria-label="Discover Got One Spare" aria-roledescription="carousel"
+    <section className={`feature-carousel feature-slide-${kind}`} aria-label="Discover Got One Spare" aria-roledescription="carousel"
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={e => { if (!e.target.closest('.carousel-play')) setPaused(true); }}
       onTouchStart={e => { touchX.current = e.touches[0].clientX; setPaused(true); }}
       onTouchEnd={e => { if (touchX.current !== null) { const delta = e.changedTouches[0].clientX - touchX.current; if (Math.abs(delta) > 50) select(slide + (delta < 0 ? 1 : -1)); touchX.current = null; } }}>
       <div className="carousel-stage" aria-live={paused || reduced ? 'polite' : 'off'}>
         <div className="carousel-copy" role="group" aria-roledescription="slide" aria-label={`${slide + 1} of ${count}`} key={slide}>
-          <span className="carousel-kicker">{['SMALL SWAPS. BIG COLLECTIONS.', 'NEW · SHARE YOUR COLLECTION', 'MEET YOUR NEXT MILESTONE'][slide]}</span>
-          <h2>{slide === 0 ? <>Your next<br/>great swap<br/><em>starts here.</em></> : slide === 1 ? <>Share your list.<br/>Find your<br/><em>next swap.</em></> : <>Help our<br/>community<br/><em>grow.</em></>}</h2>
-          <p>{['List your spares. Find your missing pieces.', 'Post in your collecting group or send to a friend. We’ll compare your lists.', 'Bring a new collector along. Earn your Community Builder badge.'][slide]}</p>
-          <button className="yellow-button" onClick={() => { setPaused(true); if (slide === 0) onNavigate('dashboard'); else if (slide === 1) share(); else setGuide(true); }}>{['Add spares', 'Share your collection', 'See how it works'][slide]}<ArrowRight size={17}/></button>
+          <span className="carousel-kicker">{['SMALL SWAPS. BIG COLLECTIONS.', 'NEW · SHARE YOUR COLLECTION', 'MEET YOUR NEXT MILESTONE', 'HAVE YOUR SAY · 1 MINUTE', 'POWERED BY COLLECTORS LIKE YOU'][kind]}</span>
+          <h2>{kind === 0 ? <>Your next<br/>great swap<br/><em>starts here.</em></> : kind === 1 ? <>Share your list.<br/>Find your<br/><em>next swap.</em></> : kind === 4 ? <>Keep the<br/>swaps<br/><em>coming.</em></> : kind === 3 ? <>Your collection.<br/>Your choice.<br/><em>What’s next?</em></> : <>Help our<br/>community<br/><em>grow.</em></>}</h2>
+          <p>{['List your spares. Find your missing pieces.', 'Post in your collecting group or send to a friend. We’ll compare your lists.', 'Bring a new collector along. Earn your Community Builder badge.', availableSurvey?.title || 'Tell us what matters to you.', 'Support the app from £3. Help fund running costs and new improvements.'][kind]}</p>
+          <>{kind === 4 ? <button className="yellow-button" onClick={() => onNavigate('communitySupport')}>Support the app <ArrowRight size={17}/></button> : kind === 3 ? <button className="yellow-button" onClick={() => onNavigate('surveys',availableSurvey.id)}>Take the survey <ArrowRight size={17}/></button> : <button className="yellow-button" onClick={() => { setPaused(true); if (kind === 0) onNavigate('dashboard'); else if (kind === 1) share(); else setGuide(true); }}>{['Add spares', 'Share your collection', 'See how it works'][kind]}<ArrowRight size={17}/></button>}</>
         </div>
-        <div className="carousel-art" aria-hidden="true">{slide === 2 ? <div className="carousel-medal"><Trophy size={54}/><strong>COMMUNITY<br/>BUILDER</strong><span>GOT ONE SPARE?</span></div> : slide === 1 ? <div className="carousel-share-art"><div className="carousel-message"><MessageCircle size={20}/><span>My swap list</span><div className="carousel-list-line"/><div className="carousel-list-line short"/><div className="carousel-link-chip">gotonespare.com <ArrowRight size={12}/></div></div><div className="carousel-people"><span><UserRound size={21}/></span><span><UserRound size={21}/></span><span><UserRound size={21}/></span></div><span className="carousel-send"><Send size={24}/></span></div> : <><div className="carousel-card card-back"><Layers size={35}/><strong>{slide === 0 ? 'SPARE' : 'YOUR LIST'}</strong><span>01</span></div><div className="carousel-card card-front">{slide === 0 ? <ArrowRightLeft size={35}/> : <Users size={35}/>}<strong>{slide === 0 ? 'NEEDED' : 'YOUR GROUP'}</strong><span>{slide === 0 ? '02' : 'LET’S SWAP'}</span></div><span className="carousel-art-orbit"><ArrowRightLeft size={23}/></span></>}</div>
+        <div className="carousel-art" aria-hidden="true">{kind === 4 ? <div className="carousel-support-art"><Sparkles size={29}/><strong>SMALL<br/>THANKS.<br/><em>BIG HELP.</em></strong><span><ShieldCheck size={16}/> Swapping stays free</span></div> : kind === 3 ? <div className="carousel-survey-art"><MessageCircle size={42}/><strong>YOU<br/>CHOOSE</strong><span><CheckCircle2 size={19}/> Your next collection</span><span><CheckCircle2 size={19}/> Your next swaps</span></div> : kind === 2 ? <div className="carousel-medal"><Trophy size={54}/><strong>COMMUNITY<br/>BUILDER</strong><span>GOT ONE SPARE?</span></div> : kind === 1 ? <div className="carousel-share-art"><div className="carousel-message"><MessageCircle size={20}/><span>My swap list</span><div className="carousel-list-line"/><div className="carousel-list-line short"/><div className="carousel-link-chip">gotonespare.com <ArrowRight size={12}/></div></div><div className="carousel-people"><span><UserRound size={21}/></span><span><UserRound size={21}/></span><span><UserRound size={21}/></span></div><span className="carousel-send"><Send size={24}/></span></div> : <><div className="carousel-card card-back"><Layers size={35}/><strong>{kind === 0 ? 'SPARE' : 'YOUR LIST'}</strong><span>01</span></div><div className="carousel-card card-front">{kind === 0 ? <ArrowRightLeft size={35}/> : <Users size={35}/>}<strong>{kind === 0 ? 'NEEDED' : 'YOUR GROUP'}</strong><span>{kind === 0 ? '02' : 'LET’S SWAP'}</span></div><span className="carousel-art-orbit"><ArrowRightLeft size={23}/></span></>}</div>
       </div>
-      {count > 1 && <div className="carousel-controls"><div className="carousel-dots" aria-label="Choose a banner">{['Start swapping','Share your collection','Community Builder'].map((name,i)=><button key={name} aria-label={`Show ${name}`} aria-current={slide===i?'true':undefined} onClick={()=>select(i)}><span/></button>)}</div><span className="carousel-position">0{slide+1} / 03</span><button className="carousel-arrow" aria-label="Previous banner" onClick={()=>select(slide-1)}><ArrowLeft size={17}/></button><button className="carousel-arrow" aria-label="Next banner" onClick={()=>select(slide+1)}><ArrowRight size={17}/></button>{!reduced && <button className="carousel-play" aria-label={paused?'Play banners':'Pause banners'} onClick={()=>setPaused(p=>!p)}>{paused ? '▶' : 'Ⅱ'}</button>}</div>}
+      {count > 1 && <div className="carousel-controls"><div className="carousel-dots" aria-label="Choose a banner">{slides.map((id,i)=><button key={id} aria-label={`Show ${['Start swapping','Share your collection','Community Builder','Collection survey','Support the app'][id]}`} aria-current={slide===i?'true':undefined} onClick={()=>select(i)}><span/></button>)}</div><span className="carousel-position">0{slide+1} / 0{count}</span><button className="carousel-arrow" aria-label="Previous banner" onClick={()=>select(slide-1)}><ArrowLeft size={17}/></button><button className="carousel-arrow" aria-label="Next banner" onClick={()=>select(slide+1)}><ArrowRight size={17}/></button>{!reduced && <button className="carousel-play" aria-label={paused?'Play banners':'Pause banners'} onClick={()=>setPaused(p=>!p)}>{paused ? '▶' : 'Ⅱ'}</button>}</div>}
     </section>
     {guide && <div className="gos-modal-backdrop"><section className="gos-modal" role="dialog" aria-modal="true" aria-label="Community Builder badge"><SectionHeader title="More collectors. More possibilities." action={<button autoFocus className="icon-button" aria-label="Close badge guide" onClick={()=>setGuide(false)}><X/></button>}/><div className="share-reward"><div className="builder-medal"><Trophy size={30}/><span>BUILDER</span></div><p>Earn Community Builder when someone new joins through your invitation, verifies their email and adds spares and missing items for that album.</p></div><p>Share with your collecting group or a friend. They get an easier way to compare lists; you both get more opportunities to find a swap. Existing members can compare too.</p><button className="yellow-button" onClick={share}>Share your collection <ArrowRight size={18}/></button><p className="route-note">A match isn’t guaranteed. The usual swap rules apply.</p></section></div>}
   </>;
@@ -1935,18 +1965,22 @@ function CollectionInvitationLanding({ code, onContinue }) {
   </>}</section></div>;
 }
 
-async function downloadCollectionCard(album, spares, needs, code) {
- const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=900;
- const ctx=canvas.getContext('2d');const gradient=ctx.createLinearGradient(0,0,1200,900);gradient.addColorStop(0,'#082d58');gradient.addColorStop(1,'#06152d');ctx.fillStyle=gradient;ctx.fillRect(0,0,1200,900);
- const logo=new Image();logo.src='/design/wordmark.png';await logo.decode();const height=180;ctx.drawImage(logo,600-logo.width/logo.height*height/2,55,logo.width/logo.height*height,height);
- ctx.textAlign='center';ctx.fillStyle='#fff';ctx.font='bold 56px sans-serif';ctx.fillText('Can we help each other',600,325);ctx.fillText('finish our collection?',600,395);
- ctx.font='28px sans-serif';ctx.fillText(album.name,600,475,1080);ctx.fillStyle='#ffcf24';ctx.font='bold 58px sans-serif';ctx.fillText(`${spares} spares   /   ${needs} needed`,600,585);
- ctx.fillStyle='#fff';ctx.font='28px sans-serif';ctx.fillText('Open my collection link in the post to compare.',600,690);ctx.font='24px sans-serif';ctx.fillText(`Got One Spare? · Invitation ${code}`,600,770);
+async function downloadCollectionCard(album, spares, needs, code, options = {}) {
+ const canvas=await renderCollectionCard({album,spares,needs,code,...options});
  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Unable to create share image.');
  const file=new File([blob],'got-one-spare-collection.png',{type:'image/png'});
  if(Capacitor.isNativePlatform() && navigator.canShare?.({files:[file]})){await navigator.share({files:[file]});return;}
  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+function FounderCardDesigner({album,spares,needs,code,user,onError}) {
+ const eligible=!!user?.founder_member;
+ const [demo,setDemo]=useState(false),[style,setStyle]=useState('classic'),[image,setImage]=useState(''),[saving,setSaving]=useState(false);
+ const allowed=eligible||(IS_PREVIEW&&demo);
+ const selected=allowed?style:'classic';
+ useEffect(()=>{let active=true;setImage('');renderCollectionCard({album,spares,needs,code:code||'PREVIEW',name:user?.name,style:selected,isFounder:allowed}).then(canvas=>{if(active)setImage(canvas.toDataURL('image/png'));}).catch(e=>{if(active)onError?.(e.message);});return()=>{active=false;};},[album?.id,album?.name,spares,needs,code,user?.name,selected,allowed]);
+ return <section className="founder-card-designer"><div className="section-row"><h3>Make your swap list your own</h3><Trophy size={20}/></div><p>{eligible?'Your exclusive Founder collection designs.':'Classic sharing is free. Founders can personalise their collection card with exclusive designs.'}</p>{IS_PREVIEW&&!eligible&&<label className="founder-demo-toggle"><input type="checkbox" checked={demo} onChange={e=>setDemo(e.target.checked)}/> Preview Founder designs · demo only</label>}<div className="founder-card-styles" aria-label="Collection card design">{CARD_STYLES.map(t=><button key={t.id} disabled={!allowed&&t.id!=='classic'} aria-pressed={selected===t.id} onClick={()=>setStyle(t.id)}><span style={{background:t.background,borderColor:t.accent}}/>{t.name}{!allowed&&t.id!=='classic'?' · Founder':''}</button>)}</div>{image?<img className="founder-card-preview" src={image} alt={`${CARD_STYLES.find(t=>t.id===selected)?.name} collection card for ${album?.name}`}/>:<p>Preparing your card…</p>}<small>Only your first name appears. Totals are a snapshot—include your collection link so people can compare the latest lists.</small>{(code||IS_PREVIEW)&&<button className="share-app-button" disabled={saving||!image} onClick={async()=>{setSaving(true);try{await downloadCollectionCard(album,spares,needs,code||'PREVIEW',{name:user?.name,style:selected,isFounder:allowed});}catch(e){if(e.name!=='AbortError')onError?.(e.message);}finally{setSaving(false);}}}>{saving?'Preparing image…':IS_PREVIEW?'Save example image':'Save personalised image'}</button>}</section>;
+}
+
 function CollectionSharing({ album, duplicates, needs, onOpenSwap }) {
  const {token,user}=useAuth();
  const {setAlbumId}=useAlbum();
@@ -1970,7 +2004,8 @@ function CollectionSharing({ album, duplicates, needs, onOpenSwap }) {
  return <><section className="collection-share-banner"><div className="share-symbol"><AlbumCover album={album} small/><span><ArrowRightLeft size={20}/></span></div><div><p className="eyebrow">MORE COLLECTORS. MORE POSSIBILITIES.</p><h2>Find more swap partners</h2><p>Post in your collecting group or send to a friend. Let the app compare your lists.</p></div><button className="yellow-button" onClick={()=>setOpen(true)}>Share with other collectors <ArrowRight size={18}/></button></section>
  {code && !open && <button className="share-app-button" onClick={()=>setOpen(true)}>Your saved collection invitation <ChevronRight size={18}/></button>}
  {open && <div className="share-preview-overlay" role="dialog" aria-modal="true" aria-label="Share your collection" onKeyDown={e=>{if(e.key==='Escape')setOpen(false);if(e.key==='Tab'){const nodes=[...e.currentTarget.querySelectorAll('button:not(:disabled),input,textarea,a[href]')];const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}}><section className="share-preview-panel"><header><span className="eyebrow">YOUR COLLECTION. MORE CONNECTIONS.</span><button autoFocus aria-label="Close sharing" onClick={()=>setOpen(false)}><X/></button></header><h2>Give your collecting group a better swap list.</h2><p>Share in Facebook collecting groups, group chats or with friends. Collectors see a few of your spares, then sign in or join to find a possible swap.</p>
- <article className="share-poster"><img src="/design/wordmark.png" alt="Got One Spare?"/><div className="share-cover-art"><AlbumCover album={album} small/></div><h3>Can we help each other<br/>finish our collection?</h3><p>{album?.name}</p><div><strong>{duplicates.length}<small>spare card types</small></strong><ArrowRightLeft/><strong>{needs.length}<small>missing items</small></strong></div></article>
+
+ <FounderCardDesigner album={album} spares={duplicates.length} needs={needs.length} code={status.code} user={user} onError={setError}/>
  <ErrorBanner message={error}/>{notice&&<p className="matching-notice" role="status">{notice}</p>}
  {status.code ? <><label className="invite-code">YOUR SHARE LINK<input readOnly value={link} onFocus={e=>e.target.select()} /></label><button disabled={busy} className="yellow-button" onClick={()=>action(async()=>{await navigator.clipboard.writeText(link);setNotice('Link copied. Paste it in your collecting group or send to a friend.');})}>Copy collection link</button><label className="invite-code">SUGGESTED POST · EDIT BEFORE SHARING<textarea rows={7} value={postText} onChange={e=>setPostText(e.target.value)}/></label><button disabled={busy} className="yellow-button" onClick={()=>action(async()=>{await navigator.clipboard.writeText(postText.includes(link)?postText:`${postText}\n\n${link}`);setNotice('Post and link copied. Paste them into your group or message.');})}>Copy post &amp; link</button><button disabled={busy} className="share-app-button" onClick={()=>action(async()=>{if(navigator.share)await navigator.share({title:'Can we help each other finish our collection?',text:postText.replace(link,'').trim(),url:link});else {await navigator.clipboard.writeText(link);setNotice('Link copied for sharing.');}})}>Share invitation</button><button disabled={busy} className="share-app-button" onClick={()=>action(async()=>{await downloadCollectionCard(album,duplicates.length,needs.length,status.code);setNotice('Image prepared. Include your collection link in the post so people can open it.');})}>Save share image</button><button disabled={busy} className="share-back" onClick={()=>action(async()=>{await request(`/collection-invitations/${status.code}`,{method:'DELETE',token});await refresh();setNotice('Sharing disabled. The old link no longer works.');})}>Disable this share link</button></> : <><p className="share-privacy"><ShieldCheck size={18}/>Creating a link makes your first name, album totals and three spare items public. No address, email or private messages.</p><button disabled={busy} className="yellow-button" onClick={()=>action(async()=>{await request('/collection-invitations',{method:'POST',token,body:{albumId:album.id}});await refresh();})}>Create my share link</button></>}
  <section className={`share-reward ${status.qualified?'is-earned':''}`}><div className="builder-medal"><Trophy size={30}/><span>BUILDER</span></div><div><strong>{status.qualified?'Community Builder unlocked':'Earn your Community Builder badge'}</strong><p>Help one new collector join through your invitation, verify their email and save spares and missing items for this album. Existing members can compare too, but don’t earn new-member credit.</p></div></section>
@@ -2000,7 +2035,8 @@ function CollectionSharePreview({ album, duplicates = [], needs = [], user }) {
         <div className="share-destinations" aria-label="Where to share"><span><Users size={16} /> Facebook collecting groups</span><span><MessageCircle size={16} /> Group chats</span><span><Send size={16} /> Friends</span></div>
         <section className="share-explainer"><strong>You share. They compare. You find a possible swap.</strong><p>Other collectors open your link to see a few of your spares. They can sign in—or join free—to compare both lists, without the back-and-forth in comments.</p><p>Keep enjoying your group. Your link helps turn “Have you got this?” into a clear comparison.</p></section>
         <p className="eyebrow">YOUR COLLECTION PREVIEW</p>
-        <article className="share-poster"><div className="share-cover-art"><AlbumCover album={album} small /></div><img src="/design/wordmark.png" alt="Got One Spare?" /><h3>Can we help each other<br />finish our collection?</h3><p>{album?.name}</p><div><strong>{duplicates.length}<small>spare card types</small></strong><ArrowRightLeft /><strong>{needs.length}<small>missing cards</small></strong></div><p>Got something I need? Compare your list with mine.</p></article>
+
+        <FounderCardDesigner album={album} spares={duplicates.length} needs={needs.length} user={user}/>
         <button className="yellow-button" onClick={() => setView('visitor')}>Preview what a newcomer sees <ArrowRight size={18} /></button>
         <p className="share-privacy"><ShieldCheck size={18} /> Only a small preview will be public. No email, address or private messages.</p>
         <section className={`share-reward ${badge ? "is-earned" : ""}`}><div className="builder-medal"><Trophy size={30} /><span>BUILDER</span></div><div><strong>{badge ? 'Community Builder · example earned state' : 'Earn your Community Builder badge'}</strong><p>{badge ? 'One invited collector has added spares and missing items.' : 'Earn it when someone new joins through your shared link and saves both spares and missing items for this album. Existing members can compare too, but do not count as new invitations.'}</p><button onClick={() => setBadge(!badge)}>{badge ? 'Show starting state' : 'Preview earned badge'}</button></div></section>
@@ -2515,7 +2551,7 @@ function AmbassadorCard({ token, swapId }) {
   );
 }
 
-function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
+function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap, onSupport }) {
   const { token, user, openProfile } = useAuth();
   const [data, setData] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -3266,6 +3302,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap }) {
         </button>
       )}
 
+      {IS_PREVIEW && swap.status === 'completed' && <CompletedSwapSupport onOpen={onSupport} />}
       {swap.status === 'completed' && (
         <button onClick={() => setShowRating(true)} className="w-full py-2.5 rounded text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--warning)', color: 'var(--text-primary)' }}>
           <Star size={15} /> Rate this swap
@@ -4611,7 +4648,7 @@ function HamburgerMenu({ user, onProfile, onLogout }) {
   );
 }
 
-function NotificationPanel() {
+function NotificationPanel({ onNavigate }) {
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -4712,9 +4749,8 @@ function NotificationPanel() {
                 const isExpanded = expanded === n.id;
                 const NotificationIcon = TYPE_ICONS[n.type] || Bell;
                 return (
-                  <button className="notification-item" aria-expanded={n.body ? isExpanded : undefined}
+                  <div className="notification-item"
                     key={n.id}
-                    onClick={() => setExpanded(isExpanded ? null : n.id)}
                     style={{
                       padding: '12px 16px', borderBottom: '1px solid var(--border)',
                       background: n.is_read ? 'transparent' : 'var(--primary-light)',
@@ -4724,7 +4760,7 @@ function NotificationPanel() {
                   >
                     <span className={`notification-symbol ${n.type}`}><NotificationIcon size={20} strokeWidth={1.8} /></span>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>
+                      <button type="button" aria-expanded={isExpanded} onClick={() => setExpanded(isExpanded ? null : n.id)} style={{textAlign:'left',background:'none',border:0,padding:0,width:'100%',fontSize:13,fontWeight:600,color:'var(--text-primary)',marginBottom:2}}>{n.title}</button>
                       {n.body && (
                         <div style={{
                           fontSize: 12, color: 'var(--text-secondary)',
@@ -4733,15 +4769,15 @@ function NotificationPanel() {
                           textOverflow: isExpanded ? 'unset' : 'ellipsis',
                           lineHeight: 1.5,
                         }}>
-                          {n.body}
+                          <NotificationBody text={n.body} onSurvey={id => { setOpen(false); onNavigate('surveys',id); }}/>
                         </div>
                       )}
                       {n.body && !isExpanded && n.body.length > 50 && (
-                        <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2 }}>Tap to read more</div>
+                        <button type="button" onClick={() => setExpanded(n.id)} style={{background:'none',border:0,padding:0,fontSize:11,color:'var(--primary)',marginTop:2}}>Tap to read more</button>
                       )}
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{new Date(n.created_at).toLocaleDateString()}</div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -4784,17 +4820,115 @@ function VerificationBanner() {
 // =================================================================
 // APP SHELL
 // =================================================================
+function SurveysScreen({ onBack, surveyId }) {
+ const {token}=useAuth();
+ const [surveys,setSurveys]=useState(null),[selected,setSelected]=useState(null),[answers,setAnswers]=useState({}),[error,setError]=useState(''),[saving,setSaving]=useState(false),[thanks,setThanks]=useState(false);
+ const load=()=>{setError('');request('/surveys',{token}).then(data=>{setSurveys(data);if(surveyId)setSelected(data.find(s=>String(s.id)===String(surveyId))||null);}).catch(e=>setError(e.message));};
+ useEffect(()=>{load();},[token,surveyId]);
+ const choose=s=>{setSelected(s);setAnswers({});setThanks(false);setError('');};
+ const submit=async e=>{e.preventDefault();setError('');for(const q of selected.questions)if(q.required&&!(answers[q.id]?.length)){setError('Please answer: '+q.label);return;}setSaving(true);try{await request(`/surveys/${selected.id}/responses`,{method:'POST',token,body:{answers}});setThanks(true);setSurveys(list=>list.map(s=>s.id===selected.id?{...s,answered_at:new Date().toISOString()}:s));}catch(e){setError(e.message);}finally{setSaving(false);}};
+ return <section className="surveys-screen"><button className="share-back" onClick={()=>selected?choose(null):onBack()}><ArrowLeft size={17}/> {selected?'All surveys':'Back to More'}</button>
+ <div className="survey-hero"><span className="eyebrow">YOUR COLLECTION. YOUR SAY.</span><MessageCircle size={36}/><h1>Help shape<br/>what comes next.</h1><p>Your feedback helps make collecting better for everyone.</p></div>
+ {error&&<div role="alert" className="survey-error">{error}{!surveys&&<button onClick={load}>Try again</button>}</div>}
+ {!surveys&&!error&&<p role="status">Loading surveys…</p>}
+ {thanks?<div className="survey-content" role="status"><CheckCircle2 size={36}/><h2>Thanks for having your say.</h2><p>Your answers have been saved. We’ll use your feedback to plan future collections and improvements.</p><button className="yellow-button" onClick={()=>choose(null)}>Back to surveys</button></div>:selected?<div className="survey-content"><h2>{selected.title}</h2><p>{selected.description}</p>{selected.answered_at?<p>You’ve already completed this survey. Thank you!</p>:selected.status!=='published'?<p>This survey is now closed.</p>:<form onSubmit={submit}><p className="route-note">One response per account. Responses are linked to your account; admin results don’t display your name or email. Please avoid including personal information.</p>{selected.questions.map((q,i)=><fieldset className="survey-question" key={q.id}><legend>{i+1}. {q.label} {q.required?<span aria-label="required">*</span>:<small> (optional)</small>}</legend>{q.type==='text'?<textarea aria-label={q.label} required={q.required} maxLength={3000} value={answers[q.id]||''} onChange={e=>setAnswers({...answers,[q.id]:e.target.value})}/>:q.options.map(option=><label className="survey-choice" key={option}><input type={q.type==='single'?'radio':'checkbox'} name={q.id} value={option} checked={q.type==='single'?answers[q.id]===option:(answers[q.id]||[]).includes(option)} onChange={e=>setAnswers({...answers,[q.id]:q.type==='single'?option:e.target.checked?[...(answers[q.id]||[]),option]:(answers[q.id]||[]).filter(x=>x!==option)})}/><span>{option}</span></label>)}</fieldset>)}<button className="yellow-button" disabled={saving}>{saving?'Saving…':'Submit answers'}<ArrowRight size={18}/></button></form>}</div>:surveys?.length?surveys.map(s=><button className="survey-list-card" key={s.id} onClick={()=>choose(s)}><span className="eyebrow">{s.answered_at?'COMPLETED':s.status==='published'?'HAVE YOUR SAY':'CLOSED'}</span><h2>{s.title}</h2><p>{s.description}</p><strong>{s.answered_at?'Thank you for your feedback':s.status==='published'?'Take survey →':'View survey'}</strong></button>):surveys&&<div className="survey-content"><h2>You’re all caught up.</h2><p>New surveys will appear here when we’re ready for your feedback.</p></div>}
+ </section>;
+}
+
+// Preview-only until Stripe test checkout and Apple products are verified.
+function SupportCommunityScreen({ onBack }) {
+ const { user,token,refreshAccount }=useAuth();
+ const [busy,setBusy]=useState(false);
+ const nativeTest=IS_PREVIEW && import.meta.env.VITE_NATIVE_SUPPORT_TEST==='true' && Capacitor.getPlatform()==='ios';
+ const livePayments=!IS_PREVIEW && FOUNDER_ENABLED;
+ const nativePayments=nativeTest || (livePayments && Capacitor.getPlatform()==='ios');
+ const nativeClient=useRef(null);
+ const [storePrices,setStorePrices]=useState({});
+ useEffect(()=>{
+  nativeClient.current=null;setStorePrices({});
+  if(!nativePayments)return;
+  let active=true;
+  let id=storage.getItem('support-sandbox-id');
+  if(!/^support-sandbox-[a-f0-9-]{36}$/i.test(id||'')){id='support-sandbox-'+crypto.randomUUID();storage.setItem('support-sandbox-id',id);}
+  (nativeTest?createSandboxSupportClient(id):createAccountSupportClient(user.id)).then(async client=>{const prices=await client.load();if(active){nativeClient.current=client;setStorePrices(prices);}}).catch(error=>{if(active)setNotice(error.message);});
+  return()=>{active=false;};
+ },[nativePayments,nativeTest,user.id]);
+ async function nativePurchase(key){
+  if(busy||!nativeClient.current)return;setBusy(true);
+  try{await nativeClient.current.purchase(key);if(!nativeTest){if(key==='founder')await confirmFounder();else setNotice('Thank you! Your contribution was confirmed.');return;}setNotice(key==='founder'?'Sandbox Founder purchase confirmed. Your real account is unchanged.':'Thank you! Your sandbox contribution was confirmed.');}
+  catch(error){setNotice(error.userCancelled?'Purchase cancelled.':error.message||'Purchase could not be confirmed.');}
+  finally{setBusy(false);}
+ }
+ async function confirmFounder(){
+  await request('/revenuecat/sync',{method:'POST',token});
+  for(let attempt=0;attempt<6;attempt++){
+   const status=await api.getFounderStatus(token);
+   if(status.isFounder){await refreshAccount();setNotice('Your Founder membership is active. Thank you for supporting the community!');return;}
+   await new Promise(resolve=>setTimeout(resolve,1500));
+  }
+  setNotice('Apple recognised your membership. Your account update is still pending. Please do not pay again; contact support if it does not appear.');
+ }
+ async function founderCheckout(){
+  if(nativePayments){await nativePurchase('founder');return;}
+  if(!livePayments){previewPurchase();return;}
+  if(Capacitor.isNativePlatform()){setNotice('Purchases are not available on this device.');return;}
+  setBusy(true);try{const {url}=await api.createFounderCheckout(token);const destination=new URL(url);if(destination.protocol!=='https:'||destination.hostname!=='checkout.stripe.com')throw Error('Invalid checkout destination.');location.assign(url);}catch(e){setNotice(e.message);}finally{setBusy(false);}
+ }
+ async function restoreNative(){
+  if(busy||!nativeClient.current)return;setBusy(true);
+  try{const found=await nativeClient.current.restore();if(found&&!nativeTest){await confirmFounder();return;}setNotice(found?'Sandbox Founder membership restored.':'No Founder membership was found for this Apple account. One-off contributions are not restorable.');}
+  catch(error){setNotice(error.message||'Could not restore purchases.');}finally{setBusy(false);}
+ }
+ // Only the explicitly isolated integration environment can exercise checkout.
+ const testCheckout=IS_SUPPORT_TEST;
+ useEffect(()=>{
+  const params=new URLSearchParams(location.search);
+  if(params.get('support')==='cancelled'){setNotice('Checkout cancelled. No new payment was confirmed.');storage.removeItem(`support-attempt:${user.id}`);return;}
+  if(!(testCheckout||livePayments) || params.get('support')!=='success' || !params.get('session_id'))return;
+  let active=true;setNotice('Checking your payment…');
+  request('/support/status?'+new URLSearchParams({sessionId:params.get('session_id')}),{token}).then(result=>{
+   if(!active)return;
+   setNotice(result.paid?'Thank you! Your contribution has been confirmed.':'Your payment has not been confirmed yet. Please refresh to check again.');
+   if(result.paid)storage.removeItem(`support-attempt:${user.id}`);
+  }).catch(()=>{if(active)setNotice('We couldn’t confirm the payment yet. Please refresh to check again before paying again.');});
+  return()=>{active=false;};
+ },[testCheckout,livePayments,token,user.id]);
+ async function checkout(){
+  if(nativePayments){await nativePurchase(String(amount));return;}
+  if(!testCheckout&&!livePayments){previewPurchase();return;}
+  if(busy)return;setBusy(true);setNotice('Opening secure checkout…');
+  try{await createSupportCheckout({request,storage,randomUUID:()=>crypto.randomUUID(),navigate:url=>location.assign(url),native:Capacitor.isNativePlatform()})({amount:amount*100,userId:user.id,token});}
+  catch(error){setNotice(error.message);}finally{setBusy(false);}
+ }
+ const [amount,setAmount]=useState(5);
+ const [notice,setNotice]=useState('');
+ const previewPurchase=()=>setNotice('This is a preview. No payment has been taken. Secure checkout will be connected before launch.');
+ return <section className="community-support"><button className="back-link" onClick={onBack}><ArrowLeft size={18}/> Back</button>
+ <div className="support-hero"><span className="eyebrow">BUILT FOR COLLECTORS. SUPPORTED BY YOU.</span><div className="support-emblem"><Layers size={42}/><Sparkles size={23}/></div><h1>Keep the swaps<br/><em>coming.</em></h1><p>I build and run Got One Spare? independently. Your support helps cover running costs and the time spent improving the app and adding new collections.</p><span className="support-free"><ShieldCheck size={18}/> Optional support. Swapping stays free.</span></div>
+ <div className="support-options"><article className="support-choice"><span className="eyebrow">A LITTLE THANK YOU</span><h2>Give a little back.</h2><p>Enjoyed a swap? Make a one-off contribution of any of these amounts.</p><div className="support-amounts" aria-label="Contribution amount">{[3,5,10].map(value=><button key={value} disabled={busy || (nativePayments && !storePrices[value])} aria-pressed={amount===value} onClick={()=>{setAmount(value);setNotice('');}}>{nativePayments?(storePrices[value]||'Unavailable'):`£${value}`}</button>)}</div><button className="yellow-button" disabled={busy || (nativePayments && !storePrices[amount])} onClick={checkout}>{busy?'Opening checkout…':`Support with ${nativePayments?storePrices[amount]:`£${amount}`}`}<ArrowRight size={18}/></button><small>One payment. No subscription.</small></article>
+ <article className="support-choice support-founder"><span className="eyebrow">A LASTING THANK YOU</span><Trophy size={30}/><h2>{user?.founder_member?'You’re one of our Founders.':'Become a Founder.'}</h2><p>{user?.founder_member?'Thank you for helping build this community. Your existing Founder recognition stays with you.':'Help build the future of Got One Spare? and be recognised as a founding supporter.'}</p><ul><li><CheckCircle2 size={17}/> Founder badge beside your name</li><li><CheckCircle2 size={17}/> Gold profile styling</li><li><CheckCircle2 size={17}/> Exclusive collection-sharing card designs</li><li><CheckCircle2 size={17}/> Lifetime Founder recognition</li></ul>{!user?.founder_member&&<button className="yellow-button" disabled={busy || (nativePayments && !storePrices.founder)} onClick={founderCheckout}>Become a Founder · {nativePayments?(storePrices.founder||'Unavailable'):'£14.99'}<ArrowRight size={18}/></button>}<small>{user?.founder_member?'Your Founder benefits are preserved.':'One payment. No subscription.'}</small></article></div>
+ <div className="support-note"><h2>Every contribution helps.</h2><p>Support funds hosting, maintenance and development time. Matching, messaging and swapping remain free for everyone.</p></div><p className="support-preview-note" role="status">{nativePayments&&<button className="back-link" disabled={busy||!nativeClient.current} onClick={restoreNative}>Restore purchases</button>}{notice||(nativeTest ? 'Apple sandbox test build · Use your sandbox Apple account only.' : testCheckout ? 'Stripe sandbox · Test payments only. No real money is taken.' : livePayments ? 'Secure payments. No subscription.' : 'Design preview · Payments are not enabled.')}</p></section>;
+}
+function CompletedSwapSupport({ onOpen }) {
+ const {user}=useAuth();
+ const key='support_prompt_dismissed_'+user.id;
+ const [dismissed,setDismissed]=useState(()=>Date.now()-Number(storage.getItem(key)||0)<30*24*60*60*1000);
+ if(dismissed||user.founder_member)return null;
+ return <aside className="completed-support"><div><span className="eyebrow">ANOTHER SWAP. MORE OF YOUR COLLECTION.</span><h3>Enjoyed your swap?</h3><p>Help keep Got One Spare? growing, with optional support from £3.</p><button className="yellow-button" onClick={onOpen}>Support Got One Spare?<ArrowRight size={17}/></button></div><button className="support-dismiss" aria-label="Dismiss support invitation for 30 days" onClick={()=>{storage.setItem(key,String(Date.now()));setDismissed(true);}}><X size={19}/></button></aside>;
+}
+
 function MoreScreen({ user, onNavigate, onProfile, onLogout, onFeedback }) {
  const { dark, toggle } = useTheme();
- return <section className="more-screen"><SectionHeader eyebrow="YOUR COLLECTING CORNER" title="A little more you." /><button className="profile-feature" onClick={onProfile}><CollectorAvatar person={user} size={60} /><span><strong>{user.name}</strong><small>Profile, address & settings</small></span><ChevronRight /></button><div className="more-list">{[[MessageCircle,'Messages','messages'],[History,'Swap history','history'],[Search,'Find collectors','search'],[Layers,'My albums','dashboard']].map(([Icon,label,id]) => <button key={id} onClick={() => onNavigate(id)}><Icon /><span>{label}</span><ChevronRight size={17} /></button>)}<button onClick={toggle}>{dark ? <Sun /> : <Moon />}<span>{dark ? 'Switch to light mode' : 'Switch to dark mode'}</span><ChevronRight size={17} /></button><button onClick={onFeedback}><HelpCircle /><span>Feedback & support</span><ChevronRight size={17} /></button><button onClick={onLogout}><LogOut /><span>Sign out</span></button></div><div className="more-brand"><Logo size={85} /><p>Same stickers. Bigger connections.</p></div></section>;
+ return <section className="more-screen"><SectionHeader eyebrow="YOUR COLLECTING CORNER" title="A little more you." /><button className="profile-feature" onClick={onProfile}><CollectorAvatar person={user} size={60} /><span><strong>{user.name}</strong><small>Profile, address & settings</small></span><ChevronRight /></button><div className="more-list">{[...((IS_PREVIEW||FOUNDER_ENABLED)?[[Sparkles,'Support Got One Spare?','communitySupport']]:[]),[MessageCircle,'Messages','messages'],...(SURVEYS_ENABLED?[[MessageCircle,'Surveys · have your say','surveys']]:[]),[History,'Swap history','history'],[Search,'Find collectors','search'],[Layers,'My albums','dashboard']].map(([Icon,label,id]) => <button key={id} onClick={() => onNavigate(id)}><Icon /><span>{label}</span><ChevronRight size={17} /></button>)}<button onClick={toggle}>{dark ? <Sun /> : <Moon />}<span>{dark ? 'Switch to light mode' : 'Switch to dark mode'}</span><ChevronRight size={17} /></button><button onClick={onFeedback}><HelpCircle /><span>Feedback & support</span><ChevronRight size={17} /></button><button onClick={onLogout}><LogOut /><span>Sign out</span></button></div><div className="more-brand"><Logo size={85} /><p>Same stickers. Bigger connections.</p></div></section>;
 }
 
 export default function PaniniSwapApp() {
   const [showCollectionInvitation,setShowCollectionInvitation]=useState(()=>COLLECTION_SHARING && !!new URLSearchParams(location.search).get('collection'));
   const [token, setToken] = useState(() => storage.getItem('authToken') || null);
   const [user, setUser] = useState(null);
-  const [tab, setTabState] = useState('home');
-  const setTab = next => { setTabState(next); window.scrollTo({ top:0, behavior:'instant' }); };
+  const [surveyId,setSurveyId]=useState(()=>new URLSearchParams(location.search).get('survey'));
+  const [tab, setTabState] = useState(()=>(IS_PREVIEW || FOUNDER_ENABLED) && new URLSearchParams(location.search).has('support')?'communitySupport':SURVEYS_ENABLED&&new URLSearchParams(location.search).has('survey')?'surveys':'home');
+  const setTab = (next,id=null) => { if(next==='surveys'&&!SURVEYS_ENABLED)return;if(next==='surveys')setSurveyId(id); setTabState(next); window.scrollTo({ top:0, behavior:'instant' }); };
   const [supportOpen, setSupportOpen] = useState(false);
   const [activeSwapId, setActiveSwapId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
@@ -4966,6 +5100,7 @@ export default function PaniniSwapApp() {
   };
 
   const logout = () => {
+    clearPurchaseAccount();
     storage.removeItem('authToken');
     setToken(null);
     setUser(null);
@@ -5015,6 +5150,10 @@ export default function PaniniSwapApp() {
     <AuthContext.Provider value={{
       token,
       user,
+      refreshAccount: async () => {
+        const fresh = await api.me(token);
+        setUser(current => current?.id === fresh.id ? fresh : current);
+      },
       openProfile: (userId) => setViewingProfileUserId(userId),
       openConversationWith: (userId) => {
         setViewingProfileUserId(null);
@@ -5028,7 +5167,7 @@ export default function PaniniSwapApp() {
 
       <div className={`gos-app ${tab === 'dashboard' ? 'album-active' : ''}`}>
         {IS_PREVIEW && <div className="preview-ribbon">{IS_INTEGRATION ? "Integration test · real catalogue, test accounts" : "Isolated preview · fictional data"} <button onClick={() => { storage.removeItem('initialized'); window.location.reload(); }}>Reset</button></div>}
-        <header className="app-header"><div className="header-inner"><button className="brand-home" onClick={() => setTab('home')} aria-label="Got One Spare home"><Logo size={53} /></button><div className="desktop-tagline">Same stickers. Bigger connections.</div><div className="header-actions"><NotificationPanel /><button className="profile-button" aria-label="Your profile" onClick={() => setViewingProfileUserId(user.id)}><CollectorAvatar person={user} size={39} /></button></div></div></header>
+        <header className="app-header"><div className="header-inner"><button className="brand-home" onClick={() => setTab('home')} aria-label="Got One Spare home"><Logo size={53} /></button><div className="desktop-tagline">Same stickers. Bigger connections.</div><div className="header-actions"><NotificationPanel onNavigate={setTab} /><button className="profile-button" aria-label="Your profile" onClick={() => setViewingProfileUserId(user.id)}><CollectorAvatar person={user} size={39} /></button></div></div></header>
         {founderRedirectMsg && (
           <div style={{ background: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)', borderBottom: '1px solid #FDE68A', padding: '10px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#92400E' }}>
             {founderRedirectMsg}
@@ -5096,6 +5235,8 @@ export default function PaniniSwapApp() {
             />
           )}
           {tab === 'history' && <SwapHistoryScreen />}
+          {(IS_PREVIEW || FOUNDER_ENABLED) && tab === 'communitySupport' && <SupportCommunityScreen onBack={()=>setTab('more')}/>}
+          {tab === 'surveys' && <SurveysScreen surveyId={surveyId} onBack={() => setTab('more')} />}
           {tab === 'more' && <MoreScreen user={user} onNavigate={setTab} onProfile={() => setShowProfile(true)} onLogout={logout} onFeedback={() => setSupportOpen(true)} />}
           {tab === 'messages' && (
             <MessagesScreen
@@ -5107,6 +5248,7 @@ export default function PaniniSwapApp() {
           {tab === 'swap' && activeSwapId && (
             <SwapDetailScreen
               swapId={activeSwapId}
+              onSupport={() => setTab('communitySupport')}
               onRated={() => setTab('dashboard')}
               onBack={() => setTab('mySwaps')}
               onOpenSwap={(newSwapId) => setActiveSwapId(newSwapId)}
@@ -5117,7 +5259,7 @@ export default function PaniniSwapApp() {
           )}
         </main>
 
-        <nav className="app-nav" aria-label="Main navigation"><div className="nav-inner">{NAV_ITEMS.map(({ id, label, Icon }) => { const active = tab === id || (tab === 'swap' && id === 'mySwaps') || (['messages','search','history'].includes(tab) && id === 'more'); return <button key={id} onClick={() => setTab(id)} aria-current={active ? 'page' : undefined}><span className="nav-icon"><Icon size={22} />{id === 'more' && unreadMessages > 0 && <span className="nav-badge">{unreadMessages}</span>}</span><span>{label}</span></button>; })}</div></nav>
+        <nav className="app-nav" aria-label="Main navigation"><div className="nav-inner">{NAV_ITEMS.map(({ id, label, Icon }) => { const active = tab === id || (tab === 'swap' && id === 'mySwaps') || (['messages','search','history','surveys','communitySupport'].includes(tab) && id === 'more'); return <button key={id} onClick={() => setTab(id)} aria-current={active ? 'page' : undefined}><span className="nav-icon"><Icon size={22} />{id === 'more' && unreadMessages > 0 && <span className="nav-badge">{unreadMessages}</span>}</span><span>{label}</span></button>; })}</div></nav>
         {supportOpen && <div className="gos-modal-backdrop"><section role="dialog" aria-modal="true" aria-label="Feedback and support" className="gos-modal"><SectionHeader title="Here to help" action={<button className="icon-button" aria-label="Close support" onClick={() => setSupportOpen(false)}><X /></button>} /><p>Send feedback using the button below, or read our support guide.</p><a href="/support.html" target="_blank" rel="noreferrer">Support guide</a><div className="support-feedback"><FeedbackWidget inline /></div></section></div>}
         {!IS_PREVIEW && <><IOSLiveWidget /><InstallAndNotifyBanner /></>}
       </div>
