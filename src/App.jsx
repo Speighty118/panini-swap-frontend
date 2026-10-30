@@ -4841,6 +4841,7 @@ function SurveysScreen({ onBack, surveyId }) {
 function SupportCommunityScreen({ onBack }) {
  const { user,token,refreshAccount }=useAuth();
  const [busy,setBusy]=useState(false);
+ useEffect(()=>{ if(!IS_PREVIEW && !Capacitor.isNativePlatform()) api.logDonationClick(token,'support_page_view'); },[token]);
  const nativeTest=IS_PREVIEW && import.meta.env.VITE_NATIVE_SUPPORT_TEST==='true' && Capacitor.getPlatform()==='ios';
  const livePayments=!IS_PREVIEW && FOUNDER_ENABLED;
  const nativePayments=nativeTest || (livePayments && Capacitor.getPlatform()==='ios');
@@ -4925,6 +4926,11 @@ function MoreScreen({ user, onNavigate, onProfile, onLogout, onFeedback }) {
 }
 
 export default function PaniniSwapApp() {
+  useEffect(()=>{
+    if(!IS_PREVIEW && !Capacitor.isNativePlatform() && new URLSearchParams(location.search).get('support')==='1') {
+      api.logDonationClick(storage.getItem('authToken'),'support_link_visit');
+    }
+  },[]);
   const [showCollectionInvitation,setShowCollectionInvitation]=useState(()=>COLLECTION_SHARING && !!new URLSearchParams(location.search).get('collection'));
   const [token, setToken] = useState(() => storage.getItem('authToken') || null);
   const [user, setUser] = useState(null);
