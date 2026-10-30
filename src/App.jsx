@@ -251,9 +251,9 @@ function CollectorAvatar({ person, size = 42 }) {
 function AlbumCover({ album, small = false }) {
   const league = album?.id === 2;
   return <div aria-hidden="true" className={`album-cover ${league ? 'league' : ''} ${small ? 'small' : ''}`}>
-    <span className="cover-kicker">COLLECTOR EDITION</span>
-    <div className="cover-emblem">{league ? <ShieldCheck /> : <Trophy />}</div>
-    <strong className="cover-title"><span className="cover-category">{league ? "MEN'S" : " "}</span>{league ? <>PREMIER<br />LEAGUE</> : <>WORLD CUP</>}<span>{league ? 'TRADING CARDS' : 'STICKERS'}</span></strong>
+    <span className="cover-kicker">MY COLLECTION</span>
+    <div className="cover-emblem"><Layers /></div>
+    <strong className="cover-title"><span className="cover-category">FOOTBALL</span>{league ? <>ENGLISH<br />LEAGUE</> : <>INTERNATIONAL</>}<span>{league ? 'TRADING CARDS' : 'STICKERS'}</span></strong>
     <span className="cover-season">{league ? '2026/27' : '2026'}</span>
     <div className="cover-ribbon" />
   </div>;
@@ -662,7 +662,7 @@ function Btn({ onClick, disabled, children, variant = 'primary', size = 'md', st
 // =================================================================
 // AUTH SCREENS
 // =================================================================
-function AuthScreen({ onAuthed }) {
+function AuthScreen({ onAuthed, onSupportIntent }) {
   const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot' | 'forgot_sent'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -758,6 +758,7 @@ function AuthScreen({ onAuthed }) {
           </div>
 
           <div className="auth-heading"><h1>Your next great swap<br /><em>starts here.</em></h1><p>List your spares. Find your missing pieces.</p></div>
+          {!Capacitor.isNativePlatform() && <section className="web-support-intro"><strong>Help keep Got One Spare? running</strong><p>Optional one-off contributions of £3, £5 or £10 help fund hosting and development. Swapping stays free.</p><button onClick={() => { onSupportIntent(); setMode('login'); }}>Log in to contribute</button>{new URLSearchParams(location.search).has('support') && <p role="status">Log in below to choose your contribution.</p>}</section>}
           {/* Form card */}
           <div style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
 
@@ -1931,6 +1932,7 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
   return <div className="home-screen">
     <ErrorBanner message={error} onDismiss={() => setError(null)} />
     <div className="welcome"><div><h1>{greeting}, {user?.name?.split(' ')[0] || 'collector'} <span aria-hidden="true">👋</span></h1><p>Same stickers. Bigger connections.</p></div><button className="desktop-profile icon-button" onClick={onOpenProfile} aria-label="Edit your profile"><CollectorAvatar person={user} /></button></div>
+    {!Capacitor.isNativePlatform() && <section className="web-support-banner"><div><strong>Keep the swaps going</strong><p>Help fund hosting and development with an optional one-off contribution.</p></div><button onClick={() => onNavigate('communitySupport')}>Support from £3 <ArrowRight size={17}/></button></section>}
     <button className="home-search" onClick={() => onNavigate('dashboard')}><Search size={19} /><span>Find stickers in your album…</span><ChevronRight size={17} /></button>
     <div className="home-feature"><HomeFeatureCarousel onNavigate={onNavigate} />
     <div className="home-stats">{[[Layers, current?.spares, 'Spares', 'dashboard'], [Package, current?.needs, 'Needed', 'dashboard'], [Users, current?.matches, 'Matches', 'matches']].map(([Icon, value, label, tab]) => <button key={label} onClick={() => onNavigate(tab)}><Icon size={24} /><strong>{value ?? '—'}</strong><span>{label}</span></button>)}</div></div>
@@ -1946,7 +1948,7 @@ function HomeHubScreen({ onNavigate, onOpenProfile, unreadMessages }) {
 // =================================================================
 const COLLECTION_SHARING = IS_INTEGRATION || import.meta.env.VITE_COLLECTION_SHARING === 'true';
 const collectionCode = () => { const value=(new URLSearchParams(location.search).get('collection') || storage.getItem('collectionInvitation') || '').trim().toUpperCase(); return value.match(/(?:^|-)([A-F0-9]{12})$/)?.[1] || value; };
-const collectionTitle = id => Number(id) === 1 ? 'World Cup Stickers 2026' : 'Premier League Trading Cards 2026/27';
+const collectionTitle = id => Number(id) === 1 ? 'International Football Stickers 2026' : 'English League Trading Cards 2026/27';
 
 function CollectionInvitationLanding({ code, onContinue }) {
   const [data, setData] = useState(null);
@@ -1989,7 +1991,7 @@ function CollectionSharing({ album, duplicates, needs, onOpenSwap }) {
  const refresh=()=>request(`/collection-invitations/mine?albumId=${album?.id}`,{token}).then(setStatus);
  useEffect(()=>{setStatus({});setError('');if(album?.id)refresh().catch(e=>setError(e.message));},[album?.id,token]);
  const action=async fn=>{setBusy(true);setError('');setNotice('');try{await fn();}catch(e){setError(e.message);}finally{setBusy(false);}};
- const shareSlug=`${(user?.name?.split(' ')[0] || 'collector').toLowerCase().replace(/[^a-z0-9]/g,'') || 'collector'}-${Number(album?.id)===1?'world-cup-stickers-2026':'premier-league-cards-2026-27'}`;
+ const shareSlug=`${(user?.name?.split(' ')[0] || 'collector').toLowerCase().replace(/[^a-z0-9]/g,'') || 'collector'}-${Number(album?.id)===1?'international-football-stickers-2026':'english-league-cards-2026-27'}`;
  const link=status.code ? `${Capacitor.isNativePlatform() ? (IS_INTEGRATION ? 'http://127.0.0.1:5175' : 'https://gotonespare.com') : location.origin}/?collection=${shareSlug}-${status.code}` : '';
  const suggestedPost=`Collecting ${album?.name || 'this album'}? I’ve added my spares and missing items to Got One Spare?\n\nOpen my link to see a few of my spares. Sign in or join free and add your lists—the app looks for what we can swap, without comparing long lists in the comments.\n\nContinue on the website—my invitation is already included:\n${link}\n\nPrefer the free iPhone app? Search Got One Spare? on the App Store, then enter invitation code ${status.code || ''} under “Have a collection invitation?” when signing up or signing in to compare your collection with mine.`;
  const [postText,setPostText]=useState('');
@@ -4949,7 +4951,7 @@ export default function PaniniSwapApp() {
   useEffect(() => {
     api.getAlbums().then(items => setAlbums(items.map(album => ({
       ...album,
-      name: ({ 1: "World Cup Stickers 2026", 2: "Men's Premier League Trading Cards 2026/27" })[album.id] || album.name,
+      name: ({ 1: "International Football Stickers 2026", 2: "English League Trading Cards 2026/27" })[album.id] || album.name,
     })))).catch(() => {});
   }, []);
 
@@ -5138,7 +5140,7 @@ export default function PaniniSwapApp() {
   if (showCollectionInvitation) return <CollectionInvitationLanding code={collectionCode()} onContinue={(keep,invitedAlbum)=>{if(invitedAlbum)setAlbumId(invitedAlbum);if(!keep) storage.removeItem('collectionInvitation');const url=new URL(location.href);url.searchParams.delete('collection');history.replaceState(null,'',url);setShowCollectionInvitation(false);if(token)setTab('dashboard');}}/>;
 
   if (!token || !user) {
-    return <AuthScreen onAuthed={handleAuthed} />;
+    return <AuthScreen onAuthed={handleAuthed} onSupportIntent={() => { const url=new URL(location.href); url.searchParams.set('support','1'); history.replaceState(null,'',url); setTab('communitySupport'); }} />;
   }
 
   const NAV_ITEMS = [

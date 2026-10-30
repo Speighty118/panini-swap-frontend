@@ -12,3 +12,10 @@ html, body, #root {
   width: 100%;
   min-height: 100vh;
 }
+
+.web-support-intro { width:100%; max-width:380px; border:1px solid var(--border); border-radius:14px; padding:16px; margin:0 0 16px; background:var(--surface); color:var(--text-primary); }
+.web-support-intro p,.web-support-banner p { font-size:13px; line-height:1.5; margin:6px 0; }
+.web-support-intro button,.web-support-banner button { background:var(--warning); color:#082d58; border:0; border-radius:10px; padding:10px 14px; font:inherit; font-weight:800; cursor:pointer; }
+.web-support-banner { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:16px; margin:14px 0; border-radius:16px; background:var(--surface); border:1px solid var(--border); }
+.web-support-banner button { display:flex; align-items:center; gap:8px; }
+.cover-title { overflow-wrap:normal; }

@@ -3,7 +3,7 @@ import surveyDefinition from './survey.js';
 const now = '2026-09-12T09:00:00.000Z';
 const clone = value => structuredClone(value);
 export const demoUser = { id: 1, name: 'Alex Morgan', email: 'alex@example.test', email_verified: true, address_line1: '1 Example Lane', city: 'Sampleton', postcode: 'SW1A 1AA', country: 'United Kingdom', rating_avg: 4.9, rating_count: 12, matching_paused: false, created_at: '2026-06-01', xp: 240, level: 3 };
-const albums = [{ id: 1, name: "World Cup Stickers 2026" }, { id: 2, name: "Men's Premier League Trading Cards 2026/27" }];
+const albums = [{ id: 1, name: "International Football Stickers 2026" }, { id: 2, name: "English League Trading Cards 2026/27" }];
 const people = [{ id: 2, name: 'Jamie R.', rating_avg: 4.9, rating_count: 12 }, { id: 3, name: 'Sam W.', rating_avg: 4.8, rating_count: 8 }, { id: 4, name: 'Morgan L.', rating_avg: 5, rating_count: 19 }];
 const stickers = albums.flatMap(a => Array.from({ length: 36 }, (_, n) => ({ id: a.id * 1000 + n + 1, sticker_id: a.id * 1000 + n + 1, album_id: a.id, sticker_number: String(n + 1).padStart(3, '0'), team_name: ['England', 'France', 'Spain', 'Germany', 'Brazil', 'Argentina'][n % 6], description: ['Oliver Reed', 'Lucas Moreau', 'Mateo Vega', 'Felix Adler', 'Rafael Costa', 'Nico Romero'][n % 6], preview_art: n % 6 })));
 let user, duplicates, needs, matches, swaps, chats, conversations, blocked, notifications, surveyAnswered;
