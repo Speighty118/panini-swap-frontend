@@ -3401,7 +3401,7 @@ function SwapDetailScreen({ swapId, onRated, onBack, onOpenSwap, onSupport }) {
                         color: isMe ? 'white' : 'var(--text-primary)',
                         fontSize: 13, lineHeight: 1.4,
                       }}>
-                        {m.body}
+                        <InboxMessageBody body={m.body} />
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
                         {isMe ? 'You' : m.sender_name} · {formatMessageTimestamp(m.created_at)}
@@ -3573,7 +3573,7 @@ function MessagesScreen({ pendingOpenUserId, onPendingOpened } = {}) {
                   background: isMe ? 'var(--primary)' : 'var(--surface)', color: isMe ? 'white' : 'var(--text-primary)',
                   border: isMe ? 'none' : '1px solid var(--border)', fontSize: 14, lineHeight: 1.5,
                 }}>
-                  {m.body}
+                  <InboxMessageBody body={m.body} />
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: 8 }}>
                   <span>{formatMessageTimestamp(m.created_at)}</span>
@@ -4838,6 +4838,11 @@ function SurveysScreen({ onBack, surveyId }) {
 }
 
 // Preview-only until Stripe test checkout and Apple products are verified.
+function InboxMessageBody({body}) {
+  const parts=String(body||'').split(/(https?:\/\/[^\s<>]+)/g);
+  return <span style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{parts.map((part,i)=>/^https?:\/\//i.test(part)?<a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline'}}>{part}</a>:part)}</span>;
+}
+
 function SupportCommunityScreen({ onBack }) {
  const { user,token,refreshAccount }=useAuth();
  const [busy,setBusy]=useState(false);
